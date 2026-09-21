@@ -11,8 +11,12 @@ arc — Internet Archive (суспільне надбання та CC)
 за умовами Creative Commons.
 """
 
+import re
 import time
+import random
+import hashlib
 import logging
+import datetime
 import threading
 import urllib.parse
 
@@ -553,6 +557,129 @@ def search_tracks(query, limit=30, quality="mp32", sources=None, sort="relevance
         seen.add(key)
         out.append(t)
     return out[:limit]
+
+
+def _normalize_query(text):
+    """Прибирає пунктуацію й зайві пробіли — щоб пошук був терпимим до одруків."""
+    cleaned = re.sub(r"[^\w\s]", " ", text or "", flags=re.UNICODE)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def search_tracks_smart(query, limit=30, quality="mp32", sources=None, sort="relevance"):
+    """Той самий пошук треків, але з відкатом: якщо точний запит не дав нічого,
+    пробує очищений запит, а тоді — по одному значущому слову з нього."""
+    out = search_tracks(query, limit, quality, sources, sort)
+    if out:
+        return out
+    norm = _normalize_query(query)
+    if norm and norm.lower() != (query or "").strip().lower():
+        out = search_tracks(norm, limit, quality, sources, sort)
+        if out:
+            return out
+    for word in [w for w in norm.split() if len(w) > 2]:
+        out = search_tracks(word, limit, quality, sources, sort)
+        if out:
+            return out
+    return []
+
+
+def jamendo_search_albums_smart(query, limit=20, sort="relevance"):
+    """Той самий пошук альбомів, з відкатом на очищений запит і окремі слова."""
+    out = jamendo_search_albums(query, limit=limit, sort=sort)
+    if out:
+        return out
+    norm = _normalize_query(query)
+    if norm and norm.lower() != (query or "").strip().lower():
+        out = jamendo_search_albums(norm, limit=limit, sort=sort)
+        if out:
+            return out
+    for word in [w for w in norm.split() if len(w) > 2]:
+        out = jamendo_search_albums(word, limit=limit, sort=sort)
+        if out:
+            return out
+    return []
+
+
+def search_everything(query, limit=12):
+    """Об'єднаний пошук: треки + альбоми + артисти обох джерел одним запитом."""
+    tracks = search_tracks_smart(query, limit=limit)
+    albums = jamendo_search_albums_smart(query, limit=limit)
+    jam_artists = jamendo_search_artists(query, limit=limit)
+    aud_artists = audius_search_users(query, limit=max(4, limit // 3))
+    return {
+        "tracks": tracks,
+        "albums": albums,
+        "artists": jam_artists + aud_artists,
+    }
+
+
+MOOD_MAP = {
+    "chill":  {"tags": ["chillout", "lounge", "acoustic"], "label": "Спокій"},
+    "energy": {"tags": ["electronic", "house", "techno"], "label": "Енергія"},
+    "focus":  {"tags": ["ambient", "classical"], "label": "Фокус"},
+    "sad":    {"tags": ["blues", "folk"], "label": "Сум"},
+    "happy":  {"tags": ["pop", "funk"], "label": "Радість"},
+    "party":  {"tags": ["house", "hiphop"], "label": "Вечірка"},
+}
+
+
+def mood_mix(mood, limit=30):
+    """Мікс треків під настрій — з перевірених жанрових тегів Jamendo."""
+    info = MOOD_MAP.get(mood)
+    if not info:
+        return []
+    per_tag = max(6, limit // len(info["tags"]))
+    out = []
+    for tag in info["tags"]:
+        try:
+            out += jamendo_tag_tracks(tag, limit=per_tag)
+        except Exception:
+            pass
+    seen, dedup = set(), []
+    for t in out:
+        key = (t["title"].strip().lower(), t["artist"].strip().lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        dedup.append(t)
+    random.shuffle(dedup)
+    return dedup[:limit]
+
+
+def blindtest_pool(limit=20):
+    """Пул треків для міні-гри 'Вгадай трек' — популярне з обох джерел."""
+    pool = []
+    try:
+        pool += jamendo_tag_tracks("pop", limit=15)
+    except Exception:
+        pass
+    try:
+        pool += audius_trending(limit=15)
+    except Exception:
+        pass
+    random.shuffle(pool)
+    return pool[:limit]
+
+
+def daily_track(offset_days=0):
+    """'Трек дня' — той самий для всіх користувачів протягом доби.
+    Детермінований вибір із пулу популярного/трендового за датою (можна заглянути наперед)."""
+    seed = (datetime.date.today() + datetime.timedelta(days=offset_days)).isoformat()
+    pool = []
+    try:
+        pool += jamendo_tag_tracks("pop", limit=25)
+    except Exception:
+        pass
+    try:
+        pool += audius_trending(limit=25)
+    except Exception:
+        pass
+    if not pool:
+        return None
+    idx = int(hashlib.sha256(seed.encode()).hexdigest(), 16) % len(pool)
+    track = dict(pool[idx])
+    track["daily_seed"] = seed
+    return track
 
 
 def discover_playlists(limit=10):
