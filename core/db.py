@@ -13,7 +13,9 @@ import sqlite3
 import datetime
 from contextlib import contextmanager
 
-from core.config import DATABASE_URL, SQLITE_PATH, FREE_LIMITS, PREMIUM_LIMITS
+from core.config import (
+    DATABASE_URL, SQLITE_PATH, FREE_LIMITS, PREMIUM_LIMITS, REFERRAL_REWARD_DAYS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -139,11 +141,20 @@ SCHEMA_PG = [
         id SERIAL PRIMARY KEY, uid BIGINT, kind TEXT, note TEXT DEFAULT '',
         created_at TIMESTAMP DEFAULT NOW()
     )""",
+    """CREATE TABLE IF NOT EXISTS eq_presets (
+        id SERIAL PRIMARY KEY, uid BIGINT, name TEXT, settings TEXT DEFAULT '',
+        created_at TIMESTAMP DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS blindtest_scores (
+        uid BIGINT PRIMARY KEY, name TEXT DEFAULT '', best_streak INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT NOW()
+    )""",
     "CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log(actor)",
     "CREATE INDEX IF NOT EXISTS idx_lib_uid ON library(uid)",
     "CREATE INDEX IF NOT EXISTS idx_pl_uid ON playlists(uid)",
     "CREATE INDEX IF NOT EXISTS idx_plt_pid ON playlist_tracks(pid)",
     "CREATE INDEX IF NOT EXISTS idx_hist_uid ON history(uid)",
+    "CREATE INDEX IF NOT EXISTS idx_eq_uid ON eq_presets(uid)",
 ]
 
 SCHEMA_SQLITE = [
@@ -155,16 +166,43 @@ SCHEMA_SQLITE = [
     for s in SCHEMA_PG
 ]
 
+# Пізніші доповнення до вже існуючих таблиць (реферали, серії днів).
+# Кожен рядок виконується окремо й толерантно до помилки "колонка вже є".
+MIGRATIONS_PG = [
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS ref_code TEXT",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by BIGINT",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS ref_rewarded BOOLEAN DEFAULT FALSE",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_count INTEGER DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_last TEXT DEFAULT ''",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS ambient_style TEXT DEFAULT 'blur'",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_refcode ON users(ref_code)",
+]
+MIGRATIONS_SQLITE = [
+    "ALTER TABLE users ADD COLUMN ref_code TEXT",
+    "ALTER TABLE users ADD COLUMN referred_by INTEGER",
+    "ALTER TABLE users ADD COLUMN ref_rewarded INTEGER DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN streak_count INTEGER DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN streak_last TEXT DEFAULT ''",
+    "ALTER TABLE users ADD COLUMN ambient_style TEXT DEFAULT 'blur'",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_refcode ON users(ref_code)",
+]
+
 
 def init_db():
     init_engine()
     schema = SCHEMA_PG if USE_PG else SCHEMA_SQLITE
+    migrations = MIGRATIONS_PG if USE_PG else MIGRATIONS_SQLITE
     with conn_cursor() as (conn, cur):
         for stmt in schema:
             try:
                 cur.execute(stmt)
             except Exception as e:
                 logger.warning("Схема: %s", e)
+        for stmt in migrations:
+            try:
+                cur.execute(stmt)
+            except Exception:
+                pass  # колонка/індекс уже існує — це нормально при повторному деплої
     logger.info("Схема бази готова")
 
 
@@ -201,6 +239,7 @@ def update_user(uid, **fields):
     allowed = {
         "lang", "theme", "accent", "quality", "eq_settings",
         "crossfade", "premium", "premium_until", "username", "first_name",
+        "ambient_style",
     }
     fields = {k: v for k, v in fields.items() if k in allowed}
     if not fields:
@@ -244,6 +283,173 @@ def set_premium(uid, on=True, days=30):
 
 def limits_for(uid):
     return dict(PREMIUM_LIMITS if is_premium(uid) else FREE_LIMITS)
+
+
+def extend_premium(uid, days):
+    """Додає дні до поточного Premium (або починає з нуля, якщо його не було)."""
+    u = get_user(uid)
+    now = datetime.datetime.utcnow()
+    base = now
+    cur_until = u.get("premium_until")
+    if cur_until:
+        if isinstance(cur_until, str):
+            try:
+                cur_until = datetime.datetime.fromisoformat(cur_until.replace("Z", "").strip())
+            except ValueError:
+                cur_until = now
+        if isinstance(cur_until, datetime.datetime) and cur_until > now:
+            base = cur_until
+    until = base + datetime.timedelta(days=days)
+    with conn_cursor() as (conn, cur):
+        cur.execute(
+            q("UPDATE users SET premium=%s, premium_until=%s WHERE uid=%s"),
+            (True if USE_PG else 1, until.isoformat(sep=" ", timespec="seconds"), uid),
+        )
+
+
+# ─── Реферальна система ──────────────────────────────────────────────────────
+
+def _gen_ref_code(uid):
+    base = format(int(uid) % 1_000_000, "x")
+    salt = "".join(random.choices(string.ascii_lowercase + string.digits, k=3))
+    return (base + salt)[:9]
+
+
+def ensure_ref_code(uid):
+    u = get_user(uid)
+    if u.get("ref_code"):
+        return u["ref_code"]
+    for _ in range(6):
+        code = _gen_ref_code(uid)
+        with conn_cursor() as (conn, cur):
+            cur.execute(q("SELECT uid FROM users WHERE ref_code=%s"), (code,))
+            if one(cur):
+                continue
+            cur.execute(q("UPDATE users SET ref_code=%s WHERE uid=%s"), (code, uid))
+            return code
+    return None
+
+
+def get_user_by_ref_code(code):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT * FROM users WHERE ref_code=%s"), (code,))
+        return one(cur)
+
+
+def apply_referral(new_uid, code):
+    """Прив'язує нового користувача до того, хто його запросив, і видає бонус обом.
+    Спрацьовує рівно один раз на користувача."""
+    code = (code or "").strip().lower()
+    if not code:
+        return False, ""
+    new_u = get_user(new_uid)
+    if new_u.get("referred_by") or int(new_u.get("ref_rewarded") or 0):
+        return False, "already"
+    ref = get_user_by_ref_code(code)
+    if not ref or int(ref["uid"]) == int(new_uid):
+        return False, "invalid"
+    with conn_cursor() as (conn, cur):
+        cur.execute(
+            q("UPDATE users SET referred_by=%s, ref_rewarded=%s WHERE uid=%s"),
+            (int(ref["uid"]), True if USE_PG else 1, new_uid),
+        )
+    extend_premium(new_uid, REFERRAL_REWARD_DAYS)
+    extend_premium(int(ref["uid"]), REFERRAL_REWARD_DAYS)
+    return True, (ref.get("first_name") or ref.get("username") or "")
+
+
+def referral_stats(uid):
+    code = ensure_ref_code(uid)
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT COUNT(*) AS c FROM users WHERE referred_by=%s"), (uid,))
+        invited = int((one(cur) or {}).get("c") or 0)
+    return {"code": code, "invited": invited, "reward_days": REFERRAL_REWARD_DAYS}
+
+
+# ─── Серія днів (streak) ─────────────────────────────────────────────────────
+
+def track_streak(uid):
+    """Оновлює серію активних днів. Повертає (streak, це_новий_день)."""
+    u = get_user(uid)
+    last = u.get("streak_last") or ""
+    cur_streak = int(u.get("streak_count") or 0)
+    t = today()
+    if last == t:
+        return cur_streak or 1, False
+    yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+    new_streak = cur_streak + 1 if last == yesterday else 1
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("UPDATE users SET streak_count=%s, streak_last=%s WHERE uid=%s"),
+                    (new_streak, t, uid))
+    return new_streak, True
+
+
+# ─── Пресети еквалайзера ─────────────────────────────────────────────────────
+
+def eq_preset_save(uid, name, settings, limit=10):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT COUNT(*) AS c FROM eq_presets WHERE uid=%s"), (uid,))
+        c = int((one(cur) or {}).get("c") or 0)
+        if c >= limit:
+            return None, f"Максимум {limit} пресетів"
+        cur.execute(
+            q("INSERT INTO eq_presets (uid,name,settings,created_at) VALUES (%s,%s,%s,%s)"),
+            (uid, (name or "Пресет")[:40], json.dumps(settings or []), now_str()),
+        )
+        cur.execute(q("SELECT * FROM eq_presets WHERE uid=%s ORDER BY id DESC LIMIT 1"), (uid,))
+        p = one(cur)
+    if p:
+        try:
+            p["settings"] = json.loads(p.get("settings") or "[]")
+        except Exception:
+            p["settings"] = []
+    return p, ""
+
+
+def eq_preset_list(uid):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT * FROM eq_presets WHERE uid=%s ORDER BY id DESC"), (uid,))
+        out = rows(cur)
+    for p in out:
+        try:
+            p["settings"] = json.loads(p.get("settings") or "[]")
+        except Exception:
+            p["settings"] = []
+    return out
+
+
+def eq_preset_delete(uid, pid):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("DELETE FROM eq_presets WHERE id=%s AND uid=%s"), (pid, uid))
+    return True
+
+
+# ─── "Вгадай трек" — рейтинг ──────────────────────────────────────────────────
+
+def blindtest_submit(uid, name, streak):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT best_streak FROM blindtest_scores WHERE uid=%s"), (uid,))
+        r = one(cur)
+        if r and int(r["best_streak"] or 0) >= streak:
+            return int(r["best_streak"])
+        if r:
+            cur.execute(
+                q("UPDATE blindtest_scores SET best_streak=%s, name=%s, updated_at=%s WHERE uid=%s"),
+                (streak, (name or "")[:40], now_str(), uid),
+            )
+        else:
+            cur.execute(
+                q("INSERT INTO blindtest_scores (uid,name,best_streak,updated_at) "
+                  "VALUES (%s,%s,%s,%s)"),
+                (uid, (name or "")[:40], streak, now_str()),
+            )
+    return streak
+
+
+def blindtest_top(limit=10):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT * FROM blindtest_scores ORDER BY best_streak DESC LIMIT %s"), (limit,))
+        return rows(cur)
 
 
 def bump_counter(uid, kind):
