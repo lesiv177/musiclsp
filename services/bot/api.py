@@ -21,6 +21,7 @@ import requests
 from aiohttp import web
 
 from core import db
+from core import runtime as RT
 from core import providers as P
 from core.auth import verify_init_data
 from core.config import (
@@ -94,6 +95,8 @@ async def h_health(request):
             "jamendo": bool(JAMENDO_CLIENT_ID),
             "audius": bool(P.audius_host()),
             "archive": True,
+            "ccmixter": True,
+            "openverse": True,
         },
     })
 
@@ -175,7 +178,8 @@ async def h_search(request, u):
     if sort not in ("relevance", "popularity", "newest"):
         sort = "relevance"
     sources_raw = (request.query.get("sources") or "").strip()
-    sources = [s for s in sources_raw.split(",") if s in ("jamendo", "audius", "archive")] or None
+    sources = [s for s in sources_raw.split(",")
+               if s in ("jamendo", "audius", "archive", "ccmixter", "openverse")] or None
 
     allowed, used, cap = await to_thread(db.bump_counter, uid, "searches")
     if not allowed:
@@ -531,7 +535,8 @@ def _attribution(t):
 async def h_referral_get(request, u):
     uid = int(u["uid"])
     stats = await to_thread(db.referral_stats, uid)
-    link = f"https://t.me/{BOT_USERNAME}?start=ref_{stats['code']}" if BOT_USERNAME else ""
+    username = RT.get_bot_username()
+    link = f"https://t.me/{username}?start=ref_{stats['code']}" if username else ""
     return ok({"ok": True, **stats, "link": link})
 
 
