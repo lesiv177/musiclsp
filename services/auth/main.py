@@ -40,14 +40,14 @@ def esc(s):
 
 def menu(uid):
     kb = [
-        [InlineKeyboardButton("🎟 Ввести промокод", callback_data="redeem")],
-        [InlineKeyboardButton("📋 Мій статус", callback_data="status")],
-        [InlineKeyboardButton("⭐ Що дає Premium", callback_data="what")],
+        [InlineKeyboardButton("Ввести промокод", callback_data="redeem")],
+        [InlineKeyboardButton("Мій статус", callback_data="status")],
+        [InlineKeyboardButton("Що дає Premium", callback_data="what")],
     ]
     if is_admin(uid):
-        kb.append([InlineKeyboardButton("🛠 Видати доступ", callback_data="grant")])
-        kb.append([InlineKeyboardButton("🎫 Створити код", callback_data="newcode")])
-        kb.append([InlineKeyboardButton("📜 Журнал", callback_data="audit")])
+        kb.append([InlineKeyboardButton("Видати доступ", callback_data="grant")])
+        kb.append([InlineKeyboardButton("Створити код", callback_data="newcode")])
+        kb.append([InlineKeyboardButton("Журнал", callback_data="audit")])
     return InlineKeyboardMarkup(kb)
 
 
