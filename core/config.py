@@ -40,7 +40,7 @@ AUTH_BOT_TOKEN = _env("AUTH_BOT_TOKEN")  # бот авторизації та о
 BOT_USERNAME = _env("BOT_USERNAME")     # без @, для реферальних посилань t.me/<...>
 
 # ─── Реферальна система ──────────────────────────────────────────────────────
-REFERRAL_REWARD_DAYS = _int("REFERRAL_REWARD_DAYS", 3)  # днів Premium запрошеному й тому, хто запросив
+REFERRAL_REWARD_DAYS = _int("REFERRAL_REWARD_DAYS", 1)  # днів Premium запрошеному й тому, хто запросив
 
 # ─── Адреси ──────────────────────────────────────────────────────────────────
 WEB_APP_URL = _env("WEB_APP_URL").rstrip("/")   # GitHub Pages, плеєр
