@@ -7,14 +7,17 @@ HTTP API для Mini App.
 ?user=<id> у query-рядку тут замінено.
 """
 
+import io
 import hmac
 import json
 import time
+import zipfile
 import hashlib
 import logging
 import asyncio
 import urllib.parse
 
+import requests
 from aiohttp import web
 
 from core import db
@@ -22,7 +25,7 @@ from core import providers as P
 from core.auth import verify_init_data
 from core.config import (
     ADMIN_IDS, PREMIUM_FEATURES, FREE_LIMITS, PREMIUM_LIMITS,
-    APP_VERSION, JAMENDO_CLIENT_ID,
+    APP_VERSION, JAMENDO_CLIENT_ID, BOT_USERNAME, REFERRAL_REWARD_DAYS,
 )
 
 logger = logging.getLogger(__name__)
@@ -100,6 +103,7 @@ async def h_me(request, u):
     uid = int(u["uid"])
     premium = db.is_premium(uid)
     lim = PREMIUM_LIMITS if premium else FREE_LIMITS
+    streak, _ = await to_thread(db.track_streak, uid)
     return ok({
         "ok": True,
         "user": {
@@ -113,6 +117,8 @@ async def h_me(request, u):
             "crossfade": int(u.get("crossfade") or 0),
             "eq": json.loads(u.get("eq_settings") or "null") if u.get("eq_settings") else None,
             "is_admin": uid in ADMIN_IDS,
+            "streak": streak,
+            "ambient_style": u.get("ambient_style") or "blur",
         },
         "limits": lim,
         "features": [
@@ -143,6 +149,12 @@ async def h_settings(request, u):
         if not premium:
             return fail("Еквалайзер доступний у Premium")
         fields["eq_settings"] = json.dumps(body["eq"])[:2000]
+    if "ambient_style" in body:
+        style = str(body["ambient_style"])
+        allowed = PREMIUM_LIMITS["ambient_styles"] if premium else FREE_LIMITS["ambient_styles"]
+        if style not in allowed:
+            return fail("Цей стиль обкладинки доступний у Premium")
+        fields["ambient_style"] = style
     db.update_user(uid, **fields)
     return ok({"ok": True, "saved": list(fields.keys())})
 
@@ -156,7 +168,8 @@ async def h_search(request, u):
     if len(query) < 2:
         return fail("Введіть щонайменше 2 символи")
     kind = request.query.get("type", "tracks")
-    limit = max(1, min(50, int(request.query.get("limit", 30))))
+    max_allowed = db.limits_for(uid)["search_results_max"]
+    limit = max(1, min(max_allowed, int(request.query.get("limit", 30))))
 
     sort = request.query.get("sort", "relevance")
     if sort not in ("relevance", "popularity", "newest"):
@@ -169,8 +182,12 @@ async def h_search(request, u):
         return fail(f"Ліміт пошуку на сьогодні вичерпано ({cap}). Premium знімає ліміт.", 429)
 
     qual = quality_for(uid)
-    if kind == "albums":
-        data = await to_thread(P.jamendo_search_albums, query, limit, 0, sort)
+    if kind == "all":
+        data = await to_thread(P.search_everything, query, min(limit, 20))
+        return ok({"ok": True, "type": kind, "query": query, "sort": sort,
+                   "results": data, "searches_left": max(0, cap - used)})
+    elif kind == "albums":
+        data = await to_thread(P.jamendo_search_albums_smart, query, limit, sort)
     elif kind == "artists":
         jam = await to_thread(P.jamendo_search_artists, query, limit)
         aud = await to_thread(P.audius_search_users, query, max(5, limit // 3))
@@ -178,9 +195,84 @@ async def h_search(request, u):
     elif kind == "public_domain":
         data = await to_thread(P.archive_search, query, limit)
     else:
-        data = await to_thread(P.search_tracks, query, limit, qual, sources, sort)
+        data = await to_thread(P.search_tracks_smart, query, limit, qual, sources, sort)
     return ok({"ok": True, "type": kind, "query": query, "sort": sort,
                "results": data, "searches_left": max(0, cap - used)})
+
+
+@require_auth
+async def h_daily(request, u):
+    """'Трек дня' — комунальна щоденна знахідка, однакова для всіх."""
+    uid = int(u["uid"])
+    offset = 0
+    if request.query.get("preview") == "1":
+        if not db.limits_for(uid)["daily_preview"]:
+            return fail("Погляд наперед доступний у Premium", 403)
+        offset = 1
+    t = await to_thread(P.daily_track, offset)
+    return ok({"ok": True, "track": t, "preview": bool(offset)})
+
+
+@require_auth
+async def h_mood(request, u):
+    uid = int(u["uid"])
+    mood = request.match_info["mood"]
+    allowed = db.limits_for(uid)["moods"]
+    if mood not in allowed:
+        return fail("Цей настрій доступний у Premium", 403)
+    tracks = await to_thread(P.mood_mix, mood, 30)
+    label = P.MOOD_MAP.get(mood, {}).get("label", mood)
+    return ok({"ok": True, "mood": mood, "label": label, "tracks": tracks})
+
+
+@require_auth
+async def h_moods_list(request, u):
+    uid = int(u["uid"])
+    allowed = set(db.limits_for(uid)["moods"])
+    return ok({"ok": True, "moods": [
+        {"key": k, "label": v["label"], "locked": k not in allowed}
+        for k, v in P.MOOD_MAP.items()
+    ]})
+
+
+# ─── Вгадай трек (mini-game) ──────────────────────────────────────────────────
+
+@require_auth
+async def h_blindtest_pool(request, u):
+    pool = await to_thread(P.blindtest_pool, 20)
+    return ok({"ok": True, "tracks": pool,
+               "rounds_per_day": db.limits_for(int(u["uid"]))["blindtest_per_day"]})
+
+
+@require_auth
+async def h_blindtest_submit(request, u):
+    uid = int(u["uid"])
+    body = await request.json()
+    streak = max(0, int(body.get("streak", 0)))
+    name = u.get("first_name") or u.get("username") or "Гравець"
+    best = await to_thread(db.blindtest_submit, uid, name, streak)
+    top = await to_thread(db.blindtest_top, 10)
+    return ok({"ok": True, "best": best, "top": top})
+
+
+@require_auth
+async def h_blindtest_top(request, u):
+    top = await to_thread(db.blindtest_top, 10)
+    return ok({"ok": True, "top": top})
+
+
+# ─── Мій рік у музиці ─────────────────────────────────────────────────────────
+
+@require_auth
+async def h_wrapped(request, u):
+    uid = int(u["uid"])
+    if not db.limits_for(uid)["wrapped"]:
+        return fail("Підсумкова картка доступна у Premium", 403)
+    stats = await to_thread(db.stats_for, uid, 365)
+    label = "Мовчун" if stats["plays"] < 20 else \
+            "Дослідник" if len(stats["top_artists"]) >= 8 else \
+            "Відданий слухач" if stats["hours"] >= 20 else "Меломан"
+    return ok({"ok": True, "stats": stats, "listener_type": label})
 
 
 @require_auth
@@ -433,6 +525,121 @@ def _attribution(t):
             f"{t.get('source_url','')}")
 
 
+# ─── Реферальна система ──────────────────────────────────────────────────────
+
+@require_auth
+async def h_referral_get(request, u):
+    uid = int(u["uid"])
+    stats = await to_thread(db.referral_stats, uid)
+    link = f"https://t.me/{BOT_USERNAME}?start=ref_{stats['code']}" if BOT_USERNAME else ""
+    return ok({"ok": True, **stats, "link": link})
+
+
+@require_auth
+async def h_referral_post(request, u):
+    uid = int(u["uid"])
+    body = await request.json()
+    done, who = await to_thread(db.apply_referral, uid, body.get("code", ""))
+    if not done:
+        msg = "Ви вже використали реферальний код" if who == "already" else "Код недійсний"
+        return fail(msg)
+    return ok({"ok": True, "reward_days": REFERRAL_REWARD_DAYS, "referrer": who})
+
+
+# ─── Пресети еквалайзера ─────────────────────────────────────────────────────
+
+@require_auth
+async def h_eq_get(request, u):
+    uid = int(u["uid"])
+    presets = await to_thread(db.eq_preset_list, uid)
+    return ok({"ok": True, "presets": presets, "limit": db.limits_for(uid)["eq_presets"]})
+
+
+@require_auth
+async def h_eq_post(request, u):
+    uid = int(u["uid"])
+    if not db.is_premium(uid):
+        return fail("Пресети еквалайзера доступні у Premium", 403)
+    body = await request.json()
+    action = body.get("action")
+    if action == "save":
+        limit = db.limits_for(uid)["eq_presets"]
+        p, err = await to_thread(
+            db.eq_preset_save, uid, body.get("name", ""), body.get("settings"), limit)
+        if not p:
+            return fail(err or "Не вдалося зберегти")
+        return ok({"ok": True, "preset": p})
+    if action == "delete":
+        await to_thread(db.eq_preset_delete, uid, int(body.get("id", 0)))
+        return ok({"ok": True})
+    return fail("Невідома дія")
+
+
+# ─── Офлайн-пакет (Premium) ──────────────────────────────────────────────────
+
+def _safe_filename(name):
+    return "".join(c for c in (name or "track") if c not in '\\/:*?"<>|')[:80] or "track"
+
+
+def _build_offline_zip(pl, max_tracks=15, max_total_mb=60):
+    buf = io.BytesIO()
+    added, total_mb = 0, 0.0
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        readme = [
+            "MusicLSP — офлайн-пакет", pl.get("name", ""), "",
+            "Кожен трек нижче поширюється під ліцензією, що дозволяє завантаження "
+            "(Creative Commons або дозвіл артиста). Вказуйте автора при поширенні.", "",
+        ]
+        for t in pl.get("tracks", [])[:max_tracks]:
+            try:
+                url, full = P.resolve_download(t["id"])
+            except Exception:
+                url, full = "", None
+            if not url:
+                continue
+            try:
+                r = requests.get(url, timeout=25)
+                r.raise_for_status()
+            except Exception:
+                continue
+            size_mb = len(r.content) / (1024 * 1024)
+            if total_mb + size_mb > max_total_mb:
+                break
+            info = full or t
+            fname = _safe_filename(f"{info.get('artist','')} - {info.get('title','')}") + ".mp3"
+            zf.writestr(fname, r.content)
+            readme.append(
+                f"- {info.get('artist','')} — {info.get('title','')} · "
+                f"{info.get('license_short','')} · {info.get('source_url','')}"
+            )
+            total_mb += size_mb
+            added += 1
+        zf.writestr("README.txt", "\n".join(readme))
+    return buf.getvalue() if added else None
+
+
+@require_auth
+async def h_offline_pack(request, u):
+    uid = int(u["uid"])
+    if not db.limits_for(uid)["offline_pack"]:
+        return fail("Офлайн-пакет доступний у Premium", 403)
+    try:
+        pid = int(request.match_info["pid"])
+    except ValueError:
+        return fail("Невірний плейлист", 404)
+    pl = await to_thread(db.pl_get, pid)
+    if not pl or int(pl["uid"]) != uid:
+        return fail("Плейлист не знайдено", 404)
+    data = await to_thread(_build_offline_zip, pl)
+    if not data:
+        return fail("У плейлисті немає треків із дозволом на завантаження")
+    return web.Response(
+        body=data, status=200,
+        headers={**CORS, "Content-Type": "application/zip",
+                 "Content-Disposition": f'attachment; filename="{_safe_filename(pl.get("name"))}.zip"'},
+    )
+
+
 def build_app():
     app = web.Application(client_max_size=2 * 1024 * 1024)
     r = app.router
@@ -443,7 +650,19 @@ def build_app():
     r.add_post("/api/settings", h_settings)
     r.add_get("/api/search", h_search)
     r.add_get("/api/home", h_home)
+    r.add_get("/api/daily", h_daily)
     r.add_get("/api/curated/{pid}", h_curated)
+    r.add_get("/api/referral", h_referral_get)
+    r.add_post("/api/referral", h_referral_post)
+    r.add_get("/api/eq_presets", h_eq_get)
+    r.add_post("/api/eq_presets", h_eq_post)
+    r.add_get("/api/moods", h_moods_list)
+    r.add_get("/api/mood/{mood}", h_mood)
+    r.add_get("/api/blindtest", h_blindtest_pool)
+    r.add_post("/api/blindtest", h_blindtest_submit)
+    r.add_get("/api/blindtest/top", h_blindtest_top)
+    r.add_get("/api/wrapped", h_wrapped)
+    r.add_get("/api/playlist/{pid}/offline", h_offline_pack)
     r.add_get("/api/track/{tid}", h_track)
     r.add_get("/api/album/{aid}", h_album)
     r.add_get("/api/artist/{aid}", h_artist)
