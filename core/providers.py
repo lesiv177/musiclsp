@@ -5,6 +5,9 @@
 jam — Jamendo (Creative Commons, офіційний API, стрімінг дозволено)
 aud — Audius (відкритий протокол, артисти самі публікують треки)
 arc — Internet Archive (суспільне надбання та CC)
+ccm — ccMixter (автори самі викладають треки під CC, офіційне API)
+ov  — Openverse (офіційний агрегатор CC Creative Commons/Wikimedia:
+      Wikimedia Commons, частково Jamendo та інші відкриті джерела)
 
 Жоден провайдер не обходить DRM і не скрейпить закриті сервіси.
 Кожен трек несе поле `license` і `source_url` — атрибуція обовʼязкова
@@ -527,6 +530,234 @@ def archive_stream_url(identifier):
 
 
 # ════════════════════════════════════════════════════════════════════════════
+#  CCMIXTER — офіційне безключове API, треки завантажені самими авторами
+#  під Creative Commons (ccmixter.org/query-api). Кожен трек несе посилання
+#  на ліцензію й на оригінал сторінки автора.
+# ════════════════════════════════════════════════════════════════════════════
+
+CCMIXTER_API = "http://ccmixter.org/api/query"
+
+_ccm_lock = threading.Lock()
+_CCM_CACHE = {}
+
+
+def _ccm_cache_put(t):
+    with _ccm_lock:
+        _CCM_CACHE[t["id"]] = t
+        if len(_CCM_CACHE) > 3000:
+            for k in list(_CCM_CACHE)[:1000]:
+                _CCM_CACHE.pop(k, None)
+
+
+def _ccm_cache_get(raw):
+    with _ccm_lock:
+        return _CCM_CACHE.get(f"ccm:{raw}")
+
+
+def _ccm_from_json(entry):
+    try:
+        title = (entry.get("upload_name") or entry.get("title") or "").strip()
+        artist = (entry.get("user_name") or entry.get("artist") or "").strip()
+        audio_url = ""
+        for f in (entry.get("files") or []):
+            audio_url = f.get("download_url") or f.get("file_url") or ""
+            if audio_url:
+                break
+        audio_url = audio_url or entry.get("file_url") or entry.get("download_url") or ""
+        if not audio_url:
+            return None
+        license_url = entry.get("license_url") or entry.get("license") or ""
+        link = entry.get("upload_url") or entry.get("url") or "https://ccmixter.org"
+        uid = str(entry.get("upload_id") or entry.get("id") or
+                  hashlib.sha1(audio_url.encode()).hexdigest()[:12])
+        return {
+            "id": f"ccm:{uid}",
+            "title": title or "Без назви",
+            "artist": artist or "Невідомий артист",
+            "artist_id": "", "album": "", "album_id": "",
+            "cover": entry.get("art_url") or "",
+            "duration": 0, "duration_str": "",
+            "source": "ccmixter", "source_label": "ccMixter",
+            "source_url": link,
+            "license": license_url or "https://creativecommons.org/licenses/",
+            "license_short": _cc_short(license_url),
+            "stream": audio_url,
+            "downloadable": True,
+            "download_url": audio_url,
+        }
+    except Exception:
+        return None
+
+
+def _ccm_from_xml(xml_text, limit):
+    """RSS/Atom — офіційний формат ccMixter, коли f=json недоступний."""
+    import xml.etree.ElementTree as ET
+    out = []
+    try:
+        root = ET.fromstring(xml_text)
+    except Exception:
+        return out
+    items = root.findall(".//item") or root.findall(".//{http://www.w3.org/2005/Atom}entry")
+    for it in items[:limit]:
+        def _find(tagname):
+            for child in it:
+                if child.tag.rsplit("}", 1)[-1] == tagname:
+                    return child
+            return None
+        title_el = _find("title")
+        title = (title_el.text or "").strip() if title_el is not None else ""
+        creator = ""
+        for cand in ("creator", "author"):
+            el = _find(cand)
+            if el is not None:
+                name_el = el.find("name")
+                creator = ((name_el.text if name_el is not None else el.text) or "").strip()
+                if creator:
+                    break
+        audio_url, link, license_url = "", "", ""
+        for child in it:
+            tag = child.tag.rsplit("}", 1)[-1]
+            if tag == "enclosure" and not audio_url:
+                audio_url = child.get("url") or child.get("href") or ""
+            elif tag == "link":
+                href = child.get("href") or (child.text or "")
+                rel = child.get("rel") or ""
+                if rel == "enclosure" and not audio_url:
+                    audio_url = href
+                elif not link:
+                    link = href
+            elif tag == "license":
+                license_url = child.get("href") or (child.text or "") or license_url
+        if not audio_url:
+            continue
+        out.append({
+            "id": f"ccm:{hashlib.sha1(audio_url.encode()).hexdigest()[:12]}",
+            "title": title or "Без назви",
+            "artist": creator or "Невідомий артист",
+            "artist_id": "", "album": "", "album_id": "",
+            "cover": "", "duration": 0, "duration_str": "",
+            "source": "ccmixter", "source_label": "ccMixter",
+            "source_url": link or "https://ccmixter.org",
+            "license": license_url or "https://creativecommons.org/licenses/",
+            "license_short": _cc_short(license_url),
+            "stream": audio_url,
+            "downloadable": True,
+            "download_url": audio_url,
+        })
+    return out
+
+
+def ccmixter_search(query, limit=15):
+    """Пошук по ccMixter. Спершу пробує JSON-вивід, тоді відкатується на
+    RSS/Atom — офіційне API само вирішує, в якому форматі відповісти."""
+    if not query:
+        return []
+    out = []
+    try:
+        data = _get(CCMIXTER_API, {"query": query, "type": "any", "f": "json", "limit": limit})
+        if isinstance(data, list):
+            for entry in data[:limit]:
+                t = _ccm_from_json(entry)
+                if t:
+                    out.append(t)
+    except Exception as e:
+        logger.warning("ccMixter JSON запит не вдався: %s", e)
+    if not out:
+        try:
+            r = _session.get(CCMIXTER_API, params={"query": query, "type": "any"},
+                              timeout=HTTP_TIMEOUT)
+            if r.status_code == 200 and r.text:
+                out = _ccm_from_xml(r.text, limit)
+        except Exception as e:
+            logger.warning("ccMixter XML запит не вдався: %s", e)
+    for t in out:
+        _ccm_cache_put(t)
+    return out[:limit]
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  OPENVERSE — офіційний агрегатор CC-аудіо від Creative Commons/Wikimedia
+#  (api.openverse.org). Без ключа для помірного використання; об'єднує
+#  Wikimedia Commons, частково Jamendo й інші відкриті колекції.
+# ════════════════════════════════════════════════════════════════════════════
+
+OPENVERSE_API = "https://api.openverse.org/v1/audio/"
+
+_ov_lock = threading.Lock()
+_OV_CACHE = {}
+
+
+def _ov_cache_put(t):
+    with _ov_lock:
+        _OV_CACHE[t["id"]] = t
+        if len(_OV_CACHE) > 3000:
+            for k in list(_OV_CACHE)[:1000]:
+                _OV_CACHE.pop(k, None)
+
+
+def _ov_cache_get(raw):
+    with _ov_lock:
+        return _OV_CACHE.get(f"ov:{raw}")
+
+
+def _ov_track(item):
+    try:
+        audio_url = item.get("url") or item.get("audio_url") or ""
+        if not audio_url:
+            for alt in (item.get("alt_files") or []):
+                audio_url = alt.get("url") or ""
+                if audio_url:
+                    break
+        if not audio_url:
+            return None
+        dur_ms = item.get("duration") or 0
+        dur_s = int(dur_ms / 1000) if dur_ms else 0
+        license_url = item.get("license_url") or ""
+        provider = item.get("provider") or item.get("source") or "openverse"
+        uid = str(item.get("id") or hashlib.sha1(audio_url.encode()).hexdigest()[:12])
+        return {
+            "id": f"ov:{uid}",
+            "title": item.get("title") or "Без назви",
+            "artist": item.get("creator") or "Невідомий артист",
+            "artist_id": "", "album": "", "album_id": "",
+            "cover": item.get("thumbnail") or "",
+            "duration": dur_s, "duration_str": fmt_duration(dur_s),
+            "source": "openverse",
+            "source_label": f"Openverse · {provider}",
+            "source_url": item.get("foreign_landing_url") or "https://openverse.org",
+            "license": license_url or "https://creativecommons.org/licenses/",
+            "license_short": _cc_short(license_url or item.get("license") or ""),
+            "stream": audio_url,
+            "downloadable": True,
+            "download_url": audio_url,
+        }
+    except Exception:
+        return None
+
+
+def openverse_search(query, limit=15):
+    """Пошук по Openverse. Публічний ліміт без ключа помірний — якщо сервіс
+    відповість помилкою чи 429, просто повертаємо порожній список, і пошук
+    продовжує працювати на інших джерелах."""
+    if not query:
+        return []
+    try:
+        data = _get(OPENVERSE_API, {"q": query, "page_size": min(limit, 20)})
+    except Exception as e:
+        logger.warning("Openverse запит не вдався: %s", e)
+        return []
+    if not data:
+        return []
+    out = []
+    for item in (data.get("results") or [])[:limit]:
+        t = _ov_track(item)
+        if t:
+            out.append(t)
+            _ov_cache_put(t)
+    return out
+
+
+# ════════════════════════════════════════════════════════════════════════════
 #  АГРЕГАЦІЯ
 # ════════════════════════════════════════════════════════════════════════════
 
@@ -548,6 +779,10 @@ def search_tracks(query, limit=30, quality="mp32", sources=None, sort="relevance
         results += audius_search_tracks(query, limit=max(10, limit // 2))
     if "archive" in sources:
         results += archive_search(query, limit=12)
+    if "ccmixter" in sources:
+        results += ccmixter_search(query, limit=10)
+    if "openverse" in sources:
+        results += openverse_search(query, limit=10)
 
     seen, out = set(), []
     for t in results:
@@ -716,6 +951,10 @@ def get_track(full_id, quality="mp32"):
     if prefix == "arc":
         res = archive_search(raw, limit=1)
         return res[0] if res else None
+    if prefix == "ccm":
+        return _ccm_cache_get(raw)
+    if prefix == "ov":
+        return _ov_cache_get(raw)
     return None
 
 
@@ -729,6 +968,12 @@ def resolve_stream(full_id, quality="mp32"):
         return audius_stream_url(raw)
     if prefix == "arc":
         return archive_stream_url(raw)
+    if prefix == "ccm":
+        t = _ccm_cache_get(raw)
+        return t["stream"] if t else ""
+    if prefix == "ov":
+        t = _ov_cache_get(raw)
+        return t["stream"] if t else ""
     return ""
 
 
@@ -749,6 +994,12 @@ def resolve_download(full_id):
         url = archive_stream_url(raw)
         res = archive_search(raw, limit=1)
         return url, (res[0] if res else None)
+    if prefix == "ccm":
+        t = _ccm_cache_get(raw)
+        return (t["download_url"], t) if t else ("", None)
+    if prefix == "ov":
+        t = _ov_cache_get(raw)
+        return (t["download_url"], t) if t else ("", None)
     return "", None
 
 
