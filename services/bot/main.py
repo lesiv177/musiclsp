@@ -61,20 +61,20 @@ def esc(s):
 
 def main_kb(uid):
     open_btn = (
-        InlineKeyboardButton("🎧 Відкрити плеєр", web_app=WebAppInfo(url=webapp_url()))
+        InlineKeyboardButton("Відкрити плеєр", web_app=WebAppInfo(url=webapp_url()))
         if WEB_APP_URL else
-        InlineKeyboardButton("🎧 Плеєр не налаштований", callback_data="noop")
+        InlineKeyboardButton("Плеєр не налаштований", callback_data="noop")
     )
     kb = [
         [open_btn],
-        [InlineKeyboardButton("🔎 Знайти трек", callback_data="search"),
-         InlineKeyboardButton("🔥 Що слухають", callback_data="trending")],
-        [InlineKeyboardButton("⭐ Premium", callback_data="premium"),
-         InlineKeyboardButton("📊 Статистика", callback_data="stats")],
-        [InlineKeyboardButton("ℹ️ Джерела та ліцензії", callback_data="legal")],
+        [InlineKeyboardButton("Знайти трек", callback_data="search"),
+         InlineKeyboardButton("Що слухають", callback_data="trending")],
+        [InlineKeyboardButton("Premium", callback_data="premium"),
+         InlineKeyboardButton("Статистика", callback_data="stats")],
+        [InlineKeyboardButton("Джерела та ліцензії", callback_data="legal")],
     ]
     if uid in ADMIN_IDS:
-        kb.append([InlineKeyboardButton("🛠 Адмінка", callback_data="admin")])
+        kb.append([InlineKeyboardButton("Адмінка", callback_data="admin")])
     return InlineKeyboardMarkup(kb)
 
 
@@ -86,11 +86,11 @@ def track_kb(t):
     kb = []
     if WEB_APP_URL:
         kb.append([InlineKeyboardButton(
-            "▶️ Слухати в плеєрі",
+            "Слухати в плеєрі",
             web_app=WebAppInfo(url=webapp_url(f"track:{t['id']}")),
         )])
-    kb.append([InlineKeyboardButton("💾 Зберегти MP3", callback_data=f"dl:{t['id']}")])
-    kb.append([InlineKeyboardButton("🔗 Сторінка треку", url=t.get("source_url") or "https://jamendo.com")])
+    kb.append([InlineKeyboardButton("Зберегти MP3", callback_data=f"dl:{t['id']}")])
+    kb.append([InlineKeyboardButton("Сторінка треку", url=t.get("source_url") or "https://jamendo.com")])
     return InlineKeyboardMarkup(kb)
 
 
@@ -219,7 +219,7 @@ async def cmd_radio(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"Радіо на основі <b>{esc(seed['artist'])} — {esc(seed['title'])}</b>",
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
-            "📻 Увімкнути радіо",
+            "Увімкнути радіо",
             web_app=WebAppInfo(url=webapp_url(f"radio:{seed['id']}")))]]),
     )
 
@@ -262,14 +262,14 @@ async def do_search(msg, uid, query):
         lines.append(
             f"{i}. <b>{esc(t['title'])}</b> — {esc(t['artist'])}"
             f"{' · ' + t['duration_str'] if t['duration_str'] else ''}"
-            f"  <i>{esc(t['source_label'])}</i>"
+            f" · <i>{esc(t['source_label'])}</i>"
         )
         kb.append([InlineKeyboardButton(
             f"{i}. {t['title'][:28]} — {t['artist'][:18]}",
             callback_data=f"t:{t['id']}")])
     if WEB_APP_URL:
         kb.append([InlineKeyboardButton(
-            "🎧 Усі результати в плеєрі",
+            "Усі результати в плеєрі",
             web_app=WebAppInfo(url=webapp_url(f"search:{query}")))])
     kb.append([InlineKeyboardButton("← Меню", callback_data="home")])
     await wait.edit_text("\n".join(lines), parse_mode=ParseMode.HTML,
@@ -303,7 +303,7 @@ async def show_shared_playlist(msg, p):
     kb = []
     if WEB_APP_URL:
         kb.append([InlineKeyboardButton(
-            "🎧 Відкрити плейлист",
+            "Відкрити плейлист",
             web_app=WebAppInfo(url=webapp_url(f"shared:{p['share_code']}")))])
     await msg.reply_text("\n".join(lines), parse_mode=ParseMode.HTML,
                          reply_markup=InlineKeyboardMarkup(kb) if kb else None)
@@ -365,9 +365,9 @@ def _fetch_bytes(url, limit=MAX_UPLOAD_MB * 1024 * 1024 + 1024):
 
 def admin_kb():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📊 Загальна статистика", callback_data="a:stats")],
-        [InlineKeyboardButton("🎟 Створити промокод", callback_data="a:promo")],
-        [InlineKeyboardButton("📣 Розсилка", callback_data="a:broadcast")],
+        [InlineKeyboardButton("Загальна статистика", callback_data="a:stats")],
+        [InlineKeyboardButton("Створити промокод", callback_data="a:promo")],
+        [InlineKeyboardButton("Розсилка", callback_data="a:broadcast")],
         [InlineKeyboardButton("← Меню", callback_data="home")],
     ])
 
