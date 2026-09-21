@@ -27,12 +27,13 @@ from telegram.ext import (
 )
 
 from core import db
+from core import runtime as RT
 from core import providers as P
 from services.bot import api
 from core.config import (
     BOT_TOKEN, ADMIN_IDS, WEB_APP_URL, API_URL, PORT,
     JAMENDO_CLIENT_ID, PREMIUM_FEATURES, APP_NAME, APP_VERSION,
-    BOT_USERNAME, REFERRAL_REWARD_DAYS,
+    REFERRAL_REWARD_DAYS,
 )
 
 logging.basicConfig(
@@ -62,21 +63,17 @@ def esc(s):
 
 def main_kb(uid):
     open_btn = (
-        InlineKeyboardButton("Відкрити плеєр", web_app=WebAppInfo(url=webapp_url()))
+        InlineKeyboardButton("🎧 Відкрити плеєр", web_app=WebAppInfo(url=webapp_url()))
         if WEB_APP_URL else
-        InlineKeyboardButton("Плеєр не налаштований", callback_data="noop")
+        InlineKeyboardButton("⚠️ Плеєр не налаштований", callback_data="noop")
     )
     kb = [
         [open_btn],
-        [InlineKeyboardButton("Знайти трек", callback_data="search"),
-         InlineKeyboardButton("Що слухають", callback_data="trending")],
-        [InlineKeyboardButton("Premium", callback_data="premium"),
-         InlineKeyboardButton("Статистика", callback_data="stats")],
-        [InlineKeyboardButton("Запросити друзів", callback_data="referral")],
-        [InlineKeyboardButton("Джерела та ліцензії", callback_data="legal")],
+        [InlineKeyboardButton("✨ Premium", callback_data="premium"),
+         InlineKeyboardButton("🤝 Запросити друга", callback_data="referral")],
     ]
     if uid in ADMIN_IDS:
-        kb.append([InlineKeyboardButton("Адмінка", callback_data="admin")])
+        kb.append([InlineKeyboardButton("🛠 Адмінка", callback_data="admin")])
     return InlineKeyboardMarkup(kb)
 
 
@@ -99,13 +96,13 @@ def track_kb(t):
 # ─── Команди ─────────────────────────────────────────────────────────────────
 
 WELCOME = (
-    "<b>Привіт! Це {name}</b>\n\n"
+    "👋 <b>Привіт! Це {name}</b> 🎶\n\n"
     "Тут понад 600 тисяч треків від незалежних артистів і лейблів, які самі "
     "дозволили ділитися своєю музикою — <b>Jamendo</b>, <b>Audius</b> і "
-    "<b>Internet Archive</b>. Жодних крадених релізів, тільки чесна музика.\n\n"
+    "<b>Internet Archive</b>. Жодних крадених релізів, тільки чесна музика ✅\n\n"
     "Просто напишіть назву пісні, артиста чи навіть настрій — і я підберу щось "
-    "варте прослуховування. А для повноцінного плеєра з чергою, радіо, "
-    "плейлистами й грою \"Вгадай трек\" — тисніть кнопку нижче."
+    "варте прослуховування 🎧. А для повноцінного плеєра з чергою, радіо, "
+    "плейлистами й грою «Вгадай трек» — тисніть кнопку нижче 👇"
 )
 
 
@@ -121,8 +118,8 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         done, who = await asyncio.to_thread(db.apply_referral, u.id, arg[4:])
         if done:
             await update.message.reply_text(
-                f"Вітаємо! {esc(who) or 'Друг'} запросив(ла) вас у {APP_NAME} — "
-                f"+{REFERRAL_REWARD_DAYS} дні Premium вже на вашому акаунті.",
+                f"🎉 Вітаємо! {esc(who) or 'Друг'} запросив(ла) вас у {APP_NAME} — "
+                f"+{REFERRAL_REWARD_DAYS} день Premium вже на вашому акаунті.",
                 parse_mode=ParseMode.HTML,
             )
     await update.message.reply_text(
@@ -133,16 +130,16 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "<b>Команди</b>\n"
+        "📋 <b>Команди</b>\n"
         "/start — головне меню\n"
         "/search назва — пошук треку\n"
         "/radio назва — радіо на основі треку\n"
-        "/premium — про Premium\n"
-        "/referral — запросити друзів і отримати Premium\n"
+        "/premium — про Premium ✨\n"
+        "/referral — запросити друзів і отримати Premium 🤝\n"
         "/code КОД — активувати промокод\n"
-        "/stats — ваша статистика\n"
+        "/stats — ваша статистика 📊\n"
         "/legal — джерела та ліцензії\n\n"
-        "Або просто надішліть текст — це теж пошук.",
+        "Або просто надішліть текст — це теж пошук 🔎.",
         parse_mode=ParseMode.HTML, reply_markup=back_kb(),
     )
 
@@ -154,7 +151,11 @@ async def cmd_legal(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "метаданих дозволені умовами сервісу.\n"
         "<b>Audius</b> — відкритий протокол, де артисти самі публікують треки й "
         "дозволяють прослуховування.\n"
-        "<b>Internet Archive</b> — записи в суспільному надбанні.\n\n"
+        "<b>Internet Archive</b> — записи в суспільному надбанні.\n"
+        "<b>ccMixter</b> — треки, завантажені самими авторами під Creative "
+        "Commons через офіційне API сервісу.\n"
+        "<b>Openverse</b> — офіційний агрегатор Creative Commons від "
+        "Wikimedia: архівні записи, класика та інші відкриті джерела.\n\n"
         "Кожен трек показує ліцензію й посилання на оригінал — цього вимагає "
         "Creative Commons. Завантаження доступне лише для треків, чия ліцензія "
         "прямо це дозволяє.\n\n"
@@ -168,14 +169,14 @@ async def cmd_premium(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     active = db.is_premium(uid)
     if active:
-        lines = ["<b>Premium уже з вами — дякую, що підтримуєте проєкт.</b>\n",
+        lines = ["✨ <b>Premium уже з вами — дякую, що підтримуєте проєкт!</b>\n",
                  "Ось усе, що це вам відкриває:\n"]
     else:
-        lines = ["<b>MusicLSP Premium</b>\n",
+        lines = ["✨ <b>MusicLSP Premium</b>\n",
                  "Той самий чесний каталог, але без жодних меж — ось що зміниться:\n"]
     for _, title, desc in PREMIUM_FEATURES:
         lines.append(f"— <b>{esc(title)}</b>: {esc(desc)}")
-    lines.append("\nЄ промокод? Надішліть <code>/code ВАШ_КОД</code>, і Premium увімкнеться миттєво.")
+    lines.append("\n🎁 Є промокод? Надішліть <code>/code ВАШ_КОД</code>, і Premium увімкнеться миттєво.")
     await msg.reply_text("\n".join(lines), parse_mode=ParseMode.HTML,
                          reply_markup=back_kb())
 
@@ -184,18 +185,19 @@ async def cmd_referral(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message or update.callback_query.message
     uid = update.effective_user.id
     stats = await asyncio.to_thread(db.referral_stats, uid)
-    link = f"https://t.me/{BOT_USERNAME}?start=ref_{stats['code']}" if BOT_USERNAME else ""
+    username = RT.get_bot_username()
+    link = f"https://t.me/{username}?start=ref_{stats['code']}" if username else ""
     text = (
-        f"<b>Запросіть друзів у {APP_NAME}</b>\n\n"
+        f"🤝 <b>Запросіть друзів у {APP_NAME}</b>\n\n"
         f"За кожного друга, який приєднається за вашим посиланням, ви обидва "
-        f"отримаєте <b>+{stats['reward_days']} дні Premium</b>.\n\n"
+        f"отримаєте <b>+{stats['reward_days']} день Premium</b>.\n\n"
         f"Запрошено: <b>{stats['invited']}</b>\n"
         f"Ваш код: <code>{esc(stats['code'])}</code>\n"
     )
     if link:
-        text += f"\nПосилання: {esc(link)}"
+        text += f"\n🔗 Посилання: {esc(link)}"
     else:
-        text += "\nАдмін ще не вказав BOT_USERNAME — посилання поки що недоступне."
+        text += "\n⚠️ Бот ще не готовий видати посилання — спробуйте ще раз за хвилину після перезапуску."
     await msg.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=back_kb())
 
 
@@ -205,10 +207,10 @@ async def cmd_code(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     done, days = db.promo_redeem(update.effective_user.id, ctx.args[0])
     if done:
         await update.message.reply_text(
-            f"Premium активовано на {days} днів. Відкрийте плеєр — нові функції вже там.",
+            f"✅ Premium активовано на {days} днів. Відкрийте плеєр — нові функції вже там 🎧",
             reply_markup=main_kb(update.effective_user.id))
     else:
-        await update.message.reply_text("Код недійсний або вже використаний.")
+        await update.message.reply_text("❌ Код недійсний або вже використаний.")
 
 
 async def cmd_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -560,6 +562,13 @@ async def run():
     application.add_error_handler(on_error)
 
     await application.initialize()
+    try:
+        me = await application.bot.get_me()
+        if me and me.username:
+            RT.set_detected_username(me.username)
+            logger.info("Username бота визначено автоматично: @%s", me.username)
+    except Exception as e:
+        logger.warning("Не вдалося визначити username бота: %s", e)
     if WEB_APP_URL:
         try:
             await application.bot.set_chat_menu_button(
