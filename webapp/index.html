@@ -128,9 +128,19 @@ a{color:var(--accent)}
   background:var(--panel);border-top:1px solid var(--line);
   padding-bottom:env(safe-area-inset-bottom)}
 .nav button{height:var(--nav-h);display:flex;flex-direction:column;align-items:center;
-  justify-content:center;gap:3px;font-size:10.5px;color:var(--muted);font-weight:500}
-.nav button .ic{font-size:19px;line-height:1}
+  justify-content:center;gap:3px;font-size:10.5px;color:var(--muted);font-weight:500;
+  position:relative;transition:color .2s}
+.nav button .ic{font-size:19px;line-height:1;transition:transform .32s cubic-bezier(.4,1.8,.5,1)}
 .nav button.on{color:var(--accent)}
+.nav button.on .ic{transform:translateY(-2px) scale(1.14)}
+.nav button.bump .ic{animation:navBump .38s cubic-bezier(.4,1.8,.5,1)}
+.nav button::after{content:"";position:absolute;top:6px;left:50%;width:5px;height:5px;
+  border-radius:99px;background:var(--accent);opacity:0;transform:translate(-50%,-6px) scale(.4);
+  transition:opacity .2s,transform .25s}
+.nav button.on::after{opacity:1;transform:translate(-50%,0) scale(1)}
+.nav button:active{transform:scale(.94)}
+@keyframes navBump{0%{transform:translateY(-2px) scale(1.14)}40%{transform:translateY(-6px) scale(1.28)}
+  100%{transform:translateY(-2px) scale(1.14)}}
 
 /* ── now playing sheet ───────────────────────────── */
 .sheet{position:fixed;inset:0;z-index:70;background:var(--bg);
@@ -140,8 +150,25 @@ a{color:var(--accent)}
 .sheet.on{transform:translateY(0)}
 .sheet .handle{width:40px;height:4px;border-radius:9px;background:var(--line);
   margin:12px auto 18px}
-.cover{width:min(78vw,320px);aspect-ratio:1;border-radius:18px;margin:0 auto 26px;
+.coverWrap{position:relative;width:min(78vw,320px);margin:0 auto 26px}
+.ambientBg{position:absolute;inset:-30px;width:calc(100% + 60px);height:calc(100% + 60px);
+  object-fit:cover;filter:blur(38px) saturate(1.4) brightness(.7);opacity:.5;
+  border-radius:24px;z-index:0;pointer-events:none;transition:opacity .4s}
+.coverWrap.playing .ambientBg{animation:ambientPulse 6s ease-in-out infinite}
+@keyframes ambientPulse{0%,100%{transform:scale(1) rotate(0deg)}50%{transform:scale(1.09) rotate(2deg)}}
+.cover{position:relative;z-index:1;width:100%;aspect-ratio:1;border-radius:18px;display:block;
   object-fit:cover;background:var(--panel-2);box-shadow:0 18px 50px rgba(0,0,0,.45)}
+.coverWrap.style-vinyl .cover{border-radius:50%}
+.coverWrap.style-vinyl.playing .cover{animation:vinylSpin 9s linear infinite}
+@keyframes vinylSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.vinylHole{display:none}
+.coverWrap.style-vinyl .vinylHole{display:block;position:absolute;z-index:2;left:50%;top:50%;
+  width:13%;height:13%;border-radius:50%;background:var(--bg);
+  border:3px solid var(--panel-2);transform:translate(-50%,-50%)}
+.particle{position:absolute;border-radius:50%;background:var(--accent);opacity:.3;
+  filter:blur(3px);pointer-events:none;z-index:0}
+.coverWrap.style-particles.playing .particle{animation:floatParticle 7s ease-in-out infinite}
+@keyframes floatParticle{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-20px) scale(1.3)}}
 .sheet .tt{font-size:22px;font-weight:700;text-align:center;line-height:1.25}
 .sheet .aa{font-size:15px;color:var(--muted);text-align:center;margin-top:6px}
 .lic{text-align:center;font-size:11.5px;color:var(--muted);margin-top:12px;line-height:1.6}
@@ -246,6 +273,27 @@ a{color:var(--accent)}
 .fchip.on{background:var(--accent);color:var(--accent-ink);border-color:transparent;font-weight:600}
 .fchip .icon{width:13px;height:13px}
 
+/* ── трек дня, серія, реферали ───────────────────── */
+.daily{display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,
+  color-mix(in srgb,var(--accent) 22%,var(--panel)),var(--panel));
+  border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:22px}
+.daily .art{width:58px;height:58px;border-radius:11px;flex:none;object-fit:cover;background:var(--panel-2)}
+.daily .tag{font-size:10.5px;font-weight:700;letter-spacing:.04em;color:var(--accent);
+  text-transform:uppercase;margin-bottom:3px}
+.daily .t{font-size:14.5px;font-weight:600}
+.daily .s{font-size:12px;color:var(--muted);margin-top:2px}
+.daily button{flex:none;width:42px;height:42px;border-radius:99px;background:var(--accent);
+  color:var(--accent-ink);display:grid;place-items:center}
+.streak{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;
+  color:var(--gold);background:color-mix(in srgb,var(--gold) 16%,transparent);
+  padding:4px 10px;border-radius:99px;margin-top:8px}
+.refcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.refcard .code{font-family:"Space Grotesk";font-size:20px;font-weight:700;letter-spacing:.04em;
+  color:var(--accent);margin:8px 0 2px}
+.refcard .row2{display:flex;gap:9px;margin-top:12px}
+.refcard .row2 .pill{flex:1;justify-content:center}
+.hint{font-size:12px;color:var(--muted);line-height:1.6;margin-top:10px}
+
 /* ── queue reorder ───────────────────────────────── */
 .qact{flex:none;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;
   color:var(--muted)}
@@ -268,6 +316,15 @@ a{color:var(--accent)}
 
   <!-- HOME -->
   <section class="screen on" id="scHome">
+    <button class="daily" id="btEntry" style="width:100%;text-align:left;cursor:pointer">
+      <div class="meta" style="flex:1">
+        <div class="tag">Гра</div>
+        <div class="t">Вгадай трек</div>
+        <div class="s">Впізнайте пісню за 8 секунд</div>
+      </div>
+      <span style="display:grid;place-items:center;width:42px;height:42px;border-radius:99px;
+        background:var(--accent);color:var(--accent-ink)" data-icon="play"></span>
+    </button>
     <div id="homeBody">
       <div class="skel"></div><div class="skel"></div><div class="skel"></div>
     </div>
@@ -281,6 +338,7 @@ a{color:var(--accent)}
       <button class="act" id="qClear" style="color:var(--muted)"><span data-icon="close"></span></button>
     </div>
     <div class="tabs" id="qTabs">
+      <button class="tab" data-kind="all">Усе</button>
       <button class="tab on" data-kind="tracks">Треки</button>
       <button class="tab" data-kind="albums">Альбоми</button>
       <button class="tab" data-kind="artists">Артисти</button>
@@ -344,7 +402,11 @@ a{color:var(--accent)}
 <!-- now playing -->
 <div class="sheet" id="sheet">
   <div class="handle" onclick="closeSheet()"></div>
-  <img class="cover" id="npArt" alt="">
+  <div class="coverWrap" id="coverWrap">
+    <img class="ambientBg" id="ambientBg" alt="" aria-hidden="true">
+    <div class="vinylHole"></div>
+    <img class="cover" id="npArt" alt="">
+  </div>
   <div class="tt dspl" id="npTitle">—</div>
   <div class="aa" id="npArtist">—</div>
   <div class="lic" id="npLic"></div>
@@ -430,6 +492,9 @@ const ICONS = {
   back:        `<path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/>`,
   check:       `<path d="M4.5 12.5 9.5 17.5 19.5 6.5"/>`,
   plus:        `<path d="M12 5v14"/><path d="M5 12h14"/>`,
+  flame:       `<path d="M12 2.5c1 3 4 4.5 4 8.5a4 4 0 0 1-8 0c0-1 .3-1.8.8-2.5.4 1 1.2 1.5 1.7 1 .6-.6.2-1.7-.3-2.7-.7-1.4-.7-3-.2-4.3Z"/>`,
+  gift:        `<rect x="4" y="10" width="16" height="10" rx="1.5"/><path d="M4 10h16v3H4z" fill="currentColor" stroke="none"/><path d="M12 10v10"/><path d="M12 10c-1.5-4-6-4-6-1s3 1 6 1"/><path d="M12 10c1.5-4 6-4 6-1s-3 1-6 1"/>`,
+  copy:        `<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>`,
 };
 function ICON(name, size){
   return `<svg class="icon${size?" "+size:""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]||""}</svg>`;
@@ -512,8 +577,14 @@ document.querySelectorAll(".nav button").forEach(b =>
 function go(name){
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("on"));
   $("sc"+name).classList.add("on");
-  document.querySelectorAll(".nav button").forEach(b =>
-    b.classList.toggle("on", b.dataset.go===name));
+  document.querySelectorAll(".nav button").forEach(b => {
+    const becomesOn = b.dataset.go===name;
+    if(becomesOn && !b.classList.contains("on")){
+      b.classList.add("bump");
+      setTimeout(()=>b.classList.remove("bump"), 400);
+    }
+    b.classList.toggle("on", becomesOn);
+  });
   if(name==="Me") renderProfile();
   if(name==="Lib") renderLibrary();
   if(name==="Search") setTimeout(()=>$("qInput").focus(), 120);
@@ -560,10 +631,67 @@ function cardsHtml(list, ctxKey, isArtist){
 }
 
 /* ════════ Головна ════════ */
+async function loadDaily(){
+  try{
+    const d = await get("/api/daily");
+    if(!d.track) return "";
+    window.__dailyTrack = d.track;
+    return `<div class="daily" id="dailyCard">
+      <img class="art" src="${esc(d.track.cover||"")}" alt="" onerror="this.style.visibility='hidden'">
+      <div class="meta" style="flex:1;min-width:0">
+        <div class="tag">Трек дня</div>
+        <div class="t">${esc(d.track.title)}</div>
+        <div class="s">${esc(d.track.artist)}</div>
+      </div>
+      <button id="dailyPlay">${ICON("play")}</button>
+    </div>
+    ${S.limits?.daily_preview ? `<button class="pill" id="dailyTomorrow" style="margin:-14px 0 22px">
+      ${ICON("gift","sm")}Підглянути завтрашній</button>` : ""}`;
+  }catch(e){ return ""; }
+}
+
+async function showTomorrowTrack(){
+  tap();
+  try{
+    const d = await get("/api/daily?preview=1");
+    if(!d.track) return toast("Ще формується");
+    showModal(`<h3>Завтрашній трек дня</h3>
+      <div class="row"><img class="art" src="${esc(d.track.cover||"")}" alt=""
+        onerror="this.style.visibility='hidden'">
+        <div class="meta"><div class="t">${esc(d.track.title)}</div>
+        <div class="s">${esc(d.track.artist)}</div></div></div>
+      <button class="btn" style="margin-top:14px" onclick='closeModal();setQueue([${JSON.stringify(d.track).replace(/'/g,"&#39;")}],0)'>Слухати зараз</button>`);
+  }catch(e){ toast(e.message); }
+}
+
+async function loadMoodsRow(){
+  try{
+    const d = await get("/api/moods");
+    window.__moods = d.moods;
+    return `<div class="sect"><h2>Настрій</h2><div class="frow">` +
+      d.moods.map((m,i)=>`<button class="fchip" data-mood="${i}" ${m.locked?"style=\"opacity:.4\"":""}>
+        ${esc(m.label)}${m.locked?" · Premium":""}</button>`).join("") +
+      `</div></div>`;
+  }catch(e){ return ""; }
+}
+
+async function openMood(key, label){
+  go("Search");
+  $("qInput").value = ""; $("qBody").innerHTML = `<div class="skel"></div><div class="skel"></div>`;
+  try{
+    const d = await get("/api/mood/"+encodeURIComponent(key));
+    $("qBody").innerHTML = `<div class="sect"><h2>Настрій: ${esc(label)}</h2></div>`;
+    const wrap = document.createElement("div"); $("qBody").appendChild(wrap);
+    mountRows(wrap, d.tracks, "mood_"+key);
+  }catch(e){ toast(e.message); }
+}
+
 async function loadHome(){
   try{
+    const dailyHtml = await loadDaily();
+    const moodsHtml = await loadMoodsRow();
     const d = await get("/api/home");
-    let html = "";
+    let html = dailyHtml + moodsHtml;
     d.sections.forEach((sec,si)=>{
       const key = "home"+si;
       html += `<div class="sect"><h2>${esc(sec.title)}</h2>
@@ -594,6 +722,17 @@ async function loadHome(){
 }
 
 function bindHome(){
+  if($("dailyPlay") && window.__dailyTrack){
+    $("dailyPlay").onclick = () => { setQueue([window.__dailyTrack], 0); tap(); };
+  }
+  if($("dailyTomorrow")) $("dailyTomorrow").onclick = showTomorrowTrack;
+  $("homeBody").querySelectorAll("[data-mood]").forEach(b=>{
+    b.onclick = () => {
+      const m = window.__moods[+b.dataset.mood]; tap();
+      if(m.locked) return toast("Цей настрій доступний у Premium");
+      openMood(m.key, m.label);
+    };
+  });
   $("homeBody").querySelectorAll(".card[data-pl]").forEach(c=>{
     c.onclick = () => {
       const p = window.__homePlaylists[+c.dataset.pl]; tap();
@@ -627,9 +766,109 @@ let searchT;
 $("qInput").oninput = () => { clearTimeout(searchT); searchT = setTimeout(runSearch, 450); };
 $("qInput").onkeydown = e => { if(e.key==="Enter"){ clearTimeout(searchT); runSearch(); } };
 $("qClear").onclick = () => { $("qInput").value=""; $("qBody").innerHTML=""; };
+$("btEntry").onclick = () => openBlindTest();
+
+/* ════════ Гра "Вгадай трек" ════════ */
+const btAudio = new Audio();
+let btTimer = null;
+const BT = {pool:[], idx:0, streak:0, perDay:5};
+
+function btTodayCount(){
+  const key = "bt_"+today_();
+  return +(localStorage.getItem(key) || 0);
+}
+function btBumpCount(){
+  try{
+    const key = "bt_"+today_();
+    localStorage.setItem(key, btTodayCount()+1);
+  }catch(e){}
+}
+function today_(){ return new Date().toISOString().slice(0,10); }
+
+async function openBlindTest(){
+  tap();
+  try{
+    const d = await get("/api/blindtest");
+    BT.perDay = d.rounds_per_day || 5;
+    if(BT.perDay < 100000 && btTodayCount() >= BT.perDay){
+      showModal(`<h3>Ліміт на сьогодні</h3>
+        <div class="empty" style="padding:10px 0">Безкоштовно доступно ${BT.perDay} раундів на день.
+        Premium знімає це обмеження.</div>
+        <button class="btn" onclick="closeModal()">Гаразд</button>`);
+      return;
+    }
+    BT.pool = shuffleArr(d.tracks.filter(t=>t.title && t.artist));
+    BT.idx = 0; BT.streak = 0;
+    if(BT.pool.length < 4){ toast("Замало треків для гри, спробуйте пізніше"); return; }
+    btRound();
+  }catch(e){ toast(e.message); }
+}
+
+function shuffleArr(a){ a = a.slice();
+  for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+
+function btRound(){
+  if(BT.idx >= BT.pool.length){ return btFinish(); }
+  const correct = BT.pool[BT.idx];
+  const decoysPool = BT.pool.filter((t,i)=>i!==BT.idx);
+  const decoys = shuffleArr(decoysPool).slice(0,3);
+  const options = shuffleArr([correct, ...decoys]);
+  showModal(`
+    <h3>Вгадай трек · серія ${BT.streak}</h3>
+    <div style="text-align:center;margin:10px 0 18px">
+      <button class="pill" id="btPlayBtn" style="justify-content:center;width:100%">
+        ${ICON("play","sm")}Прослухати 8 секунд</button>
+    </div>
+    <div id="btOptions"></div>`);
+  $("modalBox").querySelector("#btOptions").innerHTML = options.map((o,i)=>`
+    <button class="btn ghost" data-opt="${i}" style="text-align:left;margin-bottom:8px">
+      ${esc(o.title)} — ${esc(o.artist)}</button>`).join("");
+  $("btPlayBtn").onclick = () => {
+    clearTimeout(btTimer);
+    btAudio.pause(); btAudio.src = streamUrl(correct); btAudio.currentTime = 0;
+    btAudio.play().catch(()=>toast("Не вдалося відтворити фрагмент"));
+    btTimer = setTimeout(()=>btAudio.pause(), 8000);
+  };
+  $("modalBox").querySelectorAll("[data-opt]").forEach(b => b.onclick = () => {
+    const picked = options[+b.dataset.opt];
+    btAudio.pause(); clearTimeout(btTimer);
+    if(picked.id === correct.id){
+      BT.streak++; toast("Правильно!");
+      $("modalBox").querySelectorAll("[data-opt]").forEach(x=>x.disabled=true);
+      b.style.borderColor = "var(--accent)"; b.style.color = "var(--accent)";
+      setTimeout(()=>{ BT.idx++; btRound(); }, 700);
+    } else {
+      b.style.opacity = ".5";
+      toast(`Правильна відповідь: ${correct.title} — ${correct.artist}`);
+      setTimeout(()=>btFinish(), 900);
+    }
+  });
+}
+
+async function btFinish(){
+  btAudio.pause(); clearTimeout(btTimer);
+  btBumpCount();
+  let topHtml = "";
+  try{
+    const d = await post("/api/blindtest", {streak: BT.streak});
+    topHtml = `<div style="font-size:12px;color:var(--muted);margin:14px 0 6px">Рейтинг</div>` +
+      d.top.slice(0,5).map((r,i)=>`<div class="row"><div class="meta">
+        <div class="t">${i+1}. ${esc(r.name||"Гравець")}</div></div>
+        <div class="s" style="color:var(--accent);font-weight:600">${r.best_streak}</div></div>`).join("");
+  }catch(e){ /* рейтинг не критичний */ }
+  showModal(`<h3>Гру завершено</h3>
+    <div class="empty" style="padding:10px 0"><b>Серія: ${BT.streak}</b>Спробуйте побити свій рекорд</div>
+    ${topHtml}
+    <button class="btn" style="margin-top:14px" onclick="closeModal()">Закрити</button>
+    <button class="btn ghost" onclick="closeModal();openBlindTest()">Зіграти ще</button>`);
+}
 $("qTabs").querySelectorAll(".tab").forEach(t => t.onclick = () => {
   $("qTabs").querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));
-  t.classList.add("on"); S.kind = t.dataset.kind; runSearch(); tap();
+  t.classList.add("on"); S.kind = t.dataset.kind;
+  $("qSourceRow").style.display = (S.kind==="artists"||S.kind==="public_domain"||S.kind==="all") ? "none" : "flex";
+  runSearch(); tap();
 });
 
 $("qSortRow").querySelectorAll(".fchip").forEach(c => c.onclick = () => {
@@ -645,18 +884,71 @@ $("qSourceRow").querySelectorAll(".fchip").forEach(c => c.onclick = () => {
   runSearch(); tap();
 });
 
+const NO_RESULTS_HINT =
+  `<div class="hint">Каталог складають незалежні артисти з відкритою ліцензією
+  (Jamendo, Audius, Internet Archive) — мейнстрім-релізів тут немає за задумом,
+  бо їх не можна легально стрімити. Спробуйте жанр або назву гурту.</div>`;
+
 async function runSearch(){
   const q = $("qInput").value.trim();
   if(q.length < 2) return;
   $("qBody").innerHTML = `<div class="skel"></div><div class="skel"></div><div class="skel"></div>`;
   try{
+    if(S.kind === "all"){
+      const params = `q=${encodeURIComponent(q)}&type=all&limit=15&sort=${S.sort}`;
+      const d = await get(`/api/search?${params}`);
+      renderAllResults(d.results);
+      return;
+    }
     const params = `q=${encodeURIComponent(q)}&type=${S.kind}&limit=40&sort=${S.sort}&sources=${S.sources.join(",")}`;
     const d = await get(`/api/search?${params}`);
+    if(!d.results.length){
+      $("qBody").innerHTML = `<div class="empty"><b>Нічого не знайдено</b>Спробуйте інше слово.</div>${NO_RESULTS_HINT}`;
+      return;
+    }
     if(S.kind==="albums" || S.kind==="artists") renderCollections(d.results, S.kind);
     else mountRows($("qBody"), d.results, "search");
   }catch(e){
     $("qBody").innerHTML = `<div class="empty"><b>Нічого не вийшло</b>${esc(e.message)}</div>`;
   }
+}
+
+function renderAllResults(r){
+  const empty = !r.tracks.length && !r.albums.length && !r.artists.length;
+  if(empty){
+    $("qBody").innerHTML = `<div class="empty"><b>Нічого не знайдено</b>Спробуйте інше слово.</div>${NO_RESULTS_HINT}`;
+    return;
+  }
+  let html = "";
+  if(r.tracks.length){ CTX["all_tracks"] = r.tracks;
+    html += `<div class="sect"><h2>Треки</h2></div>` + rowsHtml(r.tracks.slice(0,8), "all_tracks"); }
+  if(r.albums.length){
+    html += `<div class="sect"><h2>Альбоми</h2>${cardsHtml(r.albums, "all_albums")}</div>`; }
+  if(r.artists.length){
+    html += `<div class="sect"><h2>Артисти</h2>${cardsHtml(r.artists, "all_artists", true)}</div>`; }
+  $("qBody").innerHTML = html;
+  $("qBody").querySelectorAll(".row").forEach(row=>{
+    row.onclick = ev => {
+      const list = CTX[row.dataset.ctx], i = +row.dataset.i;
+      if(ev.target.dataset.menu !== undefined){ openTrackMenu(list[i]); return; }
+      setQueue(list, i); tap();
+    };
+  });
+  $("qBody").querySelectorAll(".card").forEach(c=>{
+    c.onclick = async () => {
+      const list = CTX[c.dataset.ctx], i = +c.dataset.i;
+      tap();
+      if(c.dataset.ctx === "all_tracks"){ setQueue(list, i); return; }
+      const x = list[i];
+      const path = c.dataset.ctx === "all_albums" ? "/api/album/" : "/api/artist/";
+      try{
+        const d = await get(path + encodeURIComponent(x.id));
+        go("Search"); $("qBody").innerHTML = `<div class="sect"><h2>${esc(x.title||x.name)}</h2></div>`;
+        const wrap = document.createElement("div"); $("qBody").appendChild(wrap);
+        mountRows(wrap, d.tracks, "coll_tracks");
+      }catch(e){ toast(e.message); }
+    };
+  });
 }
 
 async function openCurated(pid, title){
@@ -746,12 +1038,32 @@ async function openPlaylist(pid){
     $("libBody").innerHTML =
       `<div class="sect"><h2>${esc(p.name)}<button class="more"
         onclick="renderLibrary()">← назад</button></h2></div>
-       <div style="display:flex;gap:9px;margin-bottom:14px">
+       <div style="display:flex;gap:9px;margin-bottom:14px;flex-wrap:wrap">
          <button class="pill" onclick='playAll(${pid})'>${ICON("play","sm")}Слухати все</button>
          <button class="pill" onclick="sharePlaylist(${pid})">${ICON("share","sm")}Поділитися</button>
+         <button class="pill" onclick="downloadOfflinePack(${pid})">${ICON("download","sm")}Офлайн-пакет</button>
          <button class="pill" onclick="deletePlaylist(${pid})">${ICON("trash","sm")}Видалити</button>
        </div><div id="plBody"></div>`;
     mountRows($("plBody"), p.tracks, "pl"+pid);
+  }catch(e){ toast(e.message); }
+}
+
+async function downloadOfflinePack(pid){
+  tap();
+  if(!S.limits.offline_pack) return toast("Офлайн-пакет доступний у Premium");
+  toast("Збираю архів…");
+  try{
+    const res = await fetch(API+"/api/playlist/"+pid+"/offline", {
+      headers:{"X-Telegram-Init-Data": INIT},
+    });
+    if(!res.ok){ const d = await res.json().catch(()=>({})); throw new Error(d.error||"Помилка"); }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "musiclsp-offline.zip";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 15000);
+    toast("Готово — ZIP завантажується");
   }catch(e){ toast(e.message); }
 }
 
@@ -898,7 +1210,8 @@ async function reportPlay(t){
 /* ════════ Візуалізація стану ════════ */
 function paint(t){
   $("bar").classList.add("on");
-  $("barArt").src = t.cover || ""; $("npArt").src = t.cover || "";
+  $("barArt").src = t.cover || ""; $("npArt").src = t.cover || ""; $("ambientBg").src = t.cover || "";
+  applyAmbientStyle();
   $("barTitle").textContent = t.title; $("npTitle").textContent = t.title;
   $("barArtist").textContent = t.artist; $("npArtist").textContent = t.artist;
   $("npLic").innerHTML = `${esc(t.source_label||"")} · ${esc(t.license_short||"")}` +
@@ -927,8 +1240,32 @@ function pillLikeHTML(liked){
 }
 
 function paintPlayState(){
-  const name = S.playing && !cur.paused ? "pause" : "play";
+  const playing = S.playing && !cur.paused;
+  const name = playing ? "pause" : "play";
   $("barPlay").innerHTML = ICON(name); $("npPlay").innerHTML = ICON(name);
+  $("coverWrap").classList.toggle("playing", playing);
+}
+
+/* ── жива обкладинка ── */
+function applyAmbientStyle(){
+  const style = (S.me && S.me.ambient_style) || "blur";
+  const wrap = $("coverWrap");
+  wrap.classList.remove("style-blur", "style-vinyl", "style-particles");
+  wrap.classList.add("style-"+style);
+  wrap.querySelectorAll(".particle").forEach(p=>p.remove());
+  if(style === "particles"){
+    for(let i=0;i<6;i++){
+      const p = document.createElement("div");
+      p.className = "particle";
+      const size = 14 + Math.random()*22;
+      p.style.width = p.style.height = size+"px";
+      p.style.left = (Math.random()*90)+"%";
+      p.style.top = (Math.random()*90)+"%";
+      p.style.animationDelay = (Math.random()*4)+"s";
+      p.style.animationDuration = (5+Math.random()*4)+"s";
+      wrap.appendChild(p);
+    }
+  }
 }
 
 let seeking = false;
@@ -1070,8 +1407,15 @@ function renderProfile(){
       <div style="color:var(--muted);font-size:13px">
         ${p ? "Premium активний" + (S.me.premium_until?" до "+esc(String(S.me.premium_until).slice(0,10)):"")
             : "Безкоштовний план"}</div>
+      ${S.me.streak>1?`<div class="streak">${ICON("flame","sm")}${S.me.streak} днів поспіль</div>`:""}
     </div>
-    <div class="sect"><h2>Статистика</h2><div id="statBox"><div class="skel"></div></div></div>
+    <div class="sect"><h2>Статистика</h2><div id="statBox"><div class="skel"></div></div>
+      <button class="pill" style="margin-top:10px" onclick="openWrapped()">${ICON("gift","sm")}Мій рік у музиці</button>
+    </div>
+
+    <div class="sect"><h2>Запросити друзів</h2>
+      <div class="refcard" id="refCard"><div class="skel"></div></div>
+    </div>
 
     <div class="sect"><h2>Звук</h2>
       <div class="opt"><div class="lbl"><b>Еквалайзер</b>
@@ -1101,6 +1445,15 @@ function renderProfile(){
         ${p?"Усі теми відкриті":"У Free доступна лише перша тема"}</div>
     </div>
 
+    <div class="sect"><h2>Жива обкладинка</h2>
+      <div class="frow" id="ambientRow">
+        ${[["blur","Розмиття"],["vinyl","Вініл"],["particles","Частки"]].map(([k,label])=>{
+          const locked = !S.limits.ambient_styles.includes(k);
+          return `<button class="fchip ${S.me.ambient_style===k?"on":""}" data-style="${k}" ${locked?"disabled style=\"opacity:.4\"":""}>${esc(label)}${locked?" · Premium":""}</button>`;
+        }).join("")}
+      </div>
+    </div>
+
     <div class="sect"><h2>Premium</h2>
       ${S.features.map((f,i)=>`<div class="feat"><div class="n">${i+1}</div>
         <div><b>${esc(f.title)}</b><span>${esc(f.description)}</span></div></div>`).join("")}
@@ -1116,6 +1469,36 @@ function renderProfile(){
     </div>`;
   bindProfile();
   loadStats();
+  loadReferral();
+}
+
+async function loadReferral(){
+  try{
+    const d = await get("/api/referral");
+    $("refCard").innerHTML = `
+      <div style="font-size:13px;color:var(--muted)">Ваш код</div>
+      <div class="code">${esc(d.code)}</div>
+      <div style="font-size:12.5px;color:var(--muted)">
+        Запрошено: <b style="color:var(--ink)">${d.invited}</b> · за друга — обом
+        <b style="color:var(--accent)">+${d.reward_days} дні Premium</b></div>
+      <div class="row2">
+        <button class="pill" id="refShare">${ICON("share","sm")}Поділитися</button>
+        <button class="pill" id="refCopy">${ICON("copy","sm")}Копіювати</button>
+      </div>`;
+    $("refShare").onclick = () => {
+      tap();
+      const text = `Приєднуйся до ${esc("MusicLSP")} — легальна музика в Telegram: ${d.link||d.code}`;
+      const link = `https://t.me/share/url?url=${encodeURIComponent(d.link||"")}&text=${encodeURIComponent(text)}`;
+      try{ tg?.openTelegramLink?.(link); }catch(e){ toast(d.link || d.code); }
+    };
+    $("refCopy").onclick = async () => {
+      tap();
+      try{ await navigator.clipboard.writeText(d.link || d.code); toast("Скопійовано"); }
+      catch(e){ toast(d.link || d.code); }
+    };
+  }catch(e){
+    $("refCard").innerHTML = `<div class="empty" style="padding:10px 0">${esc(e.message)}</div>`;
+  }
 }
 
 function bindProfile(){
@@ -1148,6 +1531,15 @@ function bindProfile(){
     try{
       await saveSettings({theme:t});
       S.me.theme = t; applyTheme(t); renderProfile(); tap();
+    }catch(e){ toast(e.message); }
+  });
+
+  $("ambientRow").querySelectorAll("[data-style]").forEach(b => b.onclick = async () => {
+    if(b.disabled) return toast("Цей стиль доступний у Premium");
+    const style = b.dataset.style;
+    try{
+      await saveSettings({ambient_style:style});
+      S.me.ambient_style = style; renderProfile(); tap();
     }catch(e){ toast(e.message); }
   });
 }
@@ -1185,7 +1577,7 @@ const EQ_PRESETS = {
   "Простір":[4,3,0,-1,-1,0,2,4,5,5],
 };
 
-function renderEq(){
+async function renderEq(){
   $("eqPanel").innerHTML = `
     <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:6px">
       ${Object.keys(EQ_PRESETS).map(p=>`<button class="pill" data-preset="${p}">${p}</button>`).join("")}
@@ -1194,13 +1586,55 @@ function renderEq(){
       <div class="eqband">
         <input type="range" min="-12" max="12" step="1" value="${S.eq[i]}" data-band="${i}" orient="vertical">
         <span>${f>=1000?(f/1000)+"k":f}</span>
-      </div>`).join("")}</div>`;
+      </div>`).join("")}</div>
+    <div style="font-size:12px;color:var(--muted);margin:12px 0 6px">Мої пресети</div>
+    <div id="myPresets" style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px"></div>
+    <button class="pill" id="eqSaveBtn">${ICON("plus","sm")}Зберегти поточний</button>`;
   $("eqPanel").querySelectorAll("input").forEach(inp => inp.oninput = () => {
     S.eq[+inp.dataset.band] = +inp.value; applyEq(); });
   $("eqPanel").querySelectorAll("input").forEach(inp => inp.onchange = () => saveSettings({eq:S.eq}));
   $("eqPanel").querySelectorAll("[data-preset]").forEach(b => b.onclick = () => {
     S.eq = EQ_PRESETS[b.dataset.preset].slice(); renderEq(); applyEq(); saveSettings({eq:S.eq}); tap(); });
+  $("eqSaveBtn").onclick = saveEqPreset;
   applyEq();
+  loadMyPresets();
+}
+
+async function loadMyPresets(){
+  try{
+    const d = await get("/api/eq_presets");
+    window.__eqPresets = d.presets;
+    const box = $("myPresets");
+    if(!box) return;
+    box.innerHTML = d.presets.length ? d.presets.map((p,i)=>`
+      <button class="pill" data-apply="${i}">${esc(p.name)}
+        <span data-del="${i}" style="margin-left:4px;opacity:.6">${ICON("close","sm")}</span></button>
+    `).join("") : `<span style="font-size:12px;color:var(--muted)">Ще немає збережених</span>`;
+    box.querySelectorAll("[data-apply]").forEach(b=>b.onclick = ev=>{
+      if(ev.target.closest("[data-del]")) return;
+      const p = window.__eqPresets[+b.dataset.apply];
+      S.eq = p.settings.slice(); renderEq(); applyEq(); saveSettings({eq:S.eq}); tap();
+    });
+    box.querySelectorAll("[data-del]").forEach(s=>s.onclick = async ev=>{
+      ev.stopPropagation();
+      const p = window.__eqPresets[+s.dataset.del];
+      try{ await post("/api/eq_presets", {action:"delete", id:p.id}); loadMyPresets(); toast("Видалено"); }
+      catch(e){ toast(e.message); }
+    });
+  }catch(e){ /* тихо: пресети не критичні */ }
+}
+
+function saveEqPreset(){
+  showModal(`<h3>Назва пресету</h3>
+    <input class="field" id="eqNameInput" placeholder="Наприклад «Дорога»" maxlength="30">
+    <button class="btn" id="eqNameOk">Зберегти</button>`);
+  $("eqNameOk").onclick = async () => {
+    const name = $("eqNameInput").value.trim() || "Пресет";
+    try{
+      await post("/api/eq_presets", {action:"save", name, settings:S.eq});
+      closeModal(); toast("Пресет збережено"); loadMyPresets();
+    }catch(e){ toast(e.message); }
+  };
 }
 
 function buildEqChain(){
@@ -1252,6 +1686,49 @@ async function loadStats(){
           border-bottom:1px solid var(--line)"><span>${i+1}. ${esc(a.name)}</span>
           <span style="color:var(--muted)">${a.plays}</span></div>`).join("") + `</div>` : "");
   }catch(e){ $("statBox").innerHTML = `<div style="color:var(--muted);font-size:13px">${esc(e.message)}</div>`; }
+}
+
+async function openWrapped(){
+  tap();
+  if(!S.limits.wrapped){
+    showModal(`<h3>Мій рік у музиці</h3>
+      <div class="empty" style="padding:10px 0">Персональна підсумкова картка — топ артисти, треки й
+      години прослуховування за рік — доступна у Premium.</div>
+      <button class="btn" onclick="closeModal();openPromo()">Ввести промокод</button>`);
+    return;
+  }
+  showModal(`<h3>Мій рік у музиці</h3><div class="skel"></div>`);
+  try{
+    const d = await get("/api/wrapped");
+    const s = d.stats;
+    const top = s.top_artists[0]?.name || "—";
+    const track = s.top_tracks[0];
+    $("modalBox").innerHTML = `
+      <h3>Мій рік у музиці</h3>
+      <div style="text-align:center;padding:14px 0">
+        <div style="font-size:13px;color:var(--muted)">Ваш тип слухача</div>
+        <div style="font-family:'Space Grotesk';font-size:24px;font-weight:700;color:var(--accent);margin:4px 0 16px">
+          ${esc(d.listener_type)}</div>
+        <div class="statbox">
+          <div><b>${s.plays}</b><span>прослуховувань</span></div>
+          <div><b>${s.hours}</b><span>годин</span></div>
+          <div><b>${s.top_artists.length}</b><span>артистів</span></div>
+        </div>
+        <div style="margin-top:16px;font-size:14px">Улюблений артист<br>
+          <b style="font-size:17px">${esc(top)}</b></div>
+        ${track?`<div style="margin-top:10px;font-size:14px">Улюблений трек<br>
+          <b style="font-size:17px">${esc(track.title)}</b> — ${esc(track.artist)}</div>`:""}
+      </div>
+      <button class="pill" style="width:100%;justify-content:center" onclick="shareWrapped('${esc(d.listener_type)}','${esc(top)}',${s.hours})">
+        ${ICON("share","sm")}Поділитися</button>`;
+  }catch(e){ toast(e.message); }
+}
+
+function shareWrapped(type, artist, hours){
+  tap();
+  const text = `Мій тип слухача в MusicLSP — ${type}! ${hours} год музики цього року, улюблений артист — ${artist}.`;
+  try{ tg?.openTelegramLink?.(`https://t.me/share/url?url=&text=${encodeURIComponent(text)}`); }
+  catch(e){ toast(text); }
 }
 
 function openPromo(){
