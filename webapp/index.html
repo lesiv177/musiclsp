@@ -353,6 +353,9 @@ a{color:var(--accent)}
       <div class="frow" id="qSourceRow">
         <button class="fchip on" data-src="jamendo">Jamendo</button>
         <button class="fchip on" data-src="audius">Audius</button>
+        <button class="fchip" data-src="archive">Archive</button>
+        <button class="fchip" data-src="ccmixter">ccMixter</button>
+        <button class="fchip" data-src="openverse">Openverse</button>
       </div>
     </div>
     <div id="qBody">
@@ -448,6 +451,12 @@ a{color:var(--accent)}
 const tg = window.Telegram?.WebApp;
 tg?.ready(); tg?.expand();
 try { tg?.setHeaderColor?.("secondary_bg_color"); } catch(e){}
+// Telegram Mini App не має API для фонового відтворення — коли застосунок
+// повністю згорнутий чи закритий, Telegram зупиняє його WebView і музика
+// зупиняється. Це обмеження платформи, обійти його через JS неможливо.
+// Реально можемо лише зменшити випадкові згортання/закриття:
+try { tg?.enableClosingConfirmation?.(); } catch(e){}      // питає підтвердження перед закриттям
+try { tg?.disableVerticalSwipes?.(); } catch(e){}           // прибирає випадкове згортання свайпом вниз
 
 const params   = new URLSearchParams(location.search);
 const API      = (params.get("api") || "").replace(/\/$/, "");
