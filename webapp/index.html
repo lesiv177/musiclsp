@@ -334,22 +334,22 @@ a{color:var(--accent)}
   <section class="screen" id="scSearch">
     <div class="searchbar">
       <span data-icon="search" class="icon"></span>
-      <input id="qInput" placeholder="Трек, артист або жанр" autocomplete="off">
+      <input id="qInput" placeholder="Трек, артист або жанр" autocomplete="off" data-i18n-ph="search_ph">
       <button class="act" id="qClear" style="color:var(--muted)"><span data-icon="close"></span></button>
     </div>
     <div class="tabs" id="qTabs">
-      <button class="tab" data-kind="all">Усе</button>
-      <button class="tab on" data-kind="tracks">Треки</button>
-      <button class="tab" data-kind="albums">Альбоми</button>
-      <button class="tab" data-kind="artists">Артисти</button>
-      <button class="tab" data-kind="public_domain">Суспільне надбання</button>
-      <button class="tab" data-kind="genres">Жанри</button>
+      <button class="tab" data-kind="all" data-i18n="search_all">Усе</button>
+      <button class="tab" data-kind="genres" data-i18n="search_genres">Жанри</button>
+      <button class="tab on" data-kind="tracks" data-i18n="search_tracks">Треки</button>
+      <button class="tab" data-kind="albums" data-i18n="search_albums">Альбоми</button>
+      <button class="tab" data-kind="artists" data-i18n="search_artists">Артисти</button>
+      <button class="tab" data-kind="public_domain" data-i18n="search_pd">Суспільне надбання</button>
     </div>
     <div id="qFilters">
       <div class="frow" id="qSortRow">
-        <button class="fchip on" data-sort="relevance"><span data-icon="sort" class="icon"></span>За збігом</button>
-        <button class="fchip" data-sort="popularity">Популярні</button>
-        <button class="fchip" data-sort="newest">Новинки</button>
+        <button class="fchip on" data-sort="relevance"><span data-icon="sort" class="icon"></span><span data-i18n="sort_relevance">За збігом</span></button>
+        <button class="fchip" data-sort="popularity" data-i18n="sort_popular">Популярні</button>
+        <button class="fchip" data-sort="newest" data-i18n="sort_newest">Новинки</button>
       </div>
       <div class="frow" id="qSourceRow">
         <button class="fchip on" data-src="jamendo">Jamendo</button>
@@ -360,17 +360,17 @@ a{color:var(--accent)}
       </div>
     </div>
     <div id="qBody">
-      <div class="empty"><b>Що поставити?</b>Каталог — незалежні артисти під Creative Commons.
-        Спробуйте жанр: lofi, jazz, synthwave, folk.</div>
+      <div class="empty"><b data-i18n="search_empty_title">Що поставити?</b><span data-i18n="search_empty_body">Каталог — незалежні артисти під Creative Commons.
+        Спробуйте жанр: lofi, jazz, synthwave, folk.</span></div>
     </div>
   </section>
 
   <!-- LIBRARY -->
   <section class="screen" id="scLib">
     <div class="tabs" id="libTabs">
-      <button class="tab on" data-view="liked">Збережене</button>
-      <button class="tab" data-view="playlists">Плейлисти</button>
-      <button class="tab" data-view="history">Історія</button>
+      <button class="tab on" data-view="liked" data-i18n="lib_liked">Збережене</button>
+      <button class="tab" data-view="playlists" data-i18n="lib_playlists">Плейлисти</button>
+      <button class="tab" data-view="history" data-i18n="lib_history">Історія</button>
     </div>
     <div id="libBody"></div>
   </section>
@@ -473,9 +473,12 @@ const S = {
 };
 
 /* ════════ Мова інтерфейсу ════════
-   Перше наближення: перекладено навігацію, підпис зверху, заголовок
-   стрічки настроїв і плашку "Як почати". Решта екранів поки українською —
-   це буде розширюватись поступово, щоб не перекладати все за раз наспіх. */
+   Повний перехід на трьохмовний інтерфейс: кожен статичний елемент, що
+   несе data-i18n (текст) чи data-i18n-ph (placeholder), перекладається
+   через applyI18n(), яка викликається після кожного перемальовування
+   екрану — тому переклад тримається навіть коли HTML генерується JS-ом
+   наново. Контент з бекенду (назви треків, підбірки на кшталт "Популярне
+   цього місяця") — це серверні дані, а не інтерфейс, і залишаються як є. */
 const I18N = {
   uk: {
     nav_home:"Головна", nav_search:"Пошук", nav_lib:"Бібліотека", nav_me:"Профіль",
@@ -483,6 +486,29 @@ const I18N = {
     h_mood:"Настрій", onboard_title:"Як почати",
     onboard_body:"Напишіть назву пісні чи артиста в пошуку, або оберіть настрій нижче — і музика підбереться сама.",
     search_ph:"Трек, артист або жанр",
+    search_all:"Усе", search_genres:"Жанри", search_tracks:"Треки", search_albums:"Альбоми",
+    search_artists:"Артисти", search_pd:"Суспільне надбання",
+    sort_relevance:"За збігом", sort_popular:"Популярні", sort_newest:"Новинки",
+    search_empty_title:"Що поставити?",
+    search_empty_body:"Каталог — незалежні артисти під Creative Commons. Спробуйте жанр: lofi, jazz, synthwave, folk.",
+    lib_liked:"Збережене", lib_playlists:"Плейлисти", lib_history:"Історія",
+    pr_stats:"Статистика", pr_wrapped:"Мій рік у музиці", pr_referral:"Запросити друзів",
+    pr_sound:"Звук", pr_eq:"Еквалайзер", pr_eq_on:"10 смуг із пресетами", pr_eq_off:"Доступно у Premium",
+    pr_crossfade:"Кросфейд", pr_crossfade_on:"Плавний перехід між треками", pr_crossfade_off:"Доступно у Premium",
+    pr_sleep:"Таймер сну", pr_sleep_on:"Музика вимкнеться сама", pr_sleep_off:"Доступно у Premium", pr_sleep_off_btn:"Вимкнено",
+    pr_theme:"Тема", pr_theme_all:"Усі теми відкриті", pr_theme_free:"У Free доступна лише перша тема",
+    pr_ambient:"Жива обкладинка", pr_lang:"Мова",
+    pr_lang_hint:"Перекладено весь основний інтерфейс.",
+    pr_premium:"Premium", pr_promo_btn:"Ввести промокод", pr_licenses:"Ліцензії",
+    pr_licenses_body:"Каталог складають Jamendo (Creative Commons), Audius (релізи самих артистів) та Internet Archive (суспільне надбання). Кожен трек показує ліцензію й посилання на оригінал — це вимога CC. Завантаження вмикається лише там, де автор його дозволив.",
+    referral_code:"Ваш код", referral_invited:"Запрошено", referral_both:"за друга — обом",
+    share_btn:"Поділитися", copy_btn:"Копіювати",
+    home_collections:"Добірки", premium_free:"Free",
+    nothing_found_title:"Нічого не знайдено", nothing_found_body:"Спробуйте інше слово.",
+    nothing_worked_title:"Нічого не вийшло", catalog_down_title:"Каталог не відповідає",
+    lib_create_playlist:"Створити плейлист", lib_liked_empty_title:"Збережене порожнє",
+    lib_liked_empty_body:"у плеєрі — трек буде тут.",
+    what_to_play:"Що поставити?",
   },
   ru: {
     nav_home:"Главная", nav_search:"Поиск", nav_lib:"Библиотека", nav_me:"Профиль",
@@ -490,6 +516,29 @@ const I18N = {
     h_mood:"Настроение", onboard_title:"Как начать",
     onboard_body:"Напишите название песни или артиста в поиске, или выберите настроение ниже — и музыка подберётся сама.",
     search_ph:"Трек, артист или жанр",
+    search_all:"Всё", search_genres:"Жанры", search_tracks:"Треки", search_albums:"Альбомы",
+    search_artists:"Артисты", search_pd:"Общественное достояние",
+    sort_relevance:"По совпадению", sort_popular:"Популярные", sort_newest:"Новинки",
+    search_empty_title:"Что поставить?",
+    search_empty_body:"Каталог — независимые артисты под Creative Commons. Попробуйте жанр: lofi, jazz, synthwave, folk.",
+    lib_liked:"Сохранённое", lib_playlists:"Плейлисты", lib_history:"История",
+    pr_stats:"Статистика", pr_wrapped:"Мой год в музыке", pr_referral:"Пригласить друзей",
+    pr_sound:"Звук", pr_eq:"Эквалайзер", pr_eq_on:"10 полос с пресетами", pr_eq_off:"Доступно в Premium",
+    pr_crossfade:"Кроссфейд", pr_crossfade_on:"Плавный переход между треками", pr_crossfade_off:"Доступно в Premium",
+    pr_sleep:"Таймер сна", pr_sleep_on:"Музыка выключится сама", pr_sleep_off:"Доступно в Premium", pr_sleep_off_btn:"Выключено",
+    pr_theme:"Тема", pr_theme_all:"Все темы открыты", pr_theme_free:"В Free доступна только первая тема",
+    pr_ambient:"Живая обложка", pr_lang:"Язык",
+    pr_lang_hint:"Переведён весь основной интерфейс.",
+    pr_premium:"Premium", pr_promo_btn:"Ввести промокод", pr_licenses:"Лицензии",
+    pr_licenses_body:"Каталог составляют Jamendo (Creative Commons), Audius (релизы самих артистов) и Internet Archive (общественное достояние). Каждый трек показывает лицензию и ссылку на оригинал — это требование CC. Загрузка включена только там, где автор её разрешил.",
+    referral_code:"Ваш код", referral_invited:"Приглашено", referral_both:"за друга — обоим",
+    share_btn:"Поделиться", copy_btn:"Копировать",
+    home_collections:"Подборки", premium_free:"Free",
+    nothing_found_title:"Ничего не найдено", nothing_found_body:"Попробуйте другое слово.",
+    nothing_worked_title:"Ничего не вышло", catalog_down_title:"Каталог не отвечает",
+    lib_create_playlist:"Создать плейлист", lib_liked_empty_title:"Сохранённое пусто",
+    lib_liked_empty_body:"в плеере — трек будет здесь.",
+    what_to_play:"Что поставить?",
   },
   en: {
     nav_home:"Home", nav_search:"Search", nav_lib:"Library", nav_me:"Profile",
@@ -497,6 +546,29 @@ const I18N = {
     h_mood:"Mood", onboard_title:"Getting started",
     onboard_body:"Type a song or artist name in search, or pick a mood below — the music picks itself.",
     search_ph:"Track, artist or genre",
+    search_all:"All", search_genres:"Genres", search_tracks:"Tracks", search_albums:"Albums",
+    search_artists:"Artists", search_pd:"Public domain",
+    sort_relevance:"Best match", sort_popular:"Popular", sort_newest:"Newest",
+    search_empty_title:"What'll it be?",
+    search_empty_body:"The catalog is independent artists under Creative Commons. Try a genre: lofi, jazz, synthwave, folk.",
+    lib_liked:"Saved", lib_playlists:"Playlists", lib_history:"History",
+    pr_stats:"Stats", pr_wrapped:"My year in music", pr_referral:"Invite friends",
+    pr_sound:"Sound", pr_eq:"Equalizer", pr_eq_on:"10 bands with presets", pr_eq_off:"Premium only",
+    pr_crossfade:"Crossfade", pr_crossfade_on:"Smooth transition between tracks", pr_crossfade_off:"Premium only",
+    pr_sleep:"Sleep timer", pr_sleep_on:"Music fades out on its own", pr_sleep_off:"Premium only", pr_sleep_off_btn:"Off",
+    pr_theme:"Theme", pr_theme_all:"All themes unlocked", pr_theme_free:"Only the first theme is free",
+    pr_ambient:"Live cover", pr_lang:"Language",
+    pr_lang_hint:"The whole main interface is translated.",
+    pr_premium:"Premium", pr_promo_btn:"Enter promo code", pr_licenses:"Licenses",
+    pr_licenses_body:"The catalog is Jamendo (Creative Commons), Audius (artists' own releases) and Internet Archive (public domain). Every track shows its license and a link to the original — CC requires that. Downloads are on only where the author allowed it.",
+    referral_code:"Your code", referral_invited:"Invited", referral_both:"for a friend — both get",
+    share_btn:"Share", copy_btn:"Copy",
+    home_collections:"Collections", premium_free:"Free",
+    nothing_found_title:"Nothing found", nothing_found_body:"Try another word.",
+    nothing_worked_title:"Something went wrong", catalog_down_title:"Catalog isn't responding",
+    lib_create_playlist:"Create playlist", lib_liked_empty_title:"Saved is empty",
+    lib_liked_empty_body:"in the player — the track will show up here.",
+    what_to_play:"What'll it be?",
   },
 };
 
@@ -512,7 +584,9 @@ function applyI18n(){
     [...b.childNodes].forEach(n => { if(n.nodeType===3) n.remove(); });
     b.appendChild(document.createTextNode(t(key)));
   });
-  if($("qInput")) $("qInput").placeholder = t("search_ph");
+  document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+  if($("planChip")) $("planChip").textContent = S.me?.premium ? "Premium" : t("premium_free");
   if(S.me) $("topSub").textContent = S.me.premium ? t("sub_premium") : t("sub_free");
 }
 
@@ -614,6 +688,24 @@ const post = (p,body) => req(p,{method:"POST",body:JSON.stringify(body||{})});
   handleStartParam();
 })();
 
+/* Оплата Stars проходить у чаті бота, поза Mini App, тому статус Premium
+   тут може лишитись застарілим, якщо застосунок не перезавантажили.
+   Оновлюємо профіль щоразу, коли Mini App знову стає видимим. */
+async function refreshMe(){
+  try{
+    const me = await get("/api/me");
+    S.me = me.user; S.limits = me.limits; S.features = me.features;
+    $("planChip").textContent = S.me.premium ? "Premium" : t("premium_free");
+    $("planChip").classList.toggle("pro", !!S.me.premium);
+    applyI18n();
+  }catch(e){ /* тихо: наступна спроба підхопить */ }
+}
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState === "visible") refreshMe();
+});
+window.addEventListener("focus", refreshMe);
+tg?.onEvent?.("activated", refreshMe);
+
 function handleStartParam(){
   if(!START) return;
   const [kind, ...rest] = START.split(":");
@@ -639,7 +731,7 @@ function go(name){
     }
     b.classList.toggle("on", becomesOn);
   });
-  if(name==="Me") renderProfile();
+  if(name==="Me"){ refreshMe().then(renderProfile); renderProfile(); }
   if(name==="Lib") renderLibrary();
   if(name==="Search") setTimeout(()=>$("qInput").focus(), 120);
   window.scrollTo(0,0);
@@ -775,8 +867,10 @@ async function loadHome(){
     html += collectionsHtml;
     $("homeBody").innerHTML = html;
     bindHome();
+    applyI18n();
   }catch(e){
-    $("homeBody").innerHTML = html || `<div class="empty"><b>Каталог не відповідає</b>${esc(e.message)}</div>`;
+    $("homeBody").innerHTML = html || `<div class="empty"><b data-i18n="catalog_down_title">Каталог не відповідає</b>${esc(e.message)}</div>`;
+    applyI18n();
   }
 }
 
@@ -785,7 +879,7 @@ async function loadCollections(){
     const d = await get("/api/collections");
     if(!d.playlists?.length) return "";
     window.__homePlaylists = d.playlists;
-    return `<div class="sect"><h2>Добірки</h2><div class="reel">` +
+    return `<div class="sect"><h2 data-i18n="home_collections">Добірки</h2><div class="reel">` +
       d.playlists.map((p,i)=>`
       <div class="card" data-pl="${i}">
         ${p.cover?`<img src="${esc(p.cover)}" alt="" loading="lazy">`:`<div class="ph"></div>`}
@@ -1008,30 +1102,35 @@ async function runSearch(){
     const params = `q=${encodeURIComponent(q)}&type=${S.kind}&limit=40&sort=${S.sort}&sources=${S.sources.join(",")}`;
     const d = await get(`/api/search?${params}`);
     if(!d.results.length){
-      $("qBody").innerHTML = `<div class="empty"><b>Нічого не знайдено</b>Спробуйте інше слово.</div>${NO_RESULTS_HINT}`;
+      $("qBody").innerHTML = `<div class="empty"><b data-i18n="nothing_found_title">Нічого не знайдено</b><span data-i18n="nothing_found_body">Спробуйте інше слово.</span></div>${NO_RESULTS_HINT}`;
+      applyI18n();
       return;
     }
     if(S.kind==="albums" || S.kind==="artists") renderCollections(d.results, S.kind);
     else mountRows($("qBody"), d.results, "search");
+    applyI18n();
   }catch(e){
-    $("qBody").innerHTML = `<div class="empty"><b>Нічого не вийшло</b>${esc(e.message)}</div>`;
+    $("qBody").innerHTML = `<div class="empty"><b data-i18n="nothing_worked_title">Нічого не вийшло</b>${esc(e.message)}</div>`;
+    applyI18n();
   }
 }
 
 function renderAllResults(r){
   const empty = !r.tracks.length && !r.albums.length && !r.artists.length;
   if(empty){
-    $("qBody").innerHTML = `<div class="empty"><b>Нічого не знайдено</b>Спробуйте інше слово.</div>${NO_RESULTS_HINT}`;
+    $("qBody").innerHTML = `<div class="empty"><b data-i18n="nothing_found_title">Нічого не знайдено</b><span data-i18n="nothing_found_body">Спробуйте інше слово.</span></div>${NO_RESULTS_HINT}`;
+    applyI18n();
     return;
   }
   let html = "";
   if(r.tracks.length){ CTX["all_tracks"] = r.tracks;
-    html += `<div class="sect"><h2>Треки</h2></div>` + rowsHtml(r.tracks.slice(0,8), "all_tracks"); }
+    html += `<div class="sect"><h2 data-i18n="search_tracks">Треки</h2></div>` + rowsHtml(r.tracks.slice(0,8), "all_tracks"); }
   if(r.albums.length){
-    html += `<div class="sect"><h2>Альбоми</h2>${cardsHtml(r.albums, "all_albums")}</div>`; }
+    html += `<div class="sect"><h2 data-i18n="search_albums">Альбоми</h2>${cardsHtml(r.albums, "all_albums")}</div>`; }
   if(r.artists.length){
-    html += `<div class="sect"><h2>Артисти</h2>${cardsHtml(r.artists, "all_artists", true)}</div>`; }
+    html += `<div class="sect"><h2 data-i18n="search_artists">Артисти</h2>${cardsHtml(r.artists, "all_artists", true)}</div>`; }
   $("qBody").innerHTML = html;
+  applyI18n();
   $("qBody").querySelectorAll(".row").forEach(row=>{
     row.onclick = ev => {
       const list = CTX[row.dataset.ctx], i = +row.dataset.i;
@@ -1069,7 +1168,7 @@ async function openCurated(pid, title){
 
 function renderCollections(list, kind){
   if(!list.length){ $("qBody").innerHTML =
-    `<div class="empty"><b>Нічого не знайдено</b>Спробуйте інше слово.</div>`; return; }
+    `<div class="empty"><b data-i18n="nothing_found_title">Нічого не знайдено</b><span data-i18n="nothing_found_body">Спробуйте інше слово.</span></div>`; applyI18n(); return; }
   CTX["coll"] = list;
   $("qBody").innerHTML = `<div class="rows">` + list.map((x,i)=>`
     <div class="row" data-i="${i}">
@@ -1109,13 +1208,15 @@ async function renderLibrary(){
   if(S.libView === "liked"){
     await loadLiked();
     if(!likedTracks.length){ box.innerHTML =
-      `<div class="empty"><b>Збережене порожнє</b>Тисніть ${ICON("heart","sm")} у плеєрі — трек буде тут.</div>`; return; }
+      `<div class="empty"><b data-i18n="lib_liked_empty_title">Збережене порожнє</b>Тисніть ${ICON("heart","sm")} <span data-i18n="lib_liked_empty_body">у плеєрі — трек буде тут.</span></div>`;
+      applyI18n(); return; }
     mountRows(box, likedTracks, "liked");
+    applyI18n();
     return;
   }
   if(S.libView === "playlists"){
     await loadPlaylists();
-    box.innerHTML = `<button class="btn" onclick="openCreatePlaylist()">Створити плейлист</button>
+    box.innerHTML = `<button class="btn" onclick="openCreatePlaylist()" data-i18n="lib_create_playlist">Створити плейлист</button>
       <div style="height:14px"></div>` +
       (S.playlists.length ? `<div class="rows">` + S.playlists.map(p=>`
         <div class="row" data-pid="${p.id}">
@@ -1130,9 +1231,10 @@ async function renderLibrary(){
       if(ev.target.dataset.share !== undefined){ sharePlaylist(+ev.target.dataset.share); return; }
       openPlaylist(+r.dataset.pid);
     });
+    applyI18n();
     return;
   }
-  try{ mountRows(box, (await get("/api/history")).tracks, "history"); }
+  try{ mountRows(box, (await get("/api/history")).tracks, "history"); applyI18n(); }
   catch(e){ box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
@@ -1514,54 +1616,54 @@ function renderProfile(){
             : "Безкоштовний план"}</div>
       ${S.me.streak>1?`<div class="streak">${ICON("flame","sm")}${S.me.streak} днів поспіль</div>`:""}
     </div>
-    <div class="sect"><h2>Статистика</h2><div id="statBox"><div class="skel"></div></div>
-      <button class="pill" style="margin-top:10px" onclick="openWrapped()">${ICON("gift","sm")}Мій рік у музиці</button>
+    <div class="sect"><h2 data-i18n="pr_stats">Статистика</h2><div id="statBox"><div class="skel"></div></div>
+      <button class="pill" style="margin-top:10px" onclick="openWrapped()">${ICON("gift","sm")}<span data-i18n="pr_wrapped">Мій рік у музиці</span></button>
     </div>
 
-    <div class="sect"><h2>Запросити друзів</h2>
+    <div class="sect"><h2 data-i18n="pr_referral">Запросити друзів</h2>
       <div class="refcard" id="refCard"><div class="skel"></div></div>
     </div>
 
-    <div class="sect"><h2>Звук</h2>
-      <div class="opt"><div class="lbl"><b>Еквалайзер</b>
-        <span>${p?"10 смуг із пресетами":"Доступно у Premium"}</span></div>
+    <div class="sect"><h2 data-i18n="pr_sound">Звук</h2>
+      <div class="opt"><div class="lbl"><b data-i18n="pr_eq">Еквалайзер</b>
+        <span data-i18n="${p?"pr_eq_on":"pr_eq_off"}">${p?"10 смуг із пресетами":"Доступно у Premium"}</span></div>
         <div class="sw ${S.eq?"on":""}" id="swEq"></div></div>
       <div id="eqPanel" style="display:${S.eq?"block":"none"}"></div>
 
-      <div class="opt"><div class="lbl"><b>Кросфейд</b>
-        <span>${p?"Плавний перехід між треками":"Доступно у Premium"}</span></div>
+      <div class="opt"><div class="lbl"><b data-i18n="pr_crossfade">Кросфейд</b>
+        <span data-i18n="${p?"pr_crossfade_on":"pr_crossfade_off"}">${p?"Плавний перехід між треками":"Доступно у Premium"}</span></div>
         <div style="color:var(--accent);font-weight:600" id="cfVal">${S.crossfade}с</div></div>
       <input type="range" min="0" max="12" value="${S.crossfade}" id="cfRange"
              style="width:100%;margin-bottom:6px" ${p?"":"disabled"}>
 
-      <div class="opt"><div class="lbl"><b>Таймер сну</b>
-        <span>${p?"Музика вимкнеться сама":"Доступно у Premium"}</span></div>
-        <button class="pill" id="sleepBtn">${S.sleepAt?fmt((S.sleepAt-Date.now())/1000):"Вимкнено"}</button></div>
+      <div class="opt"><div class="lbl"><b data-i18n="pr_sleep">Таймер сну</b>
+        <span data-i18n="${p?"pr_sleep_on":"pr_sleep_off"}">${p?"Музика вимкнеться сама":"Доступно у Premium"}</span></div>
+        <button class="pill" id="sleepBtn" ${S.sleepAt?"":'data-i18n="pr_sleep_off_btn"'}>${S.sleepAt?fmt((S.sleepAt-Date.now())/1000):"Вимкнено"}</button></div>
     </div>
 
-    <div class="sect"><h2>Тема</h2>
+    <div class="sect"><h2 data-i18n="pr_theme">Тема</h2>
       <div class="swatches" id="themeRow">
         ${["midnight","ember","aurora","neon","paper"].map(t=>`
           <button class="swatch ${S.me.theme===t?"on":""}" data-theme="${t}"
             style="background:${{midnight:"#C6A1FF",ember:"#FF9E4A",aurora:"#5BE3C6",
                                 neon:"#FF5FC8",paper:"#5A4BD6"}[t]}"></button>`).join("")}
       </div>
-      <div style="font-size:12px;color:var(--muted);margin-top:9px">
+      <div style="font-size:12px;color:var(--muted);margin-top:9px" data-i18n="${p?"pr_theme_all":"pr_theme_free"}">
         ${p?"Усі теми відкриті":"У Free доступна лише перша тема"}</div>
     </div>
 
-    <div class="sect"><h2>Мова</h2>
+    <div class="sect"><h2 data-i18n="pr_lang">Мова</h2>
       <div class="frow" id="langRow">
         ${[["uk","Українська"],["ru","Русский"],["en","English"]].map(([k,label])=>
           `<button class="fchip ${(S.me.lang||"uk")===k?"on":""}" data-lang="${k}">${esc(label)}</button>`
         ).join("")}
       </div>
-      <div style="font-size:12px;color:var(--muted);margin-top:9px">
-        Зараз перекладено меню й основні написи. Решта інтерфейсу перекладається поступово.
+      <div style="font-size:12px;color:var(--muted);margin-top:9px" data-i18n="pr_lang_hint">
+        Перекладено весь основний інтерфейс.
       </div>
     </div>
 
-    <div class="sect"><h2>Жива обкладинка</h2>
+    <div class="sect"><h2 data-i18n="pr_ambient">Жива обкладинка</h2>
       <div class="frow" id="ambientRow">
         ${[["blur","Розмиття"],["vinyl","Вініл"],["particles","Частки"]].map(([k,label])=>{
           const locked = !S.limits.ambient_styles.includes(k);
@@ -1570,14 +1672,14 @@ function renderProfile(){
       </div>
     </div>
 
-    <div class="sect"><h2>Premium</h2>
+    <div class="sect"><h2 data-i18n="pr_premium">Premium</h2>
       ${S.features.map((f,i)=>`<div class="feat"><div class="n">${i+1}</div>
         <div><b>${esc(f.title)}</b><span>${esc(f.description)}</span></div></div>`).join("")}
-      ${p?"":`<button class="btn" style="margin-top:14px" onclick="openPromo()">Ввести промокод</button>`}
+      ${p?"":`<button class="btn" style="margin-top:14px" onclick="openPromo()" data-i18n="pr_promo_btn">Ввести промокод</button>`}
     </div>
 
-    <div class="sect"><h2>Ліцензії</h2>
-      <div style="font-size:12.5px;color:var(--muted);line-height:1.65">
+    <div class="sect"><h2 data-i18n="pr_licenses">Ліцензії</h2>
+      <div style="font-size:12.5px;color:var(--muted);line-height:1.65" data-i18n="pr_licenses_body">
         Каталог складають Jamendo (Creative Commons), Audius (релізи самих артистів)
         та Internet Archive (суспільне надбання). Кожен трек показує ліцензію й посилання
         на оригінал — це вимога CC. Завантаження вмикається лише там, де автор його дозволив.
@@ -1586,21 +1688,24 @@ function renderProfile(){
   bindProfile();
   loadStats();
   loadReferral();
+  applyI18n();
 }
 
 async function loadReferral(){
   try{
     const d = await get("/api/referral");
     $("refCard").innerHTML = `
-      <div style="font-size:13px;color:var(--muted)">Ваш код</div>
+      <div style="font-size:13px;color:var(--muted)" data-i18n="referral_code">Ваш код</div>
       <div class="code">${esc(d.code)}</div>
       <div style="font-size:12.5px;color:var(--muted)">
-        Запрошено: <b style="color:var(--ink)">${d.invited}</b> · за друга — обом
+        <span data-i18n="referral_invited">Запрошено</span>: <b style="color:var(--ink)">${d.invited}</b> ·
+        <span data-i18n="referral_both">за друга — обом</span>
         <b style="color:var(--accent)">+${d.reward_days} дні Premium</b></div>
       <div class="row2">
-        <button class="pill" id="refShare">${ICON("share","sm")}Поділитися</button>
-        <button class="pill" id="refCopy">${ICON("copy","sm")}Копіювати</button>
+        <button class="pill" id="refShare">${ICON("share","sm")}<span data-i18n="share_btn">Поділитися</span></button>
+        <button class="pill" id="refCopy">${ICON("copy","sm")}<span data-i18n="copy_btn">Копіювати</span></button>
       </div>`;
+    applyI18n();
     $("refShare").onclick = () => {
       tap();
       const text = `Приєднуйся до ${esc("MusicLSP")} — легальна музика в Telegram: ${d.link||d.code}`;
