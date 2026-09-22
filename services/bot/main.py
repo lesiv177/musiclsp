@@ -214,15 +214,18 @@ async def on_precheckout(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def on_successful_payment(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    sp = update.message.successful_payment
-    uid = update.effective_user.id
-    logger.info("Оплата Stars: uid=%s payload=%s amount=%s", uid, sp.invoice_payload, sp.total_amount)
-    if sp.invoice_payload == "test_payment_1star":
-        await update.message.reply_text(
-            "✅ Тестова оплата пройшла успішно! Ланцюжок працює — коли підключимо реальні ціни, "
-            "Premium буде видаватись так само автоматично.",
-            reply_markup=main_kb(uid),
-        )
+    try:
+        sp = update.message.successful_payment
+        uid = update.effective_user.id
+        logger.info("Оплата Stars: uid=%s payload=%s amount=%s", uid, sp.invoice_payload, sp.total_amount)
+        if sp.invoice_payload == "test_payment_1star":
+            text = ("✅ Тестова оплата пройшла успішно! Ланцюжок працює — коли підключимо реальні ціни, "
+                    "Premium буде видаватись так само автоматично.")
+        else:
+            text = f"✅ Оплату отримано ({sp.total_amount}⭐). Дякую за підтримку {APP_NAME}!"
+        await update.message.reply_text(text, reply_markup=main_kb(uid))
+    except Exception:
+        logger.exception("Помилка обробки успішної оплати")
 
 
 async def cmd_referral(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
