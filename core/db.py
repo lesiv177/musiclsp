@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 USE_PG = False
 _pg_pool = None
+_pg_last_error = ""
 
 try:
     import psycopg2
@@ -32,18 +33,28 @@ except ImportError:
 
 
 def init_engine():
-    global USE_PG, _pg_pool
+    global USE_PG, _pg_pool, _pg_last_error
     if DATABASE_URL and PSYCOPG_OK:
-        try:
-            url = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-            _pg_pool = pg_pool.SimpleConnectionPool(1, 8, url, sslmode="require")
-            conn = _pg_pool.getconn()
-            _pg_pool.putconn(conn)
-            USE_PG = True
-            logger.info("База даних: PostgreSQL")
-            return
-        except Exception as e:
-            logger.warning("PostgreSQL недоступний (%s) — вмикаю SQLite", e)
+        url = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+        # "require" ламає підключення на внутрішній мережі Railway (postgres.railway.internal),
+        # яка часто взагалі не підтримує SSL. "prefer" пробує SSL, а якщо сервер
+        # його не підтримує — підключається без нього, замість падати в SQLite.
+        for mode in ("prefer", "disable"):
+            try:
+                _pg_pool = pg_pool.SimpleConnectionPool(1, 8, url, sslmode=mode)
+                conn = _pg_pool.getconn()
+                _pg_pool.putconn(conn)
+                USE_PG = True
+                _pg_last_error = ""
+                logger.info("База даних: PostgreSQL (sslmode=%s)", mode)
+                return
+            except Exception as e:
+                _pg_last_error = str(e)
+                logger.warning("PostgreSQL недоступний з sslmode=%s (%s)", mode, e)
+    elif DATABASE_URL and not PSYCOPG_OK:
+        _pg_last_error = "psycopg2 не встановлено (перевір requirements.txt)"
+    elif not DATABASE_URL:
+        _pg_last_error = "змінна DATABASE_URL не задана"
     USE_PG = False
     logger.info("База даних: SQLite (%s)", SQLITE_PATH)
 
@@ -695,9 +706,12 @@ def global_stats():
         plays = int((one(cur) or {}).get("c") or 0)
         cur.execute("SELECT COUNT(*) AS c FROM playlists")
         pls = int((one(cur) or {}).get("c") or 0)
+    engine = "PostgreSQL (постійна)" if USE_PG else "SQLite (тимчасова!)"
+    if not USE_PG and _pg_last_error:
+        engine += f" — причина: {_pg_last_error}"
     return {
         "users": users, "premium": prem, "plays": plays, "playlists": pls,
-        "engine": "PostgreSQL (постійна)" if USE_PG else "SQLite (тимчасова!)",
+        "engine": engine,
     }
 
 
