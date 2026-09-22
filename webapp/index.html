@@ -343,6 +343,7 @@ a{color:var(--accent)}
       <button class="tab" data-kind="albums">Альбоми</button>
       <button class="tab" data-kind="artists">Артисти</button>
       <button class="tab" data-kind="public_domain">Суспільне надбання</button>
+      <button class="tab" data-kind="genres">Жанри</button>
     </div>
     <div id="qFilters">
       <div class="frow" id="qSortRow">
@@ -754,40 +755,44 @@ async function openMood(key, label){
 }
 
 async function loadHome(){
+  let html = onboardHintHtml();
   try{
-    // Три незалежні запити раніше йшли один за одним — тепер паралельно,
-    // це помітно швидше відкриває головний екран.
-    const [dailyHtml, moodsHtml, d] = await Promise.all([
-      loadDaily(), loadMoodsRow(), get("/api/home"),
+    // Незалежні запити йдуть паралельно, кожен зі своїм запасним варіантом —
+    // одне повільне чи впале джерело більше не блокує весь екран.
+    const [dailyHtml, moodsHtml, homeData, collectionsHtml] = await Promise.all([
+      loadDaily(), loadMoodsRow(),
+      get("/api/home").catch(()=>({sections:[]})),
+      loadCollections(),
     ]);
-    let html = onboardHintHtml() + dailyHtml + moodsHtml;
-    d.sections.forEach((sec,si)=>{
+    html += dailyHtml + moodsHtml;
+    homeData.sections.forEach((sec,si)=>{
       const key = "home"+si;
       html += `<div class="sect"><h2>${esc(sec.title)}</h2>
         ${sec.id==="recent" ? "" : cardsHtml(sec.tracks, key)}</div>`;
       if(sec.id==="recent"){ CTX[key]=sec.tracks;
         html = html.replace("</div>", rowsHtml(sec.tracks.slice(0,5), key)+"</div>"); }
     });
-    if(d.playlists?.length){
-      html += `<div class="sect"><h2>Добірки</h2><div class="reel">` +
-        d.playlists.map((p,i)=>`
-        <div class="card" data-pl="${i}">
-          ${p.cover?`<img src="${esc(p.cover)}" alt="" loading="lazy">`:`<div class="ph"></div>`}
-          <div class="t">${esc(p.title)}</div>
-          <div class="s">${esc(p.source_label||"")}</div>
-        </div>`).join("") + `</div></div>`;
-      window.__homePlaylists = d.playlists;
-    }
-    if(d.genres?.length){
-      html += `<div class="sect"><h2>Жанри</h2><div class="genres">` +
-        d.genres.map(g=>`<button class="genre" data-tag="${esc(g.tag)}">${esc(g.label)}</button>`)
-        .join("") + `</div></div>`;
-    }
+    html += collectionsHtml;
     $("homeBody").innerHTML = html;
     bindHome();
   }catch(e){
-    $("homeBody").innerHTML = `<div class="empty"><b>Каталог не відповідає</b>${esc(e.message)}</div>`;
+    $("homeBody").innerHTML = html || `<div class="empty"><b>Каталог не відповідає</b>${esc(e.message)}</div>`;
   }
+}
+
+async function loadCollections(){
+  try{
+    const d = await get("/api/collections");
+    if(!d.playlists?.length) return "";
+    window.__homePlaylists = d.playlists;
+    return `<div class="sect"><h2>Добірки</h2><div class="reel">` +
+      d.playlists.map((p,i)=>`
+      <div class="card" data-pl="${i}">
+        ${p.cover?`<img src="${esc(p.cover)}" alt="" loading="lazy">`:`<div class="ph"></div>`}
+        <div class="t">${esc(p.title)}</div>
+        <div class="s">${esc(p.source_label||"")}</div>
+      </div>`).join("") + `</div></div>`;
+  }catch(e){ return ""; }
 }
 
 function bindHome(){
@@ -824,16 +829,38 @@ function bindHome(){
       setQueue(list, i); tap();
     };
   });
-  $("homeBody").querySelectorAll(".genre").forEach(g=>{
-    g.onclick = async () => {
-      tap(); go("Search"); $("qInput").value = g.dataset.tag;
-      $("qBody").innerHTML = `<div class="skel"></div><div class="skel"></div>`;
-      try{
-        const d = await get("/api/home?tag="+encodeURIComponent(g.dataset.tag));
-        mountRows($("qBody"), d.sections[0]?.tracks||[], "genre");
-      }catch(e){ toast(e.message); }
-    };
-  });
+}
+
+async function openGenre(tag, label){
+  go("Search");
+  $("qTabs").querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));
+  $("qTabs").querySelector('[data-kind="genres"]').classList.add("on");
+  S.kind = "genres";
+  $("qSourceRow").style.display = "none";
+  $("qBody").innerHTML = `<div class="skel"></div><div class="skel"></div>`;
+  try{
+    const d = await get("/api/home?tag="+encodeURIComponent(tag));
+    $("qBody").innerHTML = `<div class="sect"><h2>${esc(label||tag)}</h2></div>`;
+    const wrap = document.createElement("div"); $("qBody").appendChild(wrap);
+    mountRows(wrap, d.sections[0]?.tracks||[], "genre");
+  }catch(e){ toast(e.message); }
+}
+
+async function loadGenresGrid(){
+  $("qBody").innerHTML = `<div class="skel"></div><div class="skel"></div>`;
+  try{
+    const d = await get("/api/genres");
+    if(!d.genres?.length){ $("qBody").innerHTML = `<div class="empty"><b>Немає жанрів</b></div>`; return; }
+    window.__genres = d.genres;
+    $("qBody").innerHTML = `<div class="genres">` +
+      d.genres.map((g,i)=>`<button class="genre" data-i="${i}">${esc(g.label)}</button>`).join("") +
+      `</div>`;
+    $("qBody").querySelectorAll(".genre").forEach(b=>{
+      b.onclick = () => { tap(); const g = window.__genres[+b.dataset.i]; openGenre(g.tag, g.label); };
+    });
+  }catch(e){
+    $("qBody").innerHTML = `<div class="empty"><b>Не вдалося завантажити жанри</b>${esc(e.message)}</div>`;
+  }
 }
 
 /* ════════ Пошук ════════ */
@@ -942,8 +969,10 @@ async function btFinish(){
 $("qTabs").querySelectorAll(".tab").forEach(t => t.onclick = () => {
   $("qTabs").querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));
   t.classList.add("on"); S.kind = t.dataset.kind;
-  $("qSourceRow").style.display = (S.kind==="artists"||S.kind==="public_domain"||S.kind==="all") ? "none" : "flex";
-  runSearch(); tap();
+  $("qSourceRow").style.display = (S.kind==="artists"||S.kind==="public_domain"||S.kind==="all"||S.kind==="genres") ? "none" : "flex";
+  tap();
+  if(S.kind === "genres"){ loadGenresGrid(); return; }
+  runSearch();
 });
 
 $("qSortRow").querySelectorAll(".fchip").forEach(c => c.onclick = () => {
@@ -965,6 +994,7 @@ const NO_RESULTS_HINT =
   бо їх не можна легально стрімити. Спробуйте жанр або назву гурту.</div>`;
 
 async function runSearch(){
+  if(S.kind === "genres") return;
   const q = $("qInput").value.trim();
   if(q.length < 2) return;
   $("qBody").innerHTML = `<div class="skel"></div><div class="skel"></div><div class="skel"></div>`;
