@@ -35,7 +35,7 @@ from services.bot import api
 from core.config import (
     BOT_TOKEN, ADMIN_IDS, WEB_APP_URL, API_URL, PORT,
     JAMENDO_CLIENT_ID, PREMIUM_FEATURES, APP_NAME, APP_VERSION,
-    REFERRAL_REWARD_DAYS, STAR_PRICE_MONTH, STAR_PRICE_YEAR,
+    REFERRAL_REWARD_DAYS, STAR_PRICE_WEEK, STAR_PRICE_MONTH, STAR_PRICE_3MONTH, STAR_PRICE_YEAR,
 )
 
 logging.basicConfig(
@@ -68,7 +68,8 @@ BOT_TR = {
         "premium_inactive_title": "✨ <b>MusicLSP Premium</b>",
         "premium_inactive_sub": "Той самий чесний каталог, але без жодних меж — ось що зміниться:",
         "premium_promo": "🎁 Є промокод? Надішліть <code>/code ВАШ_КОД</code>, і Premium увімкнеться миттєво.",
-        "btn_month": "⭐ 1 місяць — {price}⭐", "btn_year": "⭐ 1 рік — {price}⭐ (вигідніше)",
+        "btn_week": "⭐ 7 днів — {price}⭐", "btn_month": "⭐ 1 місяць — {price}⭐",
+        "btn_3m": "⭐ 3 місяці — {price}⭐", "btn_year": "⭐ 1 рік — {price}⭐ (вигідніше)",
         "pay_status": "✅ <b>Статус: Premium активовано</b>",
         "pay_confirmed": "Оплату отримано. Premium активний до {until}. Відкрийте плеєр — нові можливості вже там 🎧",
         "referral_intro": ("🤝 <b>Запросіть друзів у {name}</b>\n\nЗа кожного друга, який приєднається за "
@@ -85,7 +86,8 @@ BOT_TR = {
         "premium_inactive_title": "✨ <b>MusicLSP Premium</b>",
         "premium_inactive_sub": "Тот же честный каталог, но без всяких границ — вот что изменится:",
         "premium_promo": "🎁 Есть промокод? Отправьте <code>/code ВАШ_КОД</code>, и Premium включится мгновенно.",
-        "btn_month": "⭐ 1 месяц — {price}⭐", "btn_year": "⭐ 1 год — {price}⭐ (выгоднее)",
+        "btn_week": "⭐ 7 дней — {price}⭐", "btn_month": "⭐ 1 месяц — {price}⭐",
+        "btn_3m": "⭐ 3 месяца — {price}⭐", "btn_year": "⭐ 1 год — {price}⭐ (выгоднее)",
         "pay_status": "✅ <b>Статус: Premium активирован</b>",
         "pay_confirmed": "Оплата получена. Premium активен до {until}. Откройте плеер — новые возможности уже там 🎧",
         "referral_intro": ("🤝 <b>Пригласите друзей в {name}</b>\n\nЗа каждого друга, который присоединится "
@@ -102,7 +104,8 @@ BOT_TR = {
         "premium_inactive_title": "✨ <b>MusicLSP Premium</b>",
         "premium_inactive_sub": "Same honest catalog, no limits — here's what changes:",
         "premium_promo": "🎁 Have a promo code? Send <code>/code YOUR_CODE</code> to activate Premium instantly.",
-        "btn_month": "⭐ 1 month — {price}⭐", "btn_year": "⭐ 1 year — {price}⭐ (better value)",
+        "btn_week": "⭐ 7 days — {price}⭐", "btn_month": "⭐ 1 month — {price}⭐",
+        "btn_3m": "⭐ 3 months — {price}⭐", "btn_year": "⭐ 1 year — {price}⭐ (better value)",
         "pay_status": "✅ <b>Status: Premium activated</b>",
         "pay_confirmed": "Payment received. Premium is active until {until}. Open the player — the new features are already there 🎧",
         "referral_intro": ("🤝 <b>Invite friends to {name}</b>\n\nFor every friend who joins with your "
@@ -119,7 +122,8 @@ BOT_TR = {
         "premium_inactive_title": "✨ <b>MusicLSP Premium</b>",
         "premium_inactive_sub": "Ten sam uczciwy katalog, bez ograniczeń — oto co się zmieni:",
         "premium_promo": "🎁 Masz kod promocyjny? Wyślij <code>/code TWÓJ_KOD</code>, a Premium włączy się natychmiast.",
-        "btn_month": "⭐ 1 miesiąc — {price}⭐", "btn_year": "⭐ 1 rok — {price}⭐ (korzystniej)",
+        "btn_week": "⭐ 7 dni — {price}⭐", "btn_month": "⭐ 1 miesiąc — {price}⭐",
+        "btn_3m": "⭐ 3 miesiące — {price}⭐", "btn_year": "⭐ 1 rok — {price}⭐ (korzystniej)",
         "pay_status": "✅ <b>Status: Premium aktywowane</b>",
         "pay_confirmed": "Płatność przyjęta. Premium aktywne do {until}. Otwórz odtwarzacz — nowe funkcje już tam są 🎧",
         "referral_intro": ("🤝 <b>Zaproś znajomych do {name}</b>\n\nZa każdego znajomego, który dołączy z "
@@ -136,7 +140,8 @@ BOT_TR = {
         "premium_inactive_title": "✨ <b>MusicLSP Premium</b>",
         "premium_inactive_sub": "Derselbe ehrliche Katalog, aber ohne Grenzen — das ändert sich:",
         "premium_promo": "🎁 Promo-Code? Sende <code>/code DEIN_CODE</code>, Premium aktiviert sich sofort.",
-        "btn_month": "⭐ 1 Monat — {price}⭐", "btn_year": "⭐ 1 Jahr — {price}⭐ (günstiger)",
+        "btn_week": "⭐ 7 Tage — {price}⭐", "btn_month": "⭐ 1 Monat — {price}⭐",
+        "btn_3m": "⭐ 3 Monate — {price}⭐", "btn_year": "⭐ 1 Jahr — {price}⭐ (günstiger)",
         "pay_status": "✅ <b>Status: Premium aktiviert</b>",
         "pay_confirmed": "Zahlung erhalten. Premium ist aktiv bis {until}. Öffne den Player — die neuen Funktionen sind schon da 🎧",
         "referral_intro": ("🤝 <b>Lade Freunde zu {name} ein</b>\n\nFür jeden Freund, der über deinen Link "
@@ -153,7 +158,8 @@ BOT_TR = {
         "premium_inactive_title": "✨ <b>MusicLSP Premium</b>",
         "premium_inactive_sub": "El mismo catálogo honesto, sin límites — esto es lo que cambia:",
         "premium_promo": "🎁 ¿Tienes un código promo? Envía <code>/code TU_CODIGO</code> y Premium se activa al instante.",
-        "btn_month": "⭐ 1 mes — {price}⭐", "btn_year": "⭐ 1 año — {price}⭐ (mejor precio)",
+        "btn_week": "⭐ 7 días — {price}⭐", "btn_month": "⭐ 1 mes — {price}⭐",
+        "btn_3m": "⭐ 3 meses — {price}⭐", "btn_year": "⭐ 1 año — {price}⭐ (mejor precio)",
         "pay_status": "✅ <b>Estado: Premium activado</b>",
         "pay_confirmed": "Pago recibido. Premium activo hasta {until}. Abre el reproductor — las nuevas funciones ya están ahí 🎧",
         "referral_intro": ("🤝 <b>Invita amigos a {name}</b>\n\nPor cada amigo que se una con tu enlace, "
@@ -170,7 +176,8 @@ BOT_TR = {
         "premium_inactive_title": "✨ <b>MusicLSP Premium</b>",
         "premium_inactive_sub": "Le même catalogue honnête, mais sans limites — voici ce qui change :",
         "premium_promo": "🎁 Un code promo ? Envoie <code>/code TON_CODE</code>, Premium s'active aussitôt.",
-        "btn_month": "⭐ 1 mois — {price}⭐", "btn_year": "⭐ 1 an — {price}⭐ (plus avantageux)",
+        "btn_week": "⭐ 7 jours — {price}⭐", "btn_month": "⭐ 1 mois — {price}⭐",
+        "btn_3m": "⭐ 3 mois — {price}⭐", "btn_year": "⭐ 1 an — {price}⭐ (plus avantageux)",
         "pay_status": "✅ <b>Statut : Premium activé</b>",
         "pay_confirmed": "Paiement reçu. Premium actif jusqu'au {until}. Ouvre le lecteur — les nouveautés sont déjà là 🎧",
         "referral_intro": ("🤝 <b>Invite des amis sur {name}</b>\n\nPour chaque ami qui rejoint avec ton "
@@ -187,7 +194,8 @@ BOT_TR = {
         "premium_inactive_title": "✨ <b>MusicLSP Premium</b>",
         "premium_inactive_sub": "Aynı dürüst katalog, ama sınırsız — işte değişecekler:",
         "premium_promo": "🎁 Promosyon kodun mu var? <code>/code KODUN</code> gönder, Premium hemen açılsın.",
-        "btn_month": "⭐ 1 ay — {price}⭐", "btn_year": "⭐ 1 yıl — {price}⭐ (daha avantajlı)",
+        "btn_week": "⭐ 7 gün — {price}⭐", "btn_month": "⭐ 1 ay — {price}⭐",
+        "btn_3m": "⭐ 3 ay — {price}⭐", "btn_year": "⭐ 1 yıl — {price}⭐ (daha avantajlı)",
         "pay_status": "✅ <b>Durum: Premium etkinleştirildi</b>",
         "pay_confirmed": "Ödeme alındı. Premium {until} tarihine kadar aktif. Oynatıcıyı aç — yeni özellikler orada 🎧",
         "referral_intro": ("🤝 <b>Arkadaşlarını {name}'e davet et</b>\n\nBağlantınla katılan her arkadaş "
@@ -410,10 +418,11 @@ async def cmd_premium(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     lines.append("· " + " · ".join(esc(title) for _, title, _ in PREMIUM_FEATURES))
     lines.append(bt(lang, "premium_promo"))
     kb = [
+        [InlineKeyboardButton(bt(lang, "btn_week", price=STAR_PRICE_WEEK), callback_data="pay_week")],
         [InlineKeyboardButton(bt(lang, "btn_month", price=STAR_PRICE_MONTH), callback_data="pay_month")],
+        [InlineKeyboardButton(bt(lang, "btn_3m", price=STAR_PRICE_3MONTH), callback_data="pay_3m")],
         [InlineKeyboardButton(bt(lang, "btn_year", price=STAR_PRICE_YEAR), callback_data="pay_year")],
     ] if not active else []
-    kb.append([InlineKeyboardButton("🧪 Test — 1⭐", callback_data="pay_test")])
     kb.append([InlineKeyboardButton(bt(lang, "btn_back"), callback_data="home")])
     await msg.reply_text("\n\n".join(lines), parse_mode=ParseMode.HTML,
                          reply_markup=InlineKeyboardMarkup(kb))
@@ -422,13 +431,12 @@ async def cmd_premium(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ─── Оплата (Telegram Stars) ─────────────────────────────────────────────────
 # Stars — вбудована валюта Telegram (XTR), не потребує платіжного провайдера
 # чи банківського рахунку. payload визначає, що саме купили — за ним і
-# видаємо Premium після оплати. pay_test — робоча тестова кнопка на 1⭐:
-# проходить весь той самий шлях (рахунок → оплата → видача Premium),
-# просто на 1 день, щоб можна було перевіряти оплату без витрат.
+# видаємо Premium після оплати.
 STAR_PLANS = {
+    "pay_week":  ("premium_week", STAR_PRICE_WEEK, "Premium — 7 days", 7),
     "pay_month": ("premium_month", STAR_PRICE_MONTH, "Premium — 1 month", 30),
+    "pay_3m":    ("premium_3m", STAR_PRICE_3MONTH, "Premium — 3 months", 90),
     "pay_year":  ("premium_year", STAR_PRICE_YEAR, "Premium — 1 year", 365),
-    "pay_test":  ("premium_test", 1, "Test — 1⭐", 1),
 }
 
 
