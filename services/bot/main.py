@@ -504,7 +504,8 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await q.answer()
         s = db.global_stats()
         return await q.message.reply_text(
-            f"<b>Статистика сервісу</b>\n\nКористувачів: {s['users']}\n"
+            f"<b>Статистика сервісу</b>\n\nБаза даних: <b>{esc(s['engine'])}</b>\n\n"
+            f"Користувачів: {s['users']}\n"
             f"З Premium: {s['premium']}\nПрослуховувань: {s['plays']}\n"
             f"Плейлистів: {s['playlists']}",
             parse_mode=ParseMode.HTML, reply_markup=admin_kb())
