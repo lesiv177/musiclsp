@@ -186,6 +186,7 @@ MIGRATIONS_PG = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_count INTEGER DEFAULT 0",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_last TEXT DEFAULT ''",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS ambient_style TEXT DEFAULT 'blur'",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS lang_set BOOLEAN DEFAULT FALSE",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_refcode ON users(ref_code)",
 ]
 MIGRATIONS_SQLITE = [
@@ -195,6 +196,7 @@ MIGRATIONS_SQLITE = [
     "ALTER TABLE users ADD COLUMN streak_count INTEGER DEFAULT 0",
     "ALTER TABLE users ADD COLUMN streak_last TEXT DEFAULT ''",
     "ALTER TABLE users ADD COLUMN ambient_style TEXT DEFAULT 'blur'",
+    "ALTER TABLE users ADD COLUMN lang_set INTEGER DEFAULT 0",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_refcode ON users(ref_code)",
 ]
 
@@ -250,7 +252,7 @@ def update_user(uid, **fields):
     allowed = {
         "lang", "theme", "accent", "quality", "eq_settings",
         "crossfade", "premium", "premium_until", "username", "first_name",
-        "ambient_style",
+        "ambient_style", "lang_set",
     }
     fields = {k: v for k, v in fields.items() if k in allowed}
     if not fields:
