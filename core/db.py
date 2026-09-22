@@ -205,17 +205,24 @@ def init_db():
     init_engine()
     schema = SCHEMA_PG if USE_PG else SCHEMA_SQLITE
     migrations = MIGRATIONS_PG if USE_PG else MIGRATIONS_SQLITE
-    with conn_cursor() as (conn, cur):
-        for stmt in schema:
-            try:
+    # ВАЖЛИВО: кожен вираз — у своїй окремій транзакції. Якщо все виконувати
+    # одним conn_cursor() на весь цикл, то в PostgreSQL одна невдала команда
+    # "отруює" всю транзакцію — і ВСІ наступні команди в ній тихо ігноруються
+    # (навіть якщо кожна обгорнута в try/except), а при фінальному commit()
+    # ціла пачка змін просто відкочується. Через це нова колонка могла ніколи
+    # не з'явитися в базі, хоча лог мовчав про це.
+    for stmt in schema:
+        try:
+            with conn_cursor() as (conn, cur):
                 cur.execute(stmt)
-            except Exception as e:
-                logger.warning("Схема: %s", e)
-        for stmt in migrations:
-            try:
+        except Exception as e:
+            logger.warning("Схема (%s…): %s", stmt.strip()[:50], e)
+    for stmt in migrations:
+        try:
+            with conn_cursor() as (conn, cur):
                 cur.execute(stmt)
-            except Exception:
-                pass  # колонка/індекс уже існує — це нормально при повторному деплої
+        except Exception:
+            pass  # колонка/індекс уже існує — це нормально при повторному деплої
     logger.info("Схема бази готова")
 
 
