@@ -189,7 +189,7 @@ async def cmd_premium(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     kb = [
         [InlineKeyboardButton(f"⭐ 1 місяць — {STAR_PRICE_MONTH}⭐", callback_data="pay_month")],
         [InlineKeyboardButton(f"⭐ 1 рік — {STAR_PRICE_YEAR}⭐ (вигідніше)", callback_data="pay_year")],
-        [InlineKeyboardButton("🧪 Тест оплати (1⭐)", callback_data="pay_test")],
+        [InlineKeyboardButton("Тест", callback_data="pay_test")],
         [InlineKeyboardButton("← Назад", callback_data="home")],
     ]
     await msg.reply_text("\n".join(lines), parse_mode=ParseMode.HTML,
