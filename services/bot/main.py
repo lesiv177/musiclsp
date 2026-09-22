@@ -192,14 +192,20 @@ async def cmd_premium(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # працює, перш ніж вмикати реальні ціни на Premium.
 
 async def send_test_invoice(chat_id, ctx: ContextTypes.DEFAULT_TYPE):
-    await ctx.bot.send_invoice(
-        chat_id=chat_id,
-        title="Тест оплати MusicLSP",
-        description="Технічна перевірка оплати через Telegram Stars. Гроші не списуються насправді нікуди, крім тесту — Premium за це не видається.",
-        payload="test_payment_1star",
-        currency="XTR",
-        prices=[LabeledPrice("Тест", 1)],
-    )
+    try:
+        await ctx.bot.send_invoice(
+            chat_id=chat_id,
+            title="Тест оплати MusicLSP",
+            description="Технічна перевірка оплати через Telegram Stars. Гроші не списуються насправді нікуди, крім тесту — Premium за це не видається.",
+            payload="test_payment_1star",
+            provider_token="",  # для Stars (XTR) саме порожній рядок, а не відсутнє поле
+            currency="XTR",
+            prices=[LabeledPrice("Тест", 1)],
+        )
+    except Exception as e:
+        logger.exception("Не вдалося виставити тестовий рахунок Stars: %s", e)
+        await ctx.bot.send_message(chat_id, f"Не вийшло виставити рахунок: {esc(e)}",
+                                   parse_mode=ParseMode.HTML)
 
 
 async def on_precheckout(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
