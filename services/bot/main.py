@@ -229,6 +229,16 @@ def webapp_url(path=""):
     return url
 
 
+def privacy_url():
+    """privacy.html лежить поруч із index.html на тому самому GitHub Pages."""
+    base = (WEB_APP_URL or "").split("?", 1)[0]
+    if not base:
+        return ""
+    if base.endswith(".html"):
+        return base.rsplit("/", 1)[0] + "/privacy.html"
+    return base.rstrip("/") + "/privacy.html"
+
+
 def esc(s):
     return html.escape(str(s or ""))
 
@@ -332,10 +342,23 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "/referral — запросити друзів і отримати Premium 🤝\n"
         "/code КОД — активувати промокод\n"
         "/stats — ваша статистика 📊\n"
-        "/legal — джерела та ліцензії\n\n"
+        "/lang — змінити мову 🌐\n"
+        "/legal — джерела та ліцензії\n"
+        "/privacy — політика конфіденційності\n\n"
         "Або просто надішліть текст — це теж пошук 🔎.",
         parse_mode=ParseMode.HTML, reply_markup=back_kb(),
     )
+
+
+async def cmd_privacy(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    url = privacy_url()
+    text = ("🔒 <b>Приватність</b>\n\n"
+            "Ми зберігаємо тільки те, що потрібно для роботи бота: ваш Telegram ID, "
+            "налаштування, історію прослуховувань і статус Premium. Дані нікому не "
+            "передаються, крім самого Telegram (для оплат Stars).")
+    if url:
+        text += f"\n\n📄 Повний текст: {esc(url)}"
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=back_kb())
 
 
 async def cmd_legal(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -851,6 +874,24 @@ async def _on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await q.answer()
 
 
+async def on_maybe_refund(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Telegram надсилає це службове повідомлення, коли Stars-оплату
+    повернули (наприклад, користувач попросив рефанд у підтримки Telegram).
+    Без цього обробника людина могла б лишитися з Premium назавжди навіть
+    після повернення грошей. У PTB 21.6 немає готового filters.REFUNDED_PAYMENT,
+    тому перевіряємо поле вручну — обробник дешевий і не заважає іншим."""
+    rp = update.message.refunded_payment if update.message else None
+    if not rp:
+        return
+    uid = update.effective_user.id
+    logger.warning("Повернення оплати Stars: uid=%s charge=%s", uid, rp.telegram_payment_charge_id)
+    await asyncio.to_thread(db.set_premium, uid, False)
+    try:
+        await update.message.reply_text("ℹ️ Оплату повернено — Premium вимкнено.")
+    except Exception:
+        pass
+
+
 async def on_error(update, ctx):
     logger.error("Помилка обробника: %s", ctx.error, exc_info=ctx.error)
 
@@ -884,10 +925,12 @@ async def run():
     application.add_handler(CommandHandler("code", cmd_code))
     application.add_handler(CommandHandler("stats", cmd_stats))
     application.add_handler(CommandHandler("legal", cmd_legal))
+    application.add_handler(CommandHandler("privacy", cmd_privacy))
     application.add_handler(CommandHandler("referral", cmd_referral))
     application.add_handler(CallbackQueryHandler(on_callback))
     application.add_handler(PreCheckoutQueryHandler(on_precheckout))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, on_successful_payment))
+    application.add_handler(MessageHandler(filters.ALL, on_maybe_refund), group=1)
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
     application.add_error_handler(on_error)
 
@@ -906,6 +949,31 @@ async def run():
                                              web_app=WebAppInfo(url=webapp_url())))
         except Exception as e:
             logger.warning("Кнопка меню не встановлена: %s", e)
+    try:
+        # Список команд у Telegram-клієнті (кнопка "/" біля поля вводу).
+        await application.bot.set_my_commands([
+            ("start", "Головне меню"), ("premium", "Про Premium ✨"),
+            ("referral", "Запросити друзів 🤝"), ("code", "Активувати промокод"),
+            ("stats", "Моя статистика 📊"), ("lang", "Змінити мову 🌐"),
+            ("legal", "Джерела та ліцензії"), ("privacy", "Приватність"),
+            ("help", "Допомога"),
+        ])
+    except Exception as e:
+        logger.warning("Не вдалося встановити список команд: %s", e)
+    try:
+        # Профіль бота (видно до /start) — теж можна виставити самим ботом,
+        # без ручного заходу в BotFather.
+        await application.bot.set_my_short_description(
+            short_description=f"🎶 {APP_NAME} — легальна музика в Telegram: Jamendo, "
+                               "Audius, Internet Archive. Без крадених релізів.")
+        await application.bot.set_my_description(
+            description=f"{APP_NAME} — плеєр легальної музики просто в Telegram. "
+                        "600 000+ треків з відкритих джерел (Creative Commons, публікації "
+                        "самих артистів, суспільне надбання). Черга, радіо, плейлисти, "
+                        "історія — і Premium за Telegram Stars для Hi-Fi та безлімітів. "
+                        "Підтримує 8 мов інтерфейсу.")
+    except Exception as e:
+        logger.warning("Не вдалося встановити опис бота: %s", e)
     await application.start()
     await application.updater.start_polling(drop_pending_updates=True)
     logger.info("%s %s запущено", APP_NAME, APP_VERSION)
