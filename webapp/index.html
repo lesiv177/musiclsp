@@ -770,7 +770,7 @@ function cardsHtml(list, ctxKey, isArtist){
   CTX[ctxKey] = list;
   return `<div class="reel">` + list.map((t,i)=>`
     <div class="card" data-i="${i}" data-ctx="${ctxKey}" data-artist="${isArtist?1:0}">
-      ${t.cover?`<img src="${esc(t.cover)}" alt="" loading="lazy">`:`<div class="ph"></div>`}
+      ${t.cover?`<img src="${esc(t.cover)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph'}))">`:`<div class="ph"></div>`}
       <div class="t">${esc(t.title||t.name)}</div>
       <div class="s">${esc(t.artist||t.source_label||"")}</div>
     </div>`).join("") + `</div>`;
@@ -882,7 +882,7 @@ async function loadCollections(){
     return `<div class="sect"><h2 data-i18n="home_collections">Добірки</h2><div class="reel">` +
       d.playlists.map((p,i)=>`
       <div class="card" data-pl="${i}">
-        ${p.cover?`<img src="${esc(p.cover)}" alt="" loading="lazy">`:`<div class="ph"></div>`}
+        ${p.cover?`<img src="${esc(p.cover)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph'}))">`:`<div class="ph"></div>`}
         <div class="t">${esc(p.title)}</div>
         <div class="s">${esc(p.source_label||"")}</div>
       </div>`).join("") + `</div></div>`;
