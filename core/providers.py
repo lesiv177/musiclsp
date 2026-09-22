@@ -917,6 +917,34 @@ def daily_track(offset_days=0):
     return track
 
 
+_CURATED_FALLBACK_TAGS = [
+    ("chillout", "Chillout"), ("electronic", "Electronic"), ("jazz", "Jazz"),
+    ("lounge", "Lounge"), ("acoustic", "Acoustic"), ("hiphop", "Hip-Hop"),
+]
+
+
+def _synthetic_collections(limit):
+    """Запасний варіант, коли офіційні плейлисти Jamendo/Audius порожні
+    (лімітований ключ, нема куратора цього тижня, тимчасовий збій тощо).
+    Пакуємо вже наявний каталог у добірки за жанром — це той самий легальний
+    контент, просто інше групування, тому нічого юридично не змінюється."""
+    out = []
+    for tag, label in _CURATED_FALLBACK_TAGS[:limit]:
+        cover = ""
+        try:
+            preview = jamendo_tag_tracks(tag, 1, 0, "mp32")
+            if preview:
+                cover = preview[0].get("cover") or ""
+        except Exception:
+            pass
+        out.append({
+            "id": f"tag:{tag}", "title": label, "cover": cover,
+            "source": "curated", "source_label": "MusicLSP",
+            "source_url": "",
+        })
+    return out
+
+
 def discover_playlists(limit=10):
     """Кураторські плейлисти з обох джерел — для головного екрана."""
     half = max(4, limit // 2)
@@ -929,16 +957,24 @@ def discover_playlists(limit=10):
         out += audius_trending_playlists(limit=half)
     except Exception:
         pass
+    if not out:
+        # Обидва джерела порожні (частий випадок для Jamendo — офіційні
+        # плейлисти публікують нерегулярно) — показуємо жанрові добірки,
+        # аби розділ "Добірки" ніколи не був просто порожнім/невидимим.
+        out = _synthetic_collections(limit)
     return out[:limit]
 
 
 def curated_playlist_tracks(full_id, quality="mp32"):
-    """Треки кураторського плейлиста за повним id ('jam:123' / 'aud:456')."""
+    """Треки кураторського плейлиста за повним id ('jam:123' / 'aud:456' /
+    'tag:electronic' для запасних жанрових добірок)."""
     prefix, raw = split_id(full_id)
     if prefix == "jam":
         return jamendo_playlist_tracks(raw, audioformat=quality)
     if prefix == "aud":
         return audius_playlist_tracks(raw)
+    if prefix == "tag":
+        return jamendo_tag_tracks(raw, 40, 0, quality)
     return []
 
 
