@@ -285,26 +285,37 @@ async def h_wrapped(request, u):
     return ok({"ok": True, "stats": stats, "listener_type": label})
 
 
+async def _safe(coro, default=None):
+    """Одна невдала складова не повинна валити всю відповідь — повертаємо
+    запасне значення й пишемо в лог, замість 500-ки на весь домашній екран."""
+    try:
+        return await coro
+    except Exception as e:
+        logger.warning("Домашній екран: підзапит не вдався (%s)", e)
+        return default if default is not None else []
+
+
 @require_auth
 async def h_home(request, u):
-    """Стартовий екран: добірки з різних легальних джерел."""
+    """Стартовий екран: добірки з різних легальних джерел. Добірки (playlists)
+    та жанри тепер віддаються окремими легкими ендпоінтами — так один повільний
+    чи впалий провайдер не блокує решту головного екрана."""
     uid = int(u["uid"])
     qual = quality_for(uid)
     tag = request.query.get("tag") or ""
 
     if tag:
-        tracks = await to_thread(P.jamendo_tag_tracks, tag, 40, 0, qual)
+        tracks = await _safe(to_thread(P.jamendo_tag_tracks, tag, 40, 0, qual))
         return ok({"ok": True, "sections": [
             {"id": f"tag:{tag}", "title": tag.capitalize(), "tracks": tracks}
         ]})
 
-    popular, fresh, trending, playlists = await asyncio.gather(
-        to_thread(P.jamendo_tag_tracks, "pop", 20, 0, qual, "popularity_month"),
-        to_thread(P.jamendo_tag_tracks, "electronic", 20, 0, qual, "releasedate_desc"),
-        to_thread(P.audius_trending, None, 20),
-        to_thread(P.discover_playlists, 10),
+    popular, fresh, trending, recent = await asyncio.gather(
+        _safe(to_thread(P.jamendo_tag_tracks, "pop", 20, 0, qual, "popularity_month")),
+        _safe(to_thread(P.jamendo_tag_tracks, "electronic", 20, 0, qual, "releasedate_desc")),
+        _safe(to_thread(P.audius_trending, None, 20)),
+        _safe(to_thread(db.history_list, uid, 20)),
     )
-    recent = await to_thread(db.history_list, uid, 20)
     sections = [
         {"id": "recent", "title": "Нещодавнє", "tracks": recent},
         {"id": "popular", "title": "Популярне цього місяця", "tracks": popular},
@@ -314,9 +325,20 @@ async def h_home(request, u):
     return ok({
         "ok": True,
         "sections": [s for s in sections if s["tracks"]],
-        "playlists": playlists,
-        "genres": [{"tag": t, "label": l} for t, l in P.JAMENDO_TAGS],
     })
+
+
+@require_auth
+async def h_collections(request, u):
+    """Кураторські добірки (Jamendo + Audius) — окремо від /api/home, щоб
+    завантажувались незалежно й не блокували решту головного екрана."""
+    playlists = await _safe(to_thread(P.discover_playlists, 10))
+    return ok({"ok": True, "playlists": playlists})
+
+
+@require_auth
+async def h_genres(request, u):
+    return ok({"ok": True, "genres": [{"tag": t, "label": l} for t, l in P.JAMENDO_TAGS]})
 
 
 @require_auth
@@ -661,6 +683,8 @@ def build_app():
     r.add_post("/api/settings", h_settings)
     r.add_get("/api/search", h_search)
     r.add_get("/api/home", h_home)
+    r.add_get("/api/collections", h_collections)
+    r.add_get("/api/genres", h_genres)
     r.add_get("/api/daily", h_daily)
     r.add_get("/api/curated/{pid}", h_curated)
     r.add_get("/api/referral", h_referral_get)
