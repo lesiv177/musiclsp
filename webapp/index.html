@@ -471,6 +471,50 @@ const S = {
   sort:"relevance", sources:["jamendo","audius"],
 };
 
+/* ════════ Мова інтерфейсу ════════
+   Перше наближення: перекладено навігацію, підпис зверху, заголовок
+   стрічки настроїв і плашку "Як почати". Решта екранів поки українською —
+   це буде розширюватись поступово, щоб не перекладати все за раз наспіх. */
+const I18N = {
+  uk: {
+    nav_home:"Головна", nav_search:"Пошук", nav_lib:"Бібліотека", nav_me:"Профіль",
+    sub_free:"Музика з відкритих ліцензій", sub_premium:"Hi-Fi · без лімітів",
+    h_mood:"Настрій", onboard_title:"Як почати",
+    onboard_body:"Напишіть назву пісні чи артиста в пошуку, або оберіть настрій нижче — і музика підбереться сама.",
+    search_ph:"Трек, артист або жанр",
+  },
+  ru: {
+    nav_home:"Главная", nav_search:"Поиск", nav_lib:"Библиотека", nav_me:"Профиль",
+    sub_free:"Музыка из открытых лицензий", sub_premium:"Hi-Fi · без лимитов",
+    h_mood:"Настроение", onboard_title:"Как начать",
+    onboard_body:"Напишите название песни или артиста в поиске, или выберите настроение ниже — и музыка подберётся сама.",
+    search_ph:"Трек, артист или жанр",
+  },
+  en: {
+    nav_home:"Home", nav_search:"Search", nav_lib:"Library", nav_me:"Profile",
+    sub_free:"Music from open licenses", sub_premium:"Hi-Fi · no limits",
+    h_mood:"Mood", onboard_title:"Getting started",
+    onboard_body:"Type a song or artist name in search, or pick a mood below — the music picks itself.",
+    search_ph:"Track, artist or genre",
+  },
+};
+
+function t(key){
+  const lang = (S.me && S.me.lang) || "uk";
+  return (I18N[lang] && I18N[lang][key]) || I18N.uk[key] || key;
+}
+
+function applyI18n(){
+  document.querySelectorAll(".nav button").forEach(b=>{
+    const key = {Home:"nav_home", Search:"nav_search", Lib:"nav_lib", Me:"nav_me"}[b.dataset.go];
+    if(!key) return;
+    [...b.childNodes].forEach(n => { if(n.nodeType===3) n.remove(); });
+    b.appendChild(document.createTextNode(t(key)));
+  });
+  if($("qInput")) $("qInput").placeholder = t("search_ph");
+  if(S.me) $("topSub").textContent = S.me.premium ? t("sub_premium") : t("sub_free");
+}
+
 /* ════════ Іконки (замість емодзі) ════════ */
 const ICONS = {
   home:        `<path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9h12v-9"/><path d="M10 19v-5h4v5"/>`,
@@ -560,7 +604,7 @@ const post = (p,body) => req(p,{method:"POST",body:JSON.stringify(body||{})});
     S.eq = S.me.eq || null;
     $("planChip").textContent = S.me.premium ? "Premium" : "Free";
     $("planChip").classList.toggle("pro", !!S.me.premium);
-    $("topSub").textContent = S.me.premium ? "Hi-Fi · без лімітів" : "Музика з відкритих ліцензій";
+    applyI18n();
   }catch(e){
     $("homeBody").innerHTML = `<div class="empty"><b>Не вдалося увійти</b>${esc(e.message)}</div>`;
     return;
@@ -640,6 +684,20 @@ function cardsHtml(list, ctxKey, isArtist){
 }
 
 /* ════════ Головна ════════ */
+function onboardHintHtml(){
+  try{ if(localStorage.getItem("hideOnboardHint")) return ""; }catch(e){}
+  return `<div class="sect" id="onboardHint" style="background:var(--card);border-radius:16px;
+    padding:14px 16px;margin-bottom:16px;display:flex;gap:10px;align-items:flex-start">
+    <span style="font-size:20px;line-height:1">👋</span>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:600;margin-bottom:2px">${esc(t("onboard_title"))}</div>
+      <div style="font-size:13px;color:var(--muted)">${esc(t("onboard_body"))}</div>
+    </div>
+    <button id="onboardHintClose" style="background:none;border:none;color:var(--muted);
+      font-size:18px;line-height:1;cursor:pointer;padding:2px">×</button>
+  </div>`;
+}
+
 async function loadDaily(){
   try{
     const d = await get("/api/daily");
@@ -677,7 +735,7 @@ async function loadMoodsRow(){
   try{
     const d = await get("/api/moods");
     window.__moods = d.moods;
-    return `<div class="sect"><h2>Настрій</h2><div class="frow">` +
+    return `<div class="sect"><h2>${t("h_mood")}</h2><div class="frow">` +
       d.moods.map((m,i)=>`<button class="fchip" data-mood="${i}" ${m.locked?"style=\"opacity:.4\"":""}>
         ${esc(m.label)}${m.locked?" · Premium":""}</button>`).join("") +
       `</div></div>`;
@@ -697,10 +755,12 @@ async function openMood(key, label){
 
 async function loadHome(){
   try{
-    const dailyHtml = await loadDaily();
-    const moodsHtml = await loadMoodsRow();
-    const d = await get("/api/home");
-    let html = dailyHtml + moodsHtml;
+    // Три незалежні запити раніше йшли один за одним — тепер паралельно,
+    // це помітно швидше відкриває головний екран.
+    const [dailyHtml, moodsHtml, d] = await Promise.all([
+      loadDaily(), loadMoodsRow(), get("/api/home"),
+    ]);
+    let html = onboardHintHtml() + dailyHtml + moodsHtml;
     d.sections.forEach((sec,si)=>{
       const key = "home"+si;
       html += `<div class="sect"><h2>${esc(sec.title)}</h2>
@@ -731,6 +791,12 @@ async function loadHome(){
 }
 
 function bindHome(){
+  if($("onboardHintClose")){
+    $("onboardHintClose").onclick = () => {
+      try{ localStorage.setItem("hideOnboardHint", "1"); }catch(e){}
+      $("onboardHint")?.remove();
+    };
+  }
   if($("dailyPlay") && window.__dailyTrack){
     $("dailyPlay").onclick = () => { setQueue([window.__dailyTrack], 0); tap(); };
   }
@@ -1454,6 +1520,17 @@ function renderProfile(){
         ${p?"Усі теми відкриті":"У Free доступна лише перша тема"}</div>
     </div>
 
+    <div class="sect"><h2>Мова</h2>
+      <div class="frow" id="langRow">
+        ${[["uk","Українська"],["ru","Русский"],["en","English"]].map(([k,label])=>
+          `<button class="fchip ${(S.me.lang||"uk")===k?"on":""}" data-lang="${k}">${esc(label)}</button>`
+        ).join("")}
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:9px">
+        Зараз перекладено меню й основні написи. Решта інтерфейсу перекладається поступово.
+      </div>
+    </div>
+
     <div class="sect"><h2>Жива обкладинка</h2>
       <div class="frow" id="ambientRow">
         ${[["blur","Розмиття"],["vinyl","Вініл"],["particles","Частки"]].map(([k,label])=>{
@@ -1549,6 +1626,15 @@ function bindProfile(){
     try{
       await saveSettings({ambient_style:style});
       S.me.ambient_style = style; renderProfile(); tap();
+    }catch(e){ toast(e.message); }
+  });
+
+  $("langRow").querySelectorAll("[data-lang]").forEach(b => b.onclick = async () => {
+    const lang = b.dataset.lang;
+    if((S.me.lang||"uk") === lang) return;
+    try{
+      await saveSettings({lang});
+      S.me.lang = lang; applyI18n(lang); renderProfile(); tap();
     }catch(e){ toast(e.message); }
   });
 }
