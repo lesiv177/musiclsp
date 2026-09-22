@@ -18,12 +18,12 @@ import requests
 from aiohttp import web
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo,
-    MenuButtonWebApp, InputFile,
+    MenuButtonWebApp, InputFile, LabeledPrice,
 )
 from telegram.constants import ParseMode
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
-    ContextTypes, filters,
+    ContextTypes, filters, PreCheckoutQueryHandler,
 )
 
 from core import db
@@ -177,8 +177,46 @@ async def cmd_premium(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     for _, title, desc in PREMIUM_FEATURES:
         lines.append(f"— <b>{esc(title)}</b>: {esc(desc)}")
     lines.append("\n🎁 Є промокод? Надішліть <code>/code ВАШ_КОД</code>, і Premium увімкнеться миттєво.")
+    kb = [
+        [InlineKeyboardButton("🧪 Тест оплати (1⭐)", callback_data="pay_test")],
+        [InlineKeyboardButton("← Назад", callback_data="home")],
+    ]
     await msg.reply_text("\n".join(lines), parse_mode=ParseMode.HTML,
-                         reply_markup=back_kb())
+                         reply_markup=InlineKeyboardMarkup(kb))
+
+
+# ─── Оплата (Telegram Stars) ─────────────────────────────────────────────────
+# Stars — вбудована валюта Telegram (XTR), не потребує платіжного провайдера
+# чи банківського рахунку. Зараз тут лише тестовий рахунок на 1 зірку, щоб
+# перевірити, що весь ланцюжок (виставлення рахунку → оплата → підтвердження)
+# працює, перш ніж вмикати реальні ціни на Premium.
+
+async def send_test_invoice(chat_id, ctx: ContextTypes.DEFAULT_TYPE):
+    await ctx.bot.send_invoice(
+        chat_id=chat_id,
+        title="Тест оплати MusicLSP",
+        description="Технічна перевірка оплати через Telegram Stars. Гроші не списуються насправді нікуди, крім тесту — Premium за це не видається.",
+        payload="test_payment_1star",
+        currency="XTR",
+        prices=[LabeledPrice("Тест", 1)],
+    )
+
+
+async def on_precheckout(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    q = update.pre_checkout_query
+    await q.answer(ok=True)
+
+
+async def on_successful_payment(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    sp = update.message.successful_payment
+    uid = update.effective_user.id
+    logger.info("Оплата Stars: uid=%s payload=%s amount=%s", uid, sp.invoice_payload, sp.total_amount)
+    if sp.invoice_payload == "test_payment_1star":
+        await update.message.reply_text(
+            "✅ Тестова оплата пройшла успішно! Ланцюжок працює — коли підключимо реальні ціни, "
+            "Premium буде видаватись так само автоматично.",
+            reply_markup=main_kb(uid),
+        )
 
 
 async def cmd_referral(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -489,6 +527,10 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await q.answer()
         return await cmd_referral(update, ctx)
 
+    if data == "pay_test":
+        await q.answer()
+        return await send_test_invoice(q.message.chat_id, ctx)
+
     if data.startswith("t:"):
         await q.answer()
         return await show_track(q.message, uid, data[2:])
@@ -559,6 +601,8 @@ async def run():
     application.add_handler(CommandHandler("legal", cmd_legal))
     application.add_handler(CommandHandler("referral", cmd_referral))
     application.add_handler(CallbackQueryHandler(on_callback))
+    application.add_handler(PreCheckoutQueryHandler(on_precheckout))
+    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, on_successful_payment))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
     application.add_error_handler(on_error)
 
