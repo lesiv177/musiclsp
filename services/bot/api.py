@@ -161,7 +161,7 @@ async def h_settings(request, u):
         fields["ambient_style"] = style
     if "lang" in body:
         lang = str(body["lang"])
-        if lang not in ("uk", "ru", "en"):
+        if lang not in ("uk", "ru", "en", "pl", "de", "es", "fr", "tr"):
             return fail("Непідтримувана мова")
         fields["lang"] = lang
     db.update_user(uid, **fields)
