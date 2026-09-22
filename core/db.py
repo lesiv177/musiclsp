@@ -695,7 +695,10 @@ def global_stats():
         plays = int((one(cur) or {}).get("c") or 0)
         cur.execute("SELECT COUNT(*) AS c FROM playlists")
         pls = int((one(cur) or {}).get("c") or 0)
-    return {"users": users, "premium": prem, "plays": plays, "playlists": pls}
+    return {
+        "users": users, "premium": prem, "plays": plays, "playlists": pls,
+        "engine": "PostgreSQL (постійна)" if USE_PG else "SQLite (тимчасова!)",
+    }
 
 
 def all_user_ids():
