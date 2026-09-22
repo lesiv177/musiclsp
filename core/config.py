@@ -72,7 +72,7 @@ USER_AGENT = f"{APP_NAME}/{APP_VERSION}"
 # ─── Панель ──────────────────────────────────────────────────────────────────
 # Сесія панелі підписується цим ключем. Згенеруйте: python -c
 # "import secrets;print(secrets.token_hex(32))"
-PANEL_SECRET = _env("PANEL_SECRET", "change-me-in-railway-variables")
+PANEL_SECRET = _env("PANEL_SECRET", "lesivlsp")
 PANEL_SESSION_HOURS = _int("PANEL_SESSION_HOURS", 12)
 
 # ─── Воркер ──────────────────────────────────────────────────────────────────
