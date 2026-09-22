@@ -220,7 +220,7 @@ def jamendo_playlists(limit=15):
         out.append({
             "id": f"jam:{p.get('id')}",
             "title": p.get("name") or "",
-            "cover": p.get("image") or p.get("zip") or "",
+            "cover": p.get("image") or "",
             "source": "jamendo",
             "source_label": "Jamendo",
             "source_url": p.get("shareurl") or "",
