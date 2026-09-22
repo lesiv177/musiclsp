@@ -9,6 +9,7 @@ Audius (публікації самих артистів), Internet Archive (pub
 
 import io
 import os
+import time
 import html
 import json
 import asyncio
@@ -33,7 +34,7 @@ from services.bot import api
 from core.config import (
     BOT_TOKEN, ADMIN_IDS, WEB_APP_URL, API_URL, PORT,
     JAMENDO_CLIENT_ID, PREMIUM_FEATURES, APP_NAME, APP_VERSION,
-    REFERRAL_REWARD_DAYS,
+    REFERRAL_REWARD_DAYS, STAR_PRICE_MONTH, STAR_PRICE_YEAR,
 )
 
 logging.basicConfig(
@@ -45,11 +46,19 @@ logger = logging.getLogger("musiclsp")
 
 MAX_UPLOAD_MB = 48
 
+# Telegram кешує сторінку Mini App у своєму WebView досить агресивно — тому
+# оновлення webapp/index.html на GitHub Pages не завжди підхоплюються одразу.
+# BUILD_TAG унікальний для кожного запуску процесу (тобто для кожного
+# деплою на Railway) і додається до посилання, щоб Telegram завжди тягнув
+# свіжу версію файлу, а не показував стару з кешу.
+BUILD_TAG = str(int(time.time()))
+
 
 def webapp_url(path=""):
     base = WEB_APP_URL or ""
     sep = "&" if "?" in base else "?"
     url = f"{base}{sep}api={API_URL}" if API_URL else base
+    url += f"&v={BUILD_TAG}"
     if path:
         url += f"&start={path}"
     return url
@@ -178,6 +187,8 @@ async def cmd_premium(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         lines.append(f"— <b>{esc(title)}</b>: {esc(desc)}")
     lines.append("\n🎁 Є промокод? Надішліть <code>/code ВАШ_КОД</code>, і Premium увімкнеться миттєво.")
     kb = [
+        [InlineKeyboardButton(f"⭐ 1 місяць — {STAR_PRICE_MONTH}⭐", callback_data="pay_month")],
+        [InlineKeyboardButton(f"⭐ 1 рік — {STAR_PRICE_YEAR}⭐ (вигідніше)", callback_data="pay_year")],
         [InlineKeyboardButton("🧪 Тест оплати (1⭐)", callback_data="pay_test")],
         [InlineKeyboardButton("← Назад", callback_data="home")],
     ]
@@ -187,18 +198,41 @@ async def cmd_premium(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # ─── Оплата (Telegram Stars) ─────────────────────────────────────────────────
 # Stars — вбудована валюта Telegram (XTR), не потребує платіжного провайдера
-# чи банківського рахунку. Зараз тут лише тестовий рахунок на 1 зірку, щоб
-# перевірити, що весь ланцюжок (виставлення рахунку → оплата → підтвердження)
-# працює, перш ніж вмикати реальні ціни на Premium.
+# чи банківського рахунку. payload визначає, що саме купили — за ним і
+# видаємо Premium після оплати.
+
+STAR_PLANS = {
+    "pay_month": ("premium_month", STAR_PRICE_MONTH, "Premium на 1 місяць", 30),
+    "pay_year":  ("premium_year", STAR_PRICE_YEAR, "Premium на 1 рік", 365),
+}
+
+
+async def send_invoice_for(chat_id, plan_key, ctx: ContextTypes.DEFAULT_TYPE):
+    payload, price, title, _days = STAR_PLANS[plan_key]
+    try:
+        await ctx.bot.send_invoice(
+            chat_id=chat_id,
+            title=title,
+            description=f"{APP_NAME} Premium — Hi-Fi звук, безлімітний пошук, ексклюзивні фічі.",
+            payload=payload,
+            provider_token="",  # для Stars (XTR) саме порожній рядок, а не відсутнє поле
+            currency="XTR",
+            prices=[LabeledPrice(title, price)],
+        )
+    except Exception as e:
+        logger.exception("Не вдалося виставити рахунок Stars (%s): %s", plan_key, e)
+        await ctx.bot.send_message(chat_id, f"Не вийшло виставити рахунок: {esc(e)}",
+                                   parse_mode=ParseMode.HTML)
+
 
 async def send_test_invoice(chat_id, ctx: ContextTypes.DEFAULT_TYPE):
     try:
         await ctx.bot.send_invoice(
             chat_id=chat_id,
             title="Тест оплати MusicLSP",
-            description="Технічна перевірка оплати через Telegram Stars. Гроші не списуються насправді нікуди, крім тесту — Premium за це не видається.",
+            description="Технічна перевірка оплати через Telegram Stars. Premium за це не видається — лише тест ланцюжка.",
             payload="test_payment_1star",
-            provider_token="",  # для Stars (XTR) саме порожній рядок, а не відсутнє поле
+            provider_token="",
             currency="XTR",
             prices=[LabeledPrice("Тест", 1)],
         )
@@ -218,9 +252,20 @@ async def on_successful_payment(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         sp = update.message.successful_payment
         uid = update.effective_user.id
         logger.info("Оплата Stars: uid=%s payload=%s amount=%s", uid, sp.invoice_payload, sp.total_amount)
-        if sp.invoice_payload == "test_payment_1star":
-            text = ("✅ Тестова оплата пройшла успішно! Ланцюжок працює — коли підключимо реальні ціни, "
-                    "Premium буде видаватись так само автоматично.")
+
+        days = None
+        for _key, (payload, _price, _title, plan_days) in STAR_PLANS.items():
+            if sp.invoice_payload == payload:
+                days = plan_days
+                break
+
+        if days:
+            await asyncio.to_thread(db.extend_premium, uid, days)
+            text = (f"✅ Оплату отримано! Premium активовано на {days} днів. "
+                    f"Відкрийте плеєр — нові можливості вже там 🎧")
+        elif sp.invoice_payload == "test_payment_1star":
+            text = ("✅ Тестова оплата пройшла успішно! Ланцюжок працює — реальні покупки Premium "
+                    "тепер теж видають підписку автоматично.")
         else:
             text = f"✅ Оплату отримано ({sp.total_amount}⭐). Дякую за підтримку {APP_NAME}!"
         await update.message.reply_text(text, reply_markup=main_kb(uid))
@@ -539,6 +584,10 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if data == "pay_test":
         await q.answer()
         return await send_test_invoice(q.message.chat_id, ctx)
+
+    if data in STAR_PLANS:
+        await q.answer()
+        return await send_invoice_for(q.message.chat_id, data, ctx)
 
     if data.startswith("t:"):
         await q.answer()
