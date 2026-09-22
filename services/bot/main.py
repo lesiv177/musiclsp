@@ -59,13 +59,9 @@ BOT_LANG_CODES = {c for c, _ in BOT_LANGS}
 
 BOT_TR = {
     "uk": {
-        "welcome": ("👋 <b>Привіт! Це {name}</b> 🎶\n\n"
-            "Тут понад 600 тисяч треків від незалежних артистів і лейблів, які самі "
-            "дозволили ділитися своєю музикою — <b>Jamendo</b>, <b>Audius</b> і "
-            "<b>Internet Archive</b>. Жодних крадених релізів, тільки чесна музика ✅\n\n"
-            "Просто напишіть назву пісні, артиста чи навіть настрій — і я підберу щось "
-            "варте прослуховування 🎧. А для повноцінного плеєра з чергою, радіо, "
-            "плейлистами й грою «Вгадай трек» — тисніть кнопку нижче 👇"),
+        "welcome": ("👋 <b>{name}</b> 🎶 — 600 000+ треків з Jamendo, Audius та Internet "
+            "Archive, тільки легальна музика.\n"
+            "Напишіть назву пісні чи артиста, або тисніть кнопку нижче 👇"),
         "btn_open_player": "🎧 Відкрити плеєр", "btn_premium": "✨ Premium",
         "btn_invite": "🤝 Запросити друга", "btn_admin": "🛠 Адмінка", "btn_back": "← Назад",
         "premium_active_title": "✨ <b>Premium активний</b>", "premium_active_until": "Діє до {until} · дякуємо, що підтримуєте проєкт!",
@@ -80,13 +76,9 @@ BOT_TR = {
         "lang_changed": "✅ Мову змінено на {lang}.",
     },
     "ru": {
-        "welcome": ("👋 <b>Привет! Это {name}</b> 🎶\n\n"
-            "Здесь более 600 тысяч треков от независимых артистов и лейблов, которые сами "
-            "разрешили делиться своей музыкой — <b>Jamendo</b>, <b>Audius</b> и "
-            "<b>Internet Archive</b>. Никаких украденных релизов, только честная музыка ✅\n\n"
-            "Просто напишите название песни, артиста или даже настроение — и я подберу что-то "
-            "стоящее 🎧. А для полноценного плеера с очередью, радио, плейлистами и игрой "
-            "«Угадай трек» — нажмите кнопку ниже 👇"),
+        "welcome": ("👋 <b>{name}</b> 🎶 — 600 000+ треков с Jamendo, Audius и Internet "
+            "Archive, только легальная музыка.\n"
+            "Напишите название песни или артиста, или нажмите кнопку ниже 👇"),
         "btn_open_player": "🎧 Открыть плеер", "btn_premium": "✨ Premium",
         "btn_invite": "🤝 Пригласить друга", "btn_admin": "🛠 Админка", "btn_back": "← Назад",
         "premium_active_title": "✨ <b>Premium активен</b>", "premium_active_until": "Действует до {until} · спасибо, что поддерживаете проект!",
@@ -101,13 +93,9 @@ BOT_TR = {
         "lang_changed": "✅ Язык изменён на {lang}.",
     },
     "en": {
-        "welcome": ("👋 <b>Hi! This is {name}</b> 🎶\n\n"
-            "Over 600,000 tracks from independent artists and labels who chose to share "
-            "their music — <b>Jamendo</b>, <b>Audius</b> and <b>Internet Archive</b>. No "
-            "pirated releases, just honest music ✅\n\n"
-            "Just type a song, artist or even a mood — I'll find something worth playing "
-            "🎧. For the full player with a queue, radio, playlists and the \"Guess the "
-            "track\" game — tap the button below 👇"),
+        "welcome": ("👋 <b>{name}</b> 🎶 — 600,000+ tracks from Jamendo, Audius and "
+            "Internet Archive, all fully legal.\n"
+            "Type a song or artist, or tap the button below 👇"),
         "btn_open_player": "🎧 Open player", "btn_premium": "✨ Premium",
         "btn_invite": "🤝 Invite a friend", "btn_admin": "🛠 Admin panel", "btn_back": "← Back",
         "premium_active_title": "✨ <b>Premium is active</b>", "premium_active_until": "Active until {until} · thanks for supporting the project!",
@@ -122,12 +110,9 @@ BOT_TR = {
         "lang_changed": "✅ Language changed to {lang}.",
     },
     "pl": {
-        "welcome": ("👋 <b>Cześć! To {name}</b> 🎶\n\n"
-            "Ponad 600 tysięcy utworów od niezależnych artystów i wytwórni, którzy sami "
-            "zezwolili na udostępnianie swojej muzyki — <b>Jamendo</b>, <b>Audius</b> i "
-            "<b>Internet Archive</b>. Żadnych pirackich wydań, tylko uczciwa muzyka ✅\n\n"
-            "Wpisz nazwę utworu, artysty albo nastrój — a coś znajdę 🎧. Pełny odtwarzacz "
-            "z kolejką, radiem, playlistami i grą „Zgadnij utwór” — przycisk poniżej 👇"),
+        "welcome": ("👋 <b>{name}</b> 🎶 — ponad 600 000 utworów z Jamendo, Audius i "
+            "Internet Archive, w pełni legalnie.\n"
+            "Wpisz nazwę utworu lub artysty, albo naciśnij przycisk poniżej 👇"),
         "btn_open_player": "🎧 Otwórz odtwarzacz", "btn_premium": "✨ Premium",
         "btn_invite": "🤝 Zaproś znajomego", "btn_admin": "🛠 Panel admina", "btn_back": "← Wstecz",
         "premium_active_title": "✨ <b>Premium jest aktywne</b>", "premium_active_until": "Ważne do {until} · dziękujemy za wsparcie!",
@@ -142,13 +127,9 @@ BOT_TR = {
         "lang_changed": "✅ Język zmieniono na {lang}.",
     },
     "de": {
-        "welcome": ("👋 <b>Hallo! Das ist {name}</b> 🎶\n\n"
-            "Über 600.000 Tracks von unabhängigen Künstlern und Labels, die ihre Musik "
-            "selbst freigegeben haben — <b>Jamendo</b>, <b>Audius</b> und <b>Internet "
-            "Archive</b>. Keine Raubkopien, nur ehrliche Musik ✅\n\n"
-            "Schreib einfach einen Songtitel, Künstler oder eine Stimmung — ich finde "
-            "etwas 🎧. Für den vollen Player mit Warteschlange, Radio, Playlists und dem "
-            "„Song erraten“-Spiel — Button unten 👇"),
+        "welcome": ("👋 <b>{name}</b> 🎶 — über 600.000 Tracks von Jamendo, Audius und "
+            "Internet Archive, komplett legal.\n"
+            "Schreib einen Song- oder Künstlernamen, oder tippe den Button unten 👇"),
         "btn_open_player": "🎧 Player öffnen", "btn_premium": "✨ Premium",
         "btn_invite": "🤝 Freund einladen", "btn_admin": "🛠 Admin-Panel", "btn_back": "← Zurück",
         "premium_active_title": "✨ <b>Premium ist aktiv</b>", "premium_active_until": "Gültig bis {until} · danke für deine Unterstützung!",
@@ -163,13 +144,9 @@ BOT_TR = {
         "lang_changed": "✅ Sprache geändert zu {lang}.",
     },
     "es": {
-        "welcome": ("👋 <b>¡Hola! Esto es {name}</b> 🎶\n\n"
-            "Más de 600 000 pistas de artistas y sellos independientes que decidieron "
-            "compartir su música — <b>Jamendo</b>, <b>Audius</b> e <b>Internet Archive</b>. "
-            "Nada pirateado, solo música honesta ✅\n\n"
-            "Escribe el nombre de una canción, artista o incluso un estado de ánimo — "
-            "encontraré algo bueno 🎧. Para el reproductor completo con cola, radio, "
-            "listas y el juego «Adivina la canción» — pulsa el botón de abajo 👇"),
+        "welcome": ("👋 <b>{name}</b> 🎶 — más de 600 000 pistas de Jamendo, Audius e "
+            "Internet Archive, totalmente legal.\n"
+            "Escribe una canción o artista, o pulsa el botón de abajo 👇"),
         "btn_open_player": "🎧 Abrir reproductor", "btn_premium": "✨ Premium",
         "btn_invite": "🤝 Invitar a un amigo", "btn_admin": "🛠 Panel admin", "btn_back": "← Atrás",
         "premium_active_title": "✨ <b>Premium está activo</b>", "premium_active_until": "Activo hasta {until} · ¡gracias por apoyar el proyecto!",
@@ -184,13 +161,9 @@ BOT_TR = {
         "lang_changed": "✅ Idioma cambiado a {lang}.",
     },
     "fr": {
-        "welcome": ("👋 <b>Salut ! C'est {name}</b> 🎶\n\n"
-            "Plus de 600 000 titres d'artistes et labels indépendants qui ont choisi de "
-            "partager leur musique — <b>Jamendo</b>, <b>Audius</b> et <b>Internet "
-            "Archive</b>. Aucun contenu piraté, que de la musique honnête ✅\n\n"
-            "Écris un titre, un artiste ou même une humeur — je trouverai quelque chose "
-            "🎧. Pour le lecteur complet avec file d'attente, radio, playlists et le jeu "
-            "« Devine le titre » — bouton ci-dessous 👇"),
+        "welcome": ("👋 <b>{name}</b> 🎶 — plus de 600 000 titres de Jamendo, Audius et "
+            "Internet Archive, entièrement légal.\n"
+            "Écris un titre ou un artiste, ou touche le bouton ci-dessous 👇"),
         "btn_open_player": "🎧 Ouvrir le lecteur", "btn_premium": "✨ Premium",
         "btn_invite": "🤝 Inviter un ami", "btn_admin": "🛠 Panneau admin", "btn_back": "← Retour",
         "premium_active_title": "✨ <b>Premium est actif</b>", "premium_active_until": "Actif jusqu'au {until} · merci de soutenir le projet !",
@@ -205,13 +178,9 @@ BOT_TR = {
         "lang_changed": "✅ Langue changée pour {lang}.",
     },
     "tr": {
-        "welcome": ("👋 <b>Merhaba! Burası {name}</b> 🎶\n\n"
-            "Müziklerini paylaşmayı kendileri seçen bağımsız sanatçı ve etiketlerden "
-            "600 binden fazla parça — <b>Jamendo</b>, <b>Audius</b> ve <b>Internet "
-            "Archive</b>. Korsan içerik yok, sadece dürüst müzik ✅\n\n"
-            "Bir şarkı, sanatçı ya da ruh hali yaz — sana bir şeyler bulayım 🎧. Sıra, "
-            "radyo, çalma listeleri ve \"Parçayı bil\" oyunuyla tam oynatıcı için aşağıdaki "
-            "düğmeye dokun 👇"),
+        "welcome": ("👋 <b>{name}</b> 🎶 — Jamendo, Audius ve Internet Archive'dan 600 "
+            "binden fazla tamamen yasal parça.\n"
+            "Bir şarkı ya da sanatçı yaz, ya da aşağıdaki düğmeye dokun 👇"),
         "btn_open_player": "🎧 Oynatıcıyı aç", "btn_premium": "✨ Premium",
         "btn_invite": "🤝 Arkadaş davet et", "btn_admin": "🛠 Yönetim paneli", "btn_back": "← Geri",
         "premium_active_title": "✨ <b>Premium aktif</b>", "premium_active_until": "{until} tarihine kadar aktif · projeyi desteklediğin için teşekkürler!",
@@ -228,9 +197,12 @@ BOT_TR = {
 }
 
 
-def bt(lang, key, **kw):
-    lang = lang if lang in BOT_TR else "uk"
-    text = BOT_TR[lang].get(key) or BOT_TR["uk"].get(key) or key
+def bt(ui_lang, key, **kw):
+    """Дістає переклад рядка. Перший параметр навмисно НЕ зветься "lang" —
+    інакше виклик на кшталт bt(lang, "lang_changed", lang=назва_мови)
+    впав би з TypeError через конфлікт імені параметра з ключем шаблону."""
+    ui_lang = ui_lang if ui_lang in BOT_TR else "uk"
+    text = BOT_TR[ui_lang].get(key) or BOT_TR["uk"].get(key) or key
     return text.format(**kw) if kw else text
 
 
@@ -406,38 +378,39 @@ async def cmd_premium(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         u = db.get_user(uid)
         until = _fmt_until(u.get("premium_until"))
         lines = [bt(lang, "premium_active_title"),
-                 bt(lang, "premium_active_until", until=until) + "\n"]
+                 bt(lang, "premium_active_until", until=until)]
     else:
-        lines = [bt(lang, "premium_inactive_title") + "\n",
-                 bt(lang, "premium_inactive_sub") + "\n"]
-    for _, title, desc in PREMIUM_FEATURES:
-        lines.append(f"— <b>{esc(title)}</b>: {esc(desc)}")
-    lines.append("\n" + bt(lang, "premium_promo"))
-    kb = []
-    if not active:
-        kb = [
-            [InlineKeyboardButton(bt(lang, "btn_month", price=STAR_PRICE_MONTH), callback_data="pay_month")],
-            [InlineKeyboardButton(bt(lang, "btn_year", price=STAR_PRICE_YEAR), callback_data="pay_year")],
-        ]
+        lines = [bt(lang, "premium_inactive_title"),
+                 bt(lang, "premium_inactive_sub")]
+    # Компактний список — самі назви через крапку, без довгих описів,
+    # щоб повідомлення не розтягувалось на весь екран.
+    lines.append("· " + " · ".join(esc(title) for _, title, _ in PREMIUM_FEATURES))
+    lines.append(bt(lang, "premium_promo"))
+    kb = [
+        [InlineKeyboardButton(bt(lang, "btn_month", price=STAR_PRICE_MONTH), callback_data="pay_month")],
+        [InlineKeyboardButton(bt(lang, "btn_year", price=STAR_PRICE_YEAR), callback_data="pay_year")],
+    ] if not active else []
+    kb.append([InlineKeyboardButton("🧪 Test — 1⭐", callback_data="pay_test")])
     kb.append([InlineKeyboardButton(bt(lang, "btn_back"), callback_data="home")])
-    await msg.reply_text("\n".join(lines), parse_mode=ParseMode.HTML,
+    await msg.reply_text("\n\n".join(lines), parse_mode=ParseMode.HTML,
                          reply_markup=InlineKeyboardMarkup(kb))
 
 
 # ─── Оплата (Telegram Stars) ─────────────────────────────────────────────────
 # Stars — вбудована валюта Telegram (XTR), не потребує платіжного провайдера
 # чи банківського рахунку. payload визначає, що саме купили — за ним і
-# видаємо Premium після оплати.
-
+# видаємо Premium після оплати. pay_test — робоча тестова кнопка на 1⭐:
+# проходить весь той самий шлях (рахунок → оплата → видача Premium),
+# просто на 1 день, щоб можна було перевіряти оплату без витрат.
 STAR_PLANS = {
     "pay_month": ("premium_month", STAR_PRICE_MONTH, "Premium — 1 month", 30),
     "pay_year":  ("premium_year", STAR_PRICE_YEAR, "Premium — 1 year", 365),
+    "pay_test":  ("premium_test", 1, "Test — 1⭐", 1),
 }
 
 
 async def send_invoice_for(chat_id, plan_key, ctx: ContextTypes.DEFAULT_TYPE, lang="uk"):
-    payload, price, _title, _days = STAR_PLANS[plan_key]
-    title = bt(lang, "btn_month" if plan_key == "pay_month" else "btn_year", price=price).replace("⭐", "").strip(" —")
+    payload, price, title, _days = STAR_PLANS[plan_key]
     try:
         await ctx.bot.send_invoice(
             chat_id=chat_id,
@@ -749,6 +722,20 @@ async def do_broadcast(update, ctx, text):
 # ─── Callback ────────────────────────────────────────────────────────────────
 
 async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Обгортка-запобіжник: якщо всередині щось впаде (наприклад, база
+    даних), кнопка все одно отримає відповідь — інакше вона просто
+    "висить" і виглядає, ніби нічого не сталося."""
+    try:
+        await _on_callback(update, ctx)
+    except Exception:
+        logger.exception("Помилка обробки кнопки: %s", (update.callback_query.data if update.callback_query else ""))
+        try:
+            await update.callback_query.answer("⚠️ Тимчасова помилка, спробуйте ще раз", show_alert=True)
+        except Exception:
+            pass
+
+
+async def _on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     data = q.data or ""
     uid = update.effective_user.id
