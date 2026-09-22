@@ -115,6 +115,7 @@ async def h_me(request, u):
             "name": u.get("first_name") or "",
             "premium": premium,
             "premium_until": str(u.get("premium_until") or ""),
+            "lang": u.get("lang") or "uk",
             "theme": u.get("theme") or "midnight",
             "accent": u.get("accent") or "",
             "crossfade": int(u.get("crossfade") or 0),
@@ -158,6 +159,11 @@ async def h_settings(request, u):
         if style not in allowed:
             return fail("Цей стиль обкладинки доступний у Premium")
         fields["ambient_style"] = style
+    if "lang" in body:
+        lang = str(body["lang"])
+        if lang not in ("uk", "ru", "en"):
+            return fail("Непідтримувана мова")
+        fields["lang"] = lang
     db.update_user(uid, **fields)
     return ok({"ok": True, "saved": list(fields.keys())})
 
