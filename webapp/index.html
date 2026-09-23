@@ -37,35 +37,46 @@ a{color:var(--accent)}
 
 /* ── сплеш-екран завантаження ───────────────────────── */
 #splash{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:18px;background:
-    radial-gradient(120% 90% at 50% 15%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 60%),var(--bg);
+  align-items:center;justify-content:center;gap:18px;overflow:hidden;background:
+    radial-gradient(90% 60% at 18% 8%,rgba(255,111,176,.16),transparent 55%),
+    radial-gradient(80% 55% at 85% 12%,rgba(91,227,198,.14),transparent 55%),
+    radial-gradient(120% 90% at 50% 100%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 60%),
+    var(--bg);
   transition:opacity .5s ease, visibility .5s ease}
 #splash.hide{opacity:0;visibility:hidden;pointer-events:none}
 
 /* вінілова платівка, що крутиться, + тонарм, що опускається */
-#splash .vinylWrap{position:relative;width:172px;height:172px;margin-bottom:4px}
+#splash .vinylWrap{position:relative;width:230px;height:230px;margin-bottom:6px}
 #splash .vinyl{width:100%;height:100%;border-radius:50%;position:relative;
   background:
     repeating-radial-gradient(circle at 50% 50%,
-      #0b0716 0px,#0b0716 2px,#1a1330 3px,#1a1330 4px);
-  box-shadow:0 14px 34px rgba(60,20,140,.45),inset 0 0 0 1px rgba(255,255,255,.06);
+      transparent 0px,transparent 2px,rgba(0,0,0,.35) 3px,rgba(0,0,0,.35) 4px),
+    conic-gradient(from 200deg,
+      #ff6fb0 0deg,#a86bff 60deg,#6b8bff 120deg,#5be3c6 180deg,
+      #ffd166 240deg,#ff6fb0 300deg,#ff6fb0 360deg);
+  box-shadow:0 18px 44px rgba(120,60,200,.5),inset 0 0 0 1px rgba(255,255,255,.08);
   animation:vinylSpin 2.6s linear infinite;
   animation-play-state:paused}
 #splash .vinyl::before{content:"";position:absolute;inset:0;border-radius:50%;
-  background:conic-gradient(from 210deg,rgba(255,255,255,.14),transparent 30%,transparent 70%,rgba(255,255,255,.08));
-  mix-blend-mode:screen}
+  background:
+    radial-gradient(circle at 50% 50%,transparent 34%,rgba(8,5,18,.88) 35%),
+    conic-gradient(from 210deg,rgba(255,255,255,.22),transparent 25%,transparent 75%,rgba(255,255,255,.12));
+  mix-blend-mode:normal}
+#splash .vinyl::after{content:"";position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(from 30deg,rgba(255,255,255,.35),transparent 12%,transparent 88%,rgba(255,255,255,.2));
+  mix-blend-mode:overlay;opacity:.7}
 #splash .vinyl.spin{animation-play-state:running}
-#splash .vlabel{position:absolute;top:50%;left:50%;width:56px;height:56px;transform:translate(-50%,-50%);
-  border-radius:50%;overflow:hidden;box-shadow:0 0 0 3px #0b0716,0 0 0 4px rgba(255,255,255,.12)}
+#splash .vlabel{position:absolute;top:50%;left:50%;width:74px;height:74px;transform:translate(-50%,-50%);
+  border-radius:50%;overflow:hidden;box-shadow:0 0 0 4px #0b0716,0 0 0 5px rgba(255,255,255,.14);z-index:2}
 #splash .vlabel img{width:100%;height:100%;object-fit:cover;display:block}
-#splash .vhole{position:absolute;top:50%;left:50%;width:8px;height:8px;transform:translate(-50%,-50%);
-  border-radius:50%;background:#0b0716;box-shadow:0 0 0 2px rgba(255,255,255,.35)}
-#splash .tonearm{position:absolute;top:-14px;right:-6px;width:74px;height:74px;
-  transform-origin:88% 12%;transform:rotate(-32deg);transition:transform .55s cubic-bezier(.34,1.4,.5,1)}
-#splash .tonearm.down{transform:rotate(-4deg)}
-#splash .tonearm i{position:absolute;top:6px;right:8px;width:6px;height:52px;border-radius:4px;
+#splash .vhole{position:absolute;top:50%;left:50%;width:9px;height:9px;transform:translate(-50%,-50%);
+  border-radius:50%;background:#0b0716;box-shadow:0 0 0 2px rgba(255,255,255,.35);z-index:3}
+#splash .tonearm{position:absolute;top:-16px;right:-8px;width:94px;height:94px;
+  transform-origin:88% 12%;transform:rotate(-32deg);transition:transform .55s cubic-bezier(.34,1.4,.5,1);z-index:4}
+#splash .tonearm.down{transform:rotate(-3deg)}
+#splash .tonearm i{position:absolute;top:6px;right:10px;width:7px;height:68px;border-radius:4px;
   background:linear-gradient(180deg,#cfc4ea,#8f82ad);transform:rotate(18deg);transform-origin:top center}
-#splash .tonearm b{position:absolute;top:0;right:0;width:16px;height:16px;border-radius:50%;
+#splash .tonearm b{position:absolute;top:0;right:2px;width:19px;height:19px;border-radius:50%;
   background:#cfc4ea;box-shadow:0 2px 6px rgba(0,0,0,.4)}
 
 #splash .swordmark{width:min(52vw,190px);height:auto;filter:drop-shadow(0 4px 18px rgba(140,100,255,.3))}
@@ -231,7 +242,13 @@ a{color:var(--accent)}
 .sheet .aa{font-size:15px;color:var(--muted);text-align:center;margin-top:6px}
 .lic{text-align:center;font-size:11.5px;color:var(--muted);margin-top:12px;line-height:1.6}
 .lic a{text-decoration:none;border-bottom:1px solid var(--line)}
-.seek{margin:26px 0 8px}
+.seek{margin:26px 0 8px;position:relative}
+.bkmkBtn{position:absolute;right:0;top:-30px;background:none;border:none;color:var(--muted);
+  font-size:17px;line-height:1;cursor:pointer;padding:4px 2px;opacity:.8}
+.bkmkBtn:active{opacity:1;transform:scale(.92)}
+.bkmkTicks{position:relative;height:0}
+.bkmkTicks i{position:absolute;top:-13px;width:2px;height:6px;border-radius:2px;
+  background:var(--gold);opacity:.85;cursor:pointer}
 .seek input{width:100%;-webkit-appearance:none;height:4px;border-radius:9px;
   background:var(--panel-2)}
 .seek input::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;
@@ -441,6 +458,7 @@ a{color:var(--accent)}
       <button class="tab on" data-view="liked" data-i18n="lib_liked">Збережене</button>
       <button class="tab" data-view="playlists" data-i18n="lib_playlists">Плейлисти</button>
       <button class="tab" data-view="history" data-i18n="lib_history">Історія</button>
+      <button class="tab" data-view="moments" data-i18n="lib_moments">Моменти</button>
     </div>
     <div id="libBody"></div>
   </section>
@@ -486,7 +504,9 @@ a{color:var(--accent)}
   <div class="lic" id="npLic"></div>
 
   <div class="seek">
+    <button class="bkmkBtn" id="bkmkBtn" title="Позначити момент" onclick="addBookmark()">🔖</button>
     <input type="range" id="npSeek" min="0" max="1000" value="0">
+    <div class="bkmkTicks" id="bkmkTicks"></div>
     <div class="times"><span id="npCur">0:00</span><span id="npDur">0:00</span></div>
   </div>
 
@@ -540,7 +560,23 @@ const S = {
   liked:new Set(), playlists:[], eq:null, eqNodes:null, ctx:null,
   crossfade:0, sleepAt:0, sleepTimer:null, kind:"tracks", libView:"liked",
   sort:"relevance", sources:["jamendo","audius"],
+  speed:1, nightQuiet:false,
 };
+
+/* ── локальні комфорт-налаштування (швидкість, тихий вечір, моменти) ──
+   Зберігаються тільки на пристрої: не потребують синхронізації з сервером. */
+try{ S.speed = parseFloat(localStorage.getItem("mlsp_speed")) || 1; }catch(e){}
+try{ S.nightQuiet = localStorage.getItem("mlsp_nightquiet") === "1"; }catch(e){}
+function isNightHours(){
+  const h = new Date().getHours();
+  return h >= 23 || h < 7;
+}
+function bookmarksAll(){
+  try{ return JSON.parse(localStorage.getItem("mlsp_bookmarks") || "[]"); }catch(e){ return []; }
+}
+function bookmarksSave(list){
+  try{ localStorage.setItem("mlsp_bookmarks", JSON.stringify(list.slice(0,200))); }catch(e){}
+}
 
 /* ════════ Мова інтерфейсу ════════
    Повний перехід на трьохмовний інтерфейс: кожен статичний елемент, що
@@ -581,6 +617,13 @@ const I18N = {
     what_to_play:"Що поставити?",
     loading_data:"Завантаження даних…",
     loading_phrases:["Крутимо платівку…", "Будимо баси…", "Ловимо потрібну хвилю…", "Розкладаємо треки по поличках…", "Ще секунда…"],
+    pr_speed:"Швидкість відтворення",
+    pr_night:"Тихий вечір",
+    pr_night_sub:"23:00–07:00 — гучність сама стає м'якшою",
+    lib_moments:"Моменти",
+    moments_empty_title:"Моментів ще немає",
+    moments_empty_body:"Тисніть 🔖 під час прослуховування — і позначите улюблений момент треку.",
+    bookmark_added:"Позначено {time}",
   },
   ru: {
     nav_home:"Главная", nav_search:"Поиск", nav_lib:"Библиотека", nav_me:"Профиль",
@@ -613,6 +656,13 @@ const I18N = {
     what_to_play:"Что поставить?",
     loading_data:"Загрузка данных…",
     loading_phrases:["Крутим пластинку…", "Будим басы…", "Ловим нужную волну…", "Раскладываем треки по полочкам…", "Ещё секунда…"],
+    pr_speed:"Скорость воспроизведения",
+    pr_night:"Тихий вечер",
+    pr_night_sub:"23:00–07:00 — громкость сама становится мягче",
+    lib_moments:"Моменты",
+    moments_empty_title:"Моментов пока нет",
+    moments_empty_body:"Нажимайте 🔖 во время прослушивания — и отметите любимый момент трека.",
+    bookmark_added:"Отмечено {time}",
   },
   en: {
     nav_home:"Home", nav_search:"Search", nav_lib:"Library", nav_me:"Profile",
@@ -645,6 +695,13 @@ const I18N = {
     what_to_play:"What'll it be?",
     loading_data:"Loading data…",
     loading_phrases:["Spinning up the vinyl…", "Waking up the bass…", "Tuning into the right frequency…", "Sorting your tracks…", "Almost there…"],
+    pr_speed:"Playback speed",
+    pr_night:"Night quiet",
+    pr_night_sub:"23:00–07:00 — volume softens automatically",
+    lib_moments:"Moments",
+    moments_empty_title:"No moments yet",
+    moments_empty_body:"Tap 🔖 while listening to mark your favorite moment in a track.",
+    bookmark_added:"Marked {time}",
   },
   pl: {
     nav_home:"Główna", nav_search:"Szukaj", nav_lib:"Biblioteka", nav_me:"Profil",
@@ -677,6 +734,13 @@ const I18N = {
     what_to_play:"Co włączyć?",
     loading_data:"Ładowanie danych…",
     loading_phrases:["Kręcimy płytę…", "Budzimy bas…", "Łapiemy właściwą falę…", "Układamy utwory…", "Jeszcze chwila…"],
+    pr_speed:"Prędkość odtwarzania",
+    pr_night:"Cichy wieczór",
+    pr_night_sub:"23:00–07:00 — głośność sama łagodnieje",
+    lib_moments:"Momenty",
+    moments_empty_title:"Nie ma jeszcze żadnych momentów",
+    moments_empty_body:"Stuknij 🔖 podczas słuchania, aby zaznaczyć ulubiony moment utworu.",
+    bookmark_added:"Zaznaczono {time}",
   },
   de: {
     nav_home:"Start", nav_search:"Suche", nav_lib:"Bibliothek", nav_me:"Profil",
@@ -709,6 +773,13 @@ const I18N = {
     what_to_play:"Was soll's sein?",
     loading_data:"Daten werden geladen…",
     loading_phrases:["Die Platte dreht sich…", "Bass wird geweckt…", "Die richtige Frequenz wird gesucht…", "Songs werden sortiert…", "Gleich geschafft…"],
+    pr_speed:"Wiedergabegeschwindigkeit",
+    pr_night:"Ruhiger Abend",
+    pr_night_sub:"23:00–07:00 Uhr — Lautstärke wird automatisch sanfter",
+    lib_moments:"Momente",
+    moments_empty_title:"Noch keine Momente",
+    moments_empty_body:"Tippe beim Hören auf 🔖, um deinen Lieblingsmoment im Track zu markieren.",
+    bookmark_added:"Markiert bei {time}",
   },
   es: {
     nav_home:"Inicio", nav_search:"Buscar", nav_lib:"Biblioteca", nav_me:"Perfil",
@@ -741,6 +812,13 @@ const I18N = {
     what_to_play:"¿Qué ponemos?",
     loading_data:"Cargando datos…",
     loading_phrases:["Girando el vinilo…", "Despertando los graves…", "Buscando la frecuencia justa…", "Ordenando tus pistas…", "Ya casi…"],
+    pr_speed:"Velocidad de reproducción",
+    pr_night:"Noche silenciosa",
+    pr_night_sub:"23:00–07:00 — el volumen se suaviza solo",
+    lib_moments:"Momentos",
+    moments_empty_title:"Aún no hay momentos",
+    moments_empty_body:"Toca 🔖 mientras escuchas para marcar tu momento favorito de una pista.",
+    bookmark_added:"Marcado en {time}",
   },
   fr: {
     nav_home:"Accueil", nav_search:"Recherche", nav_lib:"Bibliothèque", nav_me:"Profil",
@@ -773,6 +851,13 @@ const I18N = {
     what_to_play:"On écoute quoi ?",
     loading_data:"Chargement des données…",
     loading_phrases:["Le vinyle tourne…", "On réveille les basses…", "On capte la bonne fréquence…", "On trie les morceaux…", "Presque prêt…"],
+    pr_speed:"Vitesse de lecture",
+    pr_night:"Soirée tranquille",
+    pr_night_sub:"23h00–07h00 — le volume s'adoucit automatiquement",
+    lib_moments:"Moments",
+    moments_empty_title:"Pas encore de moments",
+    moments_empty_body:"Appuyez sur 🔖 pendant l'écoute pour marquer votre moment préféré d'un titre.",
+    bookmark_added:"Marqué à {time}",
   },
   tr: {
     nav_home:"Ana Sayfa", nav_search:"Ara", nav_lib:"Kitaplık", nav_me:"Profil",
@@ -805,6 +890,13 @@ const I18N = {
     what_to_play:"Ne çalalım?",
     loading_data:"Veriler yükleniyor…",
     loading_phrases:["Plak dönüyor…", "Bas uyandırılıyor…", "Doğru frekans yakalanıyor…", "Parçalar sıralanıyor…", "Neredeyse hazır…"],
+    pr_speed:"Oynatma hızı",
+    pr_night:"Sessiz akşam",
+    pr_night_sub:"23:00–07:00 — ses seviyesi kendiliğinden yumuşar",
+    lib_moments:"Anlar",
+    moments_empty_title:"Henüz an yok",
+    moments_empty_body:"Dinlerken 🔖'e dokunarak parçadaki favori anınızı işaretleyin.",
+    bookmark_added:"{time} işaretlendi",
   },
 };
 
@@ -936,6 +1028,11 @@ function revealApp(){
     revealApp();
     return;
   }
+  /* /api/me і дані головної/бібліотеки не залежать одне від одного (авторизація
+     йде через INIT, а не через результат /api/me) — тому пускаємо їх одразу
+     паралельно, а не одне за одним. Це майже вдвічі скорочує час під заставкою. */
+  const dataReady = Promise.all([loadHome(), loadLiked(), loadPlaylists()])
+    .catch(()=>{ /* окремі секції самі показують свій стан помилки */ });
   try{
     const me = await get("/api/me");
     S.me = me.user; S.limits = me.limits; S.features = me.features;
@@ -948,12 +1045,11 @@ function revealApp(){
     startSplashShow(S.me.lang);
   }catch(e){
     $("homeBody").innerHTML = `<div class="empty"><b>Не вдалося увійти</b>${esc(e.message)}</div>`;
+    await dataReady;
     revealApp();
     return;
   }
-  try{
-    await Promise.all([loadHome(), loadLiked(), loadPlaylists()]);
-  }catch(e){ /* окремі секції самі показують свій стан помилки */ }
+  await dataReady;
   handleStartParam();
   revealApp();
 })();
@@ -1504,6 +1600,26 @@ async function renderLibrary(){
     applyI18n();
     return;
   }
+  if(S.libView === "moments"){
+    const marks = bookmarksAll();
+    if(!marks.length){ box.innerHTML =
+      `<div class="empty"><b data-i18n="moments_empty_title">Моментів ще немає</b><span data-i18n="moments_empty_body">Тисніть 🔖 під час прослуховування — і позначите улюблений момент треку.</span></div>`;
+      applyI18n(); return; }
+    box.innerHTML = `<div class="rows">` + marks.map(b=>`
+      <div class="row" data-bid="${esc(b.id)}">
+        ${b.cover?`<img class="art" src="${esc(b.cover)}" alt="" onerror="this.style.visibility='hidden'">`:`<div class="art" style="background:var(--panel-2)"></div>`}
+        <div class="meta"><div class="t">${esc(b.title)}</div>
+          <div class="s">${esc(b.artist||"")} · ${fmt(b.t)}</div></div>
+        <button class="act" data-del="${esc(b.id)}">${ICON("trash","sm")}</button>
+      </div>`).join("") + `</div>`;
+    box.querySelectorAll(".row").forEach(r => r.onclick = ev => {
+      const bid = r.dataset.bid;
+      if(ev.target.closest("[data-del]")){ deleteBookmark(ev.target.closest("[data-del]").dataset.del); return; }
+      const b = marks.find(x=>x.id===bid); if(b) playBookmark(b);
+    });
+    applyI18n();
+    return;
+  }
   try{ mountRows(box, (await get("/api/history")).tracks, "history"); applyI18n(); }
   catch(e){ box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
@@ -1608,13 +1724,19 @@ function streamUrl(t){
   return `${API}/api/stream?id=${encodeURIComponent(t.id)}&initData=${encodeURIComponent(INIT)}`;
 }
 
+/* «Тихий вечір»: 23:00–07:00 сам м'яко притишує гучність, щоб не будити
+   сусідів/рідних — не змінює збережену гучність пристрою, лише верхню межу. */
+function nightCap(base){
+  return (S.nightQuiet && isNightHours()) ? Math.min(base, 0.55) : base;
+}
+
 let fadeTimer = null;
 function play(t){
   if(!t) return;
   clearInterval(fadeTimer);
   if(S.crossfade > 0 && S.playing){ crossfadeTo(t); }
   else {
-    cur.pause(); cur.src = streamUrl(t); cur.volume = 1;
+    cur.pause(); cur.src = streamUrl(t); cur.playbackRate = S.speed; cur.volume = nightCap(1);
     cur.play().catch(err => toast("Джерело не віддало потік"));
   }
   S.playing = true;
@@ -1624,17 +1746,31 @@ function play(t){
 
 function crossfadeTo(t){
   const outgoing = cur, incoming = alt;
-  incoming.src = streamUrl(t); incoming.volume = 0;
-  incoming.play().catch(()=>{ outgoing.volume=1; });
-  const steps = 20, ms = (S.crossfade*1000)/steps;
+  incoming.src = streamUrl(t); incoming.playbackRate = S.speed; incoming.volume = 0;
+  incoming.play().catch(()=>{ outgoing.volume=nightCap(1); });
+  const steps = 20, ms = (S.crossfade*1000)/steps, cap = nightCap(1);
   let k = 0;
   fadeTimer = setInterval(()=>{
     k++; const r = k/steps;
-    incoming.volume = Math.min(1, r);
-    outgoing.volume = Math.max(0, 1-r);
-    if(k>=steps){ clearInterval(fadeTimer); outgoing.pause(); outgoing.volume = 1; }
+    incoming.volume = Math.min(cap, r*cap);
+    outgoing.volume = Math.max(0, cap-r*cap);
+    if(k>=steps){ clearInterval(fadeTimer); outgoing.pause(); outgoing.volume = cap; }
   }, ms);
   cur = incoming; alt = outgoing;
+}
+
+function setSpeed(v){
+  S.speed = v;
+  A.playbackRate = v; B.playbackRate = v;
+  try{ localStorage.setItem("mlsp_speed", v); }catch(e){}
+  const el = $("speedBtn"); if(el) el.textContent = v+"x";
+}
+
+function toggleNightQuiet(){
+  S.nightQuiet = !S.nightQuiet;
+  try{ localStorage.setItem("mlsp_nightquiet", S.nightQuiet?"1":"0"); }catch(e){}
+  const sw = $("swNight"); if(sw) sw.classList.toggle("on", S.nightQuiet);
+  if(S.playing) cur.volume = nightCap(cur.volume > 0 ? 1 : 0);
 }
 
 function togglePlay(){
@@ -1676,9 +1812,50 @@ function toggleRepeat(){
 [A,B].forEach(el=>{
   el.addEventListener("ended", ()=>{ if(el===cur) nextTrack(true); });
   el.addEventListener("timeupdate", ()=>{ if(el===cur) paintProgress(); });
+  el.addEventListener("loadedmetadata", ()=>{ if(el===cur) renderBkmkTicks(current()); });
   el.addEventListener("error", ()=>{ if(el===cur && S.playing) toast("Трек недоступний, гортаю далі"),
     setTimeout(()=>nextTrack(true), 600); });
 });
+
+/* ── моменти (закладки в треку) ── */
+function addBookmark(){
+  tap();
+  const trk = current(); if(!trk) return;
+  const time = cur.currentTime || 0;
+  const list = bookmarksAll();
+  list.unshift({id:trk.id+":"+Math.round(time*1000), trackId:trk.id, title:trk.title,
+    artist:trk.artist, cover:trk.cover, t:time, savedAt:Date.now()});
+  bookmarksSave(list);
+  toast(t("bookmark_added").replace("{time}", fmt(time)));
+  renderBkmkTicks(trk);
+}
+function renderBkmkTicks(trk){
+  const box = $("bkmkTicks"); if(!box) return;
+  box.innerHTML = "";
+  const d = cur.duration;
+  if(!trk || !isFinite(d) || d<=0) return;
+  bookmarksAll().filter(b=>b.trackId===trk.id).forEach(b=>{
+    const pct = Math.min(100, Math.max(0, (b.t/d)*100));
+    const i = document.createElement("i");
+    i.style.left = pct+"%"; i.title = fmt(b.t);
+    i.onclick = e => { e.stopPropagation(); cur.currentTime = b.t;
+      if(cur.paused){ cur.play(); S.playing = true; paintPlayState(); } };
+    box.appendChild(i);
+  });
+}
+async function playBookmark(b){
+  tap();
+  await playById(b.trackId);
+  const seekOnce = () => { cur.currentTime = b.t; cur.removeEventListener("loadedmetadata", seekOnce); };
+  if(isFinite(cur.duration) && cur.duration>0) cur.currentTime = b.t;
+  else cur.addEventListener("loadedmetadata", seekOnce);
+  openSheet();
+}
+function deleteBookmark(id){
+  bookmarksSave(bookmarksAll().filter(b=>b.id!==id));
+  renderLibrary();
+  const t = current(); if(t) renderBkmkTicks(t);
+}
 
 async function reportPlay(t){
   try{ await post("/api/history", {track:t, seconds:0}); }catch(e){}
@@ -1909,6 +2086,13 @@ function renderProfile(){
       <div class="opt"><div class="lbl"><b data-i18n="pr_sleep">Таймер сну</b>
         <span data-i18n="${p?"pr_sleep_on":"pr_sleep_off"}">${p?"Музика вимкнеться сама":"Доступно у Premium"}</span></div>
         <button class="pill" id="sleepBtn" ${S.sleepAt?"":'data-i18n="pr_sleep_off_btn"'}>${S.sleepAt?fmt((S.sleepAt-Date.now())/1000):"Вимкнено"}</button></div>
+
+      <div class="opt"><div class="lbl"><b data-i18n="pr_speed">Швидкість відтворення</b></div>
+        <button class="pill" id="speedBtn">${S.speed}x</button></div>
+
+      <div class="opt"><div class="lbl"><b data-i18n="pr_night">Тихий вечір</b>
+        <span data-i18n="pr_night_sub">23:00–07:00 — гучність сама стає м'якшою</span></div>
+        <div class="sw ${S.nightQuiet?"on":""}" id="swNight"></div></div>
     </div>
 
     <div class="sect"><h2 data-i18n="pr_theme">Тема</h2>
@@ -2017,6 +2201,14 @@ function bindProfile(){
       [15,30,45,60,90].map(m=>`<button class="btn ghost" onclick="setSleep(${m})">${m} хвилин</button>`).join("") +
       `<button class="btn ghost" onclick="setSleep(0)">Вимкнути таймер</button>`);
   };
+
+  $("speedBtn").onclick = () => {
+    tap();
+    const opts = [0.75, 1, 1.25, 1.5];
+    setSpeed(opts[(opts.indexOf(S.speed)+1) % opts.length]);
+  };
+
+  $("swNight").onclick = () => { tap(); toggleNightQuiet(); };
 
   $("themeRow").querySelectorAll(".swatch").forEach(b => b.onclick = async () => {
     const t = b.dataset.theme;
