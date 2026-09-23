@@ -309,20 +309,51 @@ def jamendo_similar(track_id, limit=20, audioformat="mp32"):
 
 _audius_host = None
 _audius_host_ts = 0
+_audius_hosts_pool = []
+_audius_dead = {}  # host -> час, коли визнали непридатним (щоб не пробувати одразу знову)
 _audius_lock = threading.Lock()
 
 
-def audius_host():
-    """Обирає живий discovery-node. Кешує на 30 хвилин."""
-    global _audius_host, _audius_host_ts
+def _audius_fetch_pool():
+    data = _get(AUDIUS_BOOTSTRAP, timeout=8)
+    return [h.rstrip("/") for h in ((data or {}).get("data") or []) if h]
+
+
+def _audius_alive(host, timeout=4):
+    try:
+        r = _session.get(f"{host}/health_check", timeout=timeout)
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
+def audius_host(force_new=False):
+    """Обирає живий discovery-node і кешує на 30 хвилин.
+
+    Раніше тут завжди брався перший хост зі списку без перевірки — якщо саме
+    він тимчасово лежав, ВСІ треки з Audius ставали недоступні на всі 30 хвилин
+    кешу (звідси "багато треків не грає і скіпає"). Тепер хост перевіряється
+    health_check-ом перед тим, як його закешувати, а force_new=True (виклик
+    після реальної невдачі стріму) миттєво зкидає поточний вибір і пробує іншого."""
+    global _audius_host, _audius_host_ts, _audius_hosts_pool
     with _audius_lock:
-        if _audius_host and time.time() - _audius_host_ts < 1800:
+        if not force_new and _audius_host and time.time() - _audius_host_ts < 1800:
             return _audius_host
-        data = _get(AUDIUS_BOOTSTRAP, timeout=8)
-        hosts = (data or {}).get("data") or []
-        if hosts:
-            _audius_host = hosts[0].rstrip("/")
-            _audius_host_ts = time.time()
+        if force_new and _audius_host:
+            _audius_dead[_audius_host] = time.time()
+        if not _audius_hosts_pool or force_new:
+            fresh = _audius_fetch_pool()
+            if fresh:
+                _audius_hosts_pool = fresh
+        pool = [h for h in _audius_hosts_pool if time.time() - _audius_dead.get(h, 0) > 300]
+        random.shuffle(pool)
+        for host in pool[:6]:
+            if _audius_alive(host):
+                _audius_host = host
+                _audius_host_ts = time.time()
+                return _audius_host
+        # Жоден кандидат не відповів — лишаємо старий вибір (може, ще працює
+        # для вже кешованих запитів), а не глушимо все джерело мовчки.
         return _audius_host
 
 
@@ -425,11 +456,41 @@ def audius_track(track_id):
     return _aud_track(data["data"])
 
 
-def audius_stream_url(track_id):
-    host = audius_host()
+def audius_stream_url(track_id, host=None):
+    host = host or audius_host()
     if not host:
         return ""
     return f"{host}/v1/tracks/{track_id}/stream?app_name={urllib.parse.quote(AUDIUS_APP_NAME)}"
+
+
+def _url_playable(url, timeout=5):
+    """Легка перевірка, що посилання реально віддає аудіо, а не 404/500 —
+    щоб клієнту ніколи не йшов мертвий стрім, який довелось би скіпати."""
+    try:
+        r = _session.head(url, timeout=timeout, allow_redirects=True)
+        if r.status_code == 405:  # деякі ноди не вміють HEAD — пробуємо GET шматка
+            r = _session.get(url, timeout=timeout, headers={"Range": "bytes=0-1"},
+                              stream=True, allow_redirects=True)
+            r.close()
+        return r.status_code in (200, 206)
+    except Exception:
+        return False
+
+
+def audius_stream_url_verified(track_id, attempts=3):
+    """Як audius_stream_url, але перевіряє, що посилання справді грає, і
+    пробує інші discovery-ноди, якщо перша не відповіла — саме це раніше
+    ламало відразу купу треків, коли кешований хост тимчасово лежав."""
+    tried = set()
+    for i in range(attempts):
+        host = audius_host(force_new=(i > 0))
+        if not host or host in tried:
+            continue
+        tried.add(host)
+        url = audius_stream_url(track_id, host)
+        if _url_playable(url):
+            return url
+    return ""
 
 
 def audius_search_users(query, limit=15):
@@ -1001,7 +1062,7 @@ def resolve_stream(full_id, quality="mp32"):
         t = jamendo_track(raw, audioformat=quality)
         return t["stream"] if t else ""
     if prefix == "aud":
-        return audius_stream_url(raw)
+        return audius_stream_url_verified(raw)
     if prefix == "arc":
         return archive_stream_url(raw)
     if prefix == "ccm":
@@ -1024,7 +1085,7 @@ def resolve_download(full_id):
     if prefix == "aud":
         t = audius_track(raw)
         if t and t["downloadable"]:
-            return audius_stream_url(raw), t
+            return audius_stream_url_verified(raw), t
         return "", t
     if prefix == "arc":
         url = archive_stream_url(raw)
