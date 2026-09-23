@@ -535,15 +535,49 @@ def audius_user_tracks(user_id, limit=40):
 ARCHIVE_SEARCH = "https://archive.org/advancedsearch.php"
 
 
+# Колекції Internet Archive, які реально містять легальну музику з чіткою
+# ліцензією (а не побічно потрапили в "audio"):
+#   78rpm           — оцифровані платівки суспільного надбання
+#   audio_music     — загальна музична секція архіву
+#   opensource_audio— записи, які автори самі виклали як відкриті
+#   netlabels       — тисячі альбомів незалежних нетлейблів під CC —
+#                     найбільший приріст каталогу з мінімумом ризику,
+#                     бо це саме той самий Internet Archive, яким уже
+#                     користуємось, просто ширший фільтр колекцій.
+ARCHIVE_COLLECTIONS = ("78rpm", "audio_music", "opensource_audio", "netlabels")
+
+# Короткі підписи для найпоширеніших ліцензій Internet Archive — щоб не
+# показувати всьому підряд ярлик "Public Domain", коли насправді це CC-BY
+# чи CC-BY-SA нетлейбла (там потрібна атрибуція, це різні речі юридично).
+_CC_LICENSE_LABELS = [
+    ("publicdomain/zero", "CC0 · Public Domain"),
+    ("publicdomain", "Public Domain"),
+    ("licenses/by-sa", "CC BY-SA"),
+    ("licenses/by-nc-sa", "CC BY-NC-SA"),
+    ("licenses/by-nc-nd", "CC BY-NC-ND"),
+    ("licenses/by-nc", "CC BY-NC"),
+    ("licenses/by-nd", "CC BY-ND"),
+    ("licenses/by", "CC BY"),
+]
+
+
+def _archive_license(licenseurl):
+    url = (licenseurl or "").lower()
+    if not url:
+        return "https://creativecommons.org/publicdomain/mark/1.0/", "Public Domain"
+    for needle, label in _CC_LICENSE_LABELS:
+        if needle in url:
+            return licenseurl, label
+    return licenseurl, "Відкрита ліцензія (Internet Archive)"
+
+
 def archive_search(query, limit=20):
     if not ARCHIVE_ENABLED:
         return []
-    q = (
-        f'({query}) AND mediatype:(audio) AND '
-        f'(collection:(78rpm) OR collection:(audio_music) OR collection:(opensource_audio))'
-    )
+    coll = " OR ".join(f"collection:({c})" for c in ARCHIVE_COLLECTIONS)
+    q = f'({query}) AND mediatype:(audio) AND ({coll})'
     data = _get(ARCHIVE_SEARCH, {
-        "q": q, "fl[]": ["identifier", "title", "creator", "year"],
+        "q": q, "fl[]": ["identifier", "title", "creator", "year", "licenseurl"],
         "rows": limit, "page": 1, "output": "json", "sort[]": "downloads desc",
     })
     docs = ((data or {}).get("response") or {}).get("docs") or []
@@ -553,6 +587,7 @@ def archive_search(query, limit=20):
         if isinstance(creator, list):
             creator = creator[0] if creator else ""
         ident = d.get("identifier") or ""
+        license_url, license_short = _archive_license(d.get("licenseurl"))
         out.append({
             "id": f"arc:{ident}",
             "title": d.get("title") or ident,
@@ -566,11 +601,45 @@ def archive_search(query, limit=20):
             "source": "archive",
             "source_label": "Internet Archive",
             "source_url": f"https://archive.org/details/{ident}",
-            "license": "https://creativecommons.org/publicdomain/mark/1.0/",
-            "license_short": "Public Domain",
+            "license": license_url,
+            "license_short": license_short,
             "stream": "",
             "downloadable": True,
             "download_url": "",
+            "year": str(d.get("year") or ""),
+        })
+    return out
+
+
+def archive_collection_tracks(collection, limit=40):
+    """Треки конкретної колекції (напр. 'netlabels') — для добірки на
+    головній, без пошукового запиту."""
+    if not ARCHIVE_ENABLED:
+        return []
+    data = _get(ARCHIVE_SEARCH, {
+        "q": f'mediatype:(audio) AND collection:({collection})',
+        "fl[]": ["identifier", "title", "creator", "year", "licenseurl"],
+        "rows": limit, "page": 1, "output": "json", "sort[]": "downloads desc",
+    })
+    docs = ((data or {}).get("response") or {}).get("docs") or []
+    out = []
+    for d in docs:
+        creator = d.get("creator")
+        if isinstance(creator, list):
+            creator = creator[0] if creator else ""
+        ident = d.get("identifier") or ""
+        license_url, license_short = _archive_license(d.get("licenseurl"))
+        out.append({
+            "id": f"arc:{ident}",
+            "title": d.get("title") or ident,
+            "artist": creator or "Невідомий виконавець",
+            "artist_id": "", "album": "", "album_id": "",
+            "cover": f"https://archive.org/services/img/{ident}",
+            "duration": 0, "duration_str": "",
+            "source": "archive", "source_label": "Internet Archive",
+            "source_url": f"https://archive.org/details/{ident}",
+            "license": license_url, "license_short": license_short,
+            "stream": "", "downloadable": True, "download_url": "",
             "year": str(d.get("year") or ""),
         })
     return out
@@ -981,6 +1050,18 @@ def daily_track(offset_days=0):
 _CURATED_FALLBACK_TAGS = [
     ("chillout", "Chillout"), ("electronic", "Electronic"), ("jazz", "Jazz"),
     ("lounge", "Lounge"), ("acoustic", "Acoustic"), ("hiphop", "Hip-Hop"),
+    ("classical", "Класика"), ("rock", "Rock"), ("ambient", "Ambient"),
+    ("folk", "Folk"), ("metal", "Metal"), ("pop", "Pop"),
+    ("reggae", "Reggae"), ("soundtrack", "Soundtrack"),
+]
+
+# Готові добірки прямо з окремих колекцій Internet Archive — на відміну від
+# жанрових тегів Jamendo вище, це не запасний варіант "на випадок", а завжди
+# доступний шар каталогу: тисячі альбомів під CC, які інакше губляться серед
+# звичайного пошуку.
+_ARCHIVE_CURATED_COLLECTIONS = [
+    ("netlabels", "Нетлейбли"),
+    ("opensource_audio", "Відкриті записи"),
 ]
 
 
@@ -1006,9 +1087,31 @@ def _synthetic_collections(limit):
     return out
 
 
+def _archive_curated_tiles(limit=2):
+    out = []
+    for coll, label in _ARCHIVE_CURATED_COLLECTIONS[:limit]:
+        cover = ""
+        try:
+            preview = archive_collection_tracks(coll, limit=1)
+            if preview:
+                cover = preview[0].get("cover") or ""
+        except Exception:
+            pass
+        out.append({
+            "id": f"arccol:{coll}", "title": label, "cover": cover,
+            "source": "archive", "source_label": "Internet Archive",
+            "source_url": f"https://archive.org/details/{coll}",
+        })
+    return out
+
+
 def discover_playlists(limit=10):
-    """Кураторські плейлисти з обох джерел — для головного екрана."""
-    half = max(4, limit // 2)
+    """Кураторські плейлисти — Jamendo/Audius плюс завжди доступний шар
+    з великих CC-колекцій Internet Archive (не запасний варіант, а
+    постійне розширення бібліотеки)."""
+    n_archive = min(2, limit)
+    n_main = max(0, limit - n_archive)
+    half = max(4, n_main // 2)
     out = []
     try:
         out += jamendo_playlists(limit=half)
@@ -1022,13 +1125,19 @@ def discover_playlists(limit=10):
         # Обидва джерела порожні (частий випадок для Jamendo — офіційні
         # плейлисти публікують нерегулярно) — показуємо жанрові добірки,
         # аби розділ "Добірки" ніколи не був просто порожнім/невидимим.
-        out = _synthetic_collections(limit)
+        out = _synthetic_collections(n_main)
+    out = out[:n_main]
+    try:
+        out += _archive_curated_tiles(limit=n_archive)
+    except Exception:
+        pass
     return out[:limit]
 
 
 def curated_playlist_tracks(full_id, quality="mp32"):
     """Треки кураторського плейлиста за повним id ('jam:123' / 'aud:456' /
-    'tag:electronic' для запасних жанрових добірок)."""
+    'tag:electronic' для запасних жанрових добірок / 'arccol:netlabels'
+    для добірок прямо з колекцій Internet Archive)."""
     prefix, raw = split_id(full_id)
     if prefix == "jam":
         return jamendo_playlist_tracks(raw, audioformat=quality)
@@ -1036,6 +1145,8 @@ def curated_playlist_tracks(full_id, quality="mp32"):
         return audius_playlist_tracks(raw)
     if prefix == "tag":
         return jamendo_tag_tracks(raw, 40, 0, quality)
+    if prefix == "arccol":
+        return archive_collection_tracks(raw, limit=40)
     return []
 
 
