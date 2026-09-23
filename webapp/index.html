@@ -421,7 +421,8 @@ a{color:var(--accent)}
   <section class="screen" id="scSearch">
     <div class="searchbar">
       <span data-icon="search" class="icon"></span>
-      <input id="qInput" placeholder="Трек, артист або жанр" autocomplete="off" data-i18n-ph="search_ph">
+      <input id="qInput" placeholder="Трек, артист або жанр" autocomplete="off" data-i18n-ph="search_ph"
+             enterkeyhint="search" inputmode="search">
       <button class="act" id="qClear" style="color:var(--muted)"><span data-icon="close"></span></button>
     </div>
     <div class="tabs" id="qTabs">
@@ -1326,7 +1327,7 @@ async function loadGenresGrid(){
 /* ════════ Пошук ════════ */
 let searchT;
 $("qInput").oninput = () => { clearTimeout(searchT); searchT = setTimeout(runSearch, 450); };
-$("qInput").onkeydown = e => { if(e.key==="Enter"){ clearTimeout(searchT); runSearch(); } };
+$("qInput").onkeydown = e => { if(e.key==="Enter"){ clearTimeout(searchT); runSearch(); e.target.blur(); } };
 $("qClear").onclick = () => { $("qInput").value=""; $("qBody").innerHTML=""; };
 $("btEntry").onclick = () => openBlindTest();
 
