@@ -78,6 +78,15 @@ PANEL_SESSION_HOURS = _int("PANEL_SESSION_HOURS", 12)
 # Пароль для команди /admin у боті (окремо від PANEL_SECRET)
 ADMIN_CMD_PASSWORD = _env("ADMIN_CMD_PASSWORD", "lesivlsp")
 
+# Скільки днів безкоштовного Premium-тріалу отримує юзер один раз
+TRIAL_DAYS = _int("TRIAL_DAYS", 3)
+
+# Скільки годин до закінчення Premium надсилати нагадування про продовження
+RENEWAL_REMINDER_HOURS = _int("RENEWAL_REMINDER_HOURS", 24)
+
+# Готові суми для кнопки "Підтримати проєкт" (у Stars)
+DONATE_TIERS = [int(x) for x in _list("DONATE_TIERS", "50,150,300")]
+
 # ─── Воркер ──────────────────────────────────────────────────────────────────
 WORKER_INTERVAL = _int("WORKER_INTERVAL", 600)   # секунд між циклами
 
