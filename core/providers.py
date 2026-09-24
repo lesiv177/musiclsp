@@ -611,13 +611,19 @@ def archive_search(query, limit=20):
     return out
 
 
-def archive_collection_tracks(collection, limit=40):
+def archive_collection_tracks(collection, limit=40, subject=None):
     """Треки конкретної колекції (напр. 'netlabels') — для добірки на
-    головній, без пошукового запиту."""
+    головній, без пошукового запиту. Необов'язковий subject звужує вибірку
+    до записів із відповідним тегом (напр. 'ukraine'/'russia' — так ми
+    дістаємось україно- та російськомовних нетлейблів усередині величезної
+    колекції netlabels, не вигадуючи окремих ідентифікаторів колекцій)."""
     if not ARCHIVE_ENABLED:
         return []
+    q = f'mediatype:(audio) AND collection:({collection})'
+    if subject:
+        q += f' AND subject:("{subject}")'
     data = _get(ARCHIVE_SEARCH, {
-        "q": f'mediatype:(audio) AND collection:({collection})',
+        "q": q,
         "fl[]": ["identifier", "title", "creator", "year", "licenseurl"],
         "rows": limit, "page": 1, "output": "json", "sort[]": "downloads desc",
     })
@@ -1060,8 +1066,14 @@ _CURATED_FALLBACK_TAGS = [
 # доступний шар каталогу: тисячі альбомів під CC, які інакше губляться серед
 # звичайного пошуку.
 _ARCHIVE_CURATED_COLLECTIONS = [
-    ("netlabels", "Нетлейбли"),
-    ("opensource_audio", "Відкриті записи"),
+    ("netlabels", None, "Нетлейбли"),
+    ("opensource_audio", None, "Відкриті записи"),
+    # Всередині величезної колекції netlabels Internet Archive є сотні
+    # альбомів із тегами "ukraine"/"russia" — реальні, вже перевірені CC-
+    # видання нетлейблів пострадянського простору (напр. Cian Orbe та інші),
+    # а не мейнстрим-поп, який під такою ліцензією ніхто не видає.
+    ("netlabels", "ukraine", "Українська музика (CC)"),
+    ("netlabels", "russia", "Русскомовна музика (CC)"),
 ]
 
 
@@ -1089,16 +1101,17 @@ def _synthetic_collections(limit):
 
 def _archive_curated_tiles(limit=2):
     out = []
-    for coll, label in _ARCHIVE_CURATED_COLLECTIONS[:limit]:
+    for coll, subject, label in _ARCHIVE_CURATED_COLLECTIONS[:limit]:
         cover = ""
         try:
-            preview = archive_collection_tracks(coll, limit=1)
+            preview = archive_collection_tracks(coll, limit=1, subject=subject)
             if preview:
                 cover = preview[0].get("cover") or ""
         except Exception:
             pass
+        raw_id = f"{coll}:{subject}" if subject else coll
         out.append({
-            "id": f"arccol:{coll}", "title": label, "cover": cover,
+            "id": f"arccol:{raw_id}", "title": label, "cover": cover,
             "source": "archive", "source_label": "Internet Archive",
             "source_url": f"https://archive.org/details/{coll}",
         })
@@ -1109,7 +1122,7 @@ def discover_playlists(limit=10):
     """Кураторські плейлисти — Jamendo/Audius плюс завжди доступний шар
     з великих CC-колекцій Internet Archive (не запасний варіант, а
     постійне розширення бібліотеки)."""
-    n_archive = min(2, limit)
+    n_archive = min(len(_ARCHIVE_CURATED_COLLECTIONS), limit)
     n_main = max(0, limit - n_archive)
     half = max(4, n_main // 2)
     out = []
@@ -1146,6 +1159,9 @@ def curated_playlist_tracks(full_id, quality="mp32"):
     if prefix == "tag":
         return jamendo_tag_tracks(raw, 40, 0, quality)
     if prefix == "arccol":
+        if ":" in raw:
+            coll, subject = raw.split(":", 1)
+            return archive_collection_tracks(coll, limit=40, subject=subject)
         return archive_collection_tracks(raw, limit=40)
     return []
 
