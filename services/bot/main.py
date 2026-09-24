@@ -36,6 +36,7 @@ from core.config import (
     BOT_TOKEN, ADMIN_IDS, WEB_APP_URL, API_URL, PORT,
     JAMENDO_CLIENT_ID, PREMIUM_FEATURES, APP_NAME, APP_VERSION,
     REFERRAL_REWARD_DAYS, STAR_PRICE_WEEK, STAR_PRICE_MONTH, STAR_PRICE_3MONTH, STAR_PRICE_YEAR,
+    ADMIN_CMD_PASSWORD,
 )
 
 logging.basicConfig(
@@ -265,8 +266,7 @@ def main_kb(uid):
         [InlineKeyboardButton(bt(lang, "btn_premium"), callback_data="premium"),
          InlineKeyboardButton(bt(lang, "btn_invite"), callback_data="referral")],
     ]
-    if uid in ADMIN_IDS:
-        kb.append([InlineKeyboardButton(bt(lang, "btn_admin"), callback_data="admin")])
+    # Кнопку адмінки прибрано — доступ тепер лише через команду /admin + пароль.
     return InlineKeyboardMarkup(kb)
 
 
@@ -581,11 +581,33 @@ async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     uid = update.effective_user.id
     state = ctx.user_data.pop("state", "")
+    if state == "admin_pass":
+        return await do_admin_pass(update, ctx, uid, text)
     if state == "broadcast" and uid in ADMIN_IDS:
         return await do_broadcast(update, ctx, text)
     if state == "promo" and uid in ADMIN_IDS:
         return await do_make_promo(update, text)
     await do_search(update.message, uid, text)
+
+
+async def cmd_admin(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    if uid not in ADMIN_IDS:
+        return  # мовчки ігноруємо — не підказуємо стороннім, що команда існує
+    ctx.user_data["state"] = "admin_pass"
+    await update.message.reply_text("🔒 Введіть пароль адмінки:")
+
+
+async def do_admin_pass(update: Update, ctx: ContextTypes.DEFAULT_TYPE, uid, text):
+    try:
+        await update.message.delete()
+    except Exception:
+        pass
+    if uid in ADMIN_IDS and text == ADMIN_CMD_PASSWORD:
+        await ctx.bot.send_message(update.effective_chat.id, "✅ Доступ надано.", reply_markup=admin_kb())
+    else:
+        logger.warning("Невдала спроба входу в адмінку: uid=%s", uid)
+        await ctx.bot.send_message(update.effective_chat.id, "⛔ Невірний пароль.")
 
 
 async def do_search(msg, uid, query):
@@ -853,10 +875,6 @@ async def _on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if data.startswith("dl:"):
         return await do_download(q, uid, data[3:])
 
-    if data == "admin" and uid in ADMIN_IDS:
-        await q.answer()
-        return await q.message.reply_text("Панель адміністратора", reply_markup=admin_kb())
-
     if data == "a:stats" and uid in ADMIN_IDS:
         await q.answer()
         s = db.global_stats()
@@ -935,6 +953,7 @@ async def run():
     application.add_handler(CommandHandler("legal", cmd_legal))
     application.add_handler(CommandHandler("privacy", cmd_privacy))
     application.add_handler(CommandHandler("referral", cmd_referral))
+    application.add_handler(CommandHandler("admin", cmd_admin))
     application.add_handler(CallbackQueryHandler(on_callback))
     application.add_handler(PreCheckoutQueryHandler(on_precheckout))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, on_successful_payment))
