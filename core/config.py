@@ -75,6 +75,9 @@ USER_AGENT = f"{APP_NAME}/{APP_VERSION}"
 PANEL_SECRET = _env("PANEL_SECRET", "lesivlsp")
 PANEL_SESSION_HOURS = _int("PANEL_SESSION_HOURS", 12)
 
+# Пароль для команди /admin у боті (окремо від PANEL_SECRET)
+ADMIN_CMD_PASSWORD = _env("ADMIN_CMD_PASSWORD", "lesivlsp")
+
 # ─── Воркер ──────────────────────────────────────────────────────────────────
 WORKER_INTERVAL = _int("WORKER_INTERVAL", 600)   # секунд між циклами
 
