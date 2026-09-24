@@ -23,6 +23,7 @@ from telegram import (
     MenuButtonWebApp, InputFile, LabeledPrice,
 )
 from telegram.constants import ParseMode
+from telegram.error import RetryAfter, Forbidden, BadRequest, TelegramError
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
     ContextTypes, filters, PreCheckoutQueryHandler,
@@ -36,7 +37,7 @@ from core.config import (
     BOT_TOKEN, ADMIN_IDS, WEB_APP_URL, API_URL, PORT,
     JAMENDO_CLIENT_ID, PREMIUM_FEATURES, APP_NAME, APP_VERSION,
     REFERRAL_REWARD_DAYS, STAR_PRICE_WEEK, STAR_PRICE_MONTH, STAR_PRICE_3MONTH, STAR_PRICE_YEAR,
-    ADMIN_CMD_PASSWORD,
+    ADMIN_CMD_PASSWORD, TRIAL_DAYS, DONATE_TIERS,
 )
 
 logging.basicConfig(
@@ -71,6 +72,12 @@ BOT_TR = {
         "premium_promo": "🎁 Є промокод? Надішліть <code>/code ВАШ_КОД</code>, і Premium увімкнеться миттєво.",
         "btn_week": "⭐ 7 днів — {price}⭐", "btn_month": "⭐ 1 місяць — {price}⭐",
         "btn_3m": "⭐ 3 місяці — {price}⭐", "btn_year": "⭐ 1 рік — {price}⭐ (вигідніше)",
+        "btn_trial": "🎁 Спробувати {days} дні безкоштовно",
+        "trial_done": "🎉 {days} дні Premium активовано безкоштовно! Відкрийте плеєр 🎧",
+        "trial_used": "Ви вже використали безкоштовний тріал раніше.",
+        "btn_donate": "💜 Підтримати проєкт",
+        "donate_intro": "Якщо подобається MusicLSP — можна закинути будь-яку суму Stars на розвиток. Це не преміум-підписка, а просто подяка ❤️",
+        "donate_thanks": "❤️ Дякуємо за підтримку MusicLSP! Це дуже допомагає проєкту.",
         "pay_status": "✅ <b>Статус: Premium активовано</b>",
         "pay_confirmed": "Оплату отримано. Premium активний до {until}. Відкрийте плеєр — нові можливості вже там 🎧",
         "referral_intro": ("🤝 <b>Запросіть друзів у {name}</b>\n\nЗа кожного друга, який приєднається за "
@@ -107,6 +114,12 @@ BOT_TR = {
         "premium_promo": "🎁 Have a promo code? Send <code>/code YOUR_CODE</code> to activate Premium instantly.",
         "btn_week": "⭐ 7 days — {price}⭐", "btn_month": "⭐ 1 month — {price}⭐",
         "btn_3m": "⭐ 3 months — {price}⭐", "btn_year": "⭐ 1 year — {price}⭐ (better value)",
+        "btn_trial": "🎁 Try {days} days free",
+        "trial_done": "🎉 {days} days of Premium activated for free! Open the player 🎧",
+        "trial_used": "You've already used the free trial before.",
+        "btn_donate": "💜 Support the project",
+        "donate_intro": "If you enjoy MusicLSP, you can send any amount of Stars to support it. This isn't a Premium subscription, just a thank-you ❤️",
+        "donate_thanks": "❤️ Thanks for supporting MusicLSP! It really helps the project.",
         "pay_status": "✅ <b>Status: Premium activated</b>",
         "pay_confirmed": "Payment received. Premium is active until {until}. Open the player — the new features are already there 🎧",
         "referral_intro": ("🤝 <b>Invite friends to {name}</b>\n\nFor every friend who joins with your "
@@ -405,6 +418,7 @@ async def cmd_premium(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     lang = user_lang(uid)
     active = db.is_premium(uid)
+    u_now = db.get_user(uid)
     if active:
         u = db.get_user(uid)
         until = _fmt_until(u.get("premium_until"))
@@ -417,12 +431,17 @@ async def cmd_premium(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # щоб повідомлення не розтягувалось на весь екран.
     lines.append("· " + " · ".join(esc(title) for _, title, _ in PREMIUM_FEATURES))
     lines.append(bt(lang, "premium_promo"))
-    kb = [
-        [InlineKeyboardButton(bt(lang, "btn_week", price=STAR_PRICE_WEEK), callback_data="pay_week")],
-        [InlineKeyboardButton(bt(lang, "btn_month", price=STAR_PRICE_MONTH), callback_data="pay_month")],
-        [InlineKeyboardButton(bt(lang, "btn_3m", price=STAR_PRICE_3MONTH), callback_data="pay_3m")],
-        [InlineKeyboardButton(bt(lang, "btn_year", price=STAR_PRICE_YEAR), callback_data="pay_year")],
-    ] if not active else []
+    kb = []
+    if not active:
+        if not u_now.get("trial_used"):
+            kb.append([InlineKeyboardButton(bt(lang, "btn_trial", days=TRIAL_DAYS), callback_data="trial")])
+        kb += [
+            [InlineKeyboardButton(bt(lang, "btn_week", price=STAR_PRICE_WEEK), callback_data="pay_week")],
+            [InlineKeyboardButton(bt(lang, "btn_month", price=STAR_PRICE_MONTH), callback_data="pay_month")],
+            [InlineKeyboardButton(bt(lang, "btn_3m", price=STAR_PRICE_3MONTH), callback_data="pay_3m")],
+            [InlineKeyboardButton(bt(lang, "btn_year", price=STAR_PRICE_YEAR), callback_data="pay_year")],
+        ]
+    kb.append([InlineKeyboardButton(bt(lang, "btn_donate"), callback_data="donate")])
     kb.append([InlineKeyboardButton(bt(lang, "btn_back"), callback_data="home")])
     await msg.reply_text("\n\n".join(lines), parse_mode=ParseMode.HTML,
                          reply_markup=InlineKeyboardMarkup(kb))
@@ -469,6 +488,9 @@ async def on_successful_payment(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         lang = user_lang(uid)
         logger.info("Оплата Stars: uid=%s payload=%s amount=%s", uid, sp.invoice_payload, sp.total_amount)
 
+        if sp.invoice_payload.startswith("donate_"):
+            return await update.message.reply_text(bt(lang, "donate_thanks"), reply_markup=main_kb(uid))
+
         days = None
         for _key, (payload, _price, _title, plan_days) in STAR_PLANS.items():
             if sp.invoice_payload == payload:
@@ -504,7 +526,11 @@ async def cmd_referral(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     username = RT.get_bot_username()
     link = f"https://t.me/{username}?start=ref_{stats['code']}" if username else ""
     text = bt(lang, "referral_intro", name=APP_NAME, days=stats["reward_days"]) + "\n\n"
+    earned = stats["invited"] * stats["reward_days"]
     text += f"Запрошено / Invited: <b>{stats['invited']}</b>\n"
+    text += f"Отримано днів Premium / Days earned: <b>{earned}</b>\n"
+    next_earn = stats["reward_days"]
+    text += f"➕ Ще один друг = +{next_earn} дн. Premium\n"
     text += f"Код / Code: <code>{esc(stats['code'])}</code>\n"
     if link:
         text += f"\n🔗 {esc(link)}"
@@ -587,6 +613,12 @@ async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return await do_broadcast(update, ctx, text)
     if state == "promo" and uid in ADMIN_IDS:
         return await do_make_promo(update, text)
+    if state == "admin_find" and uid in ADMIN_IDS:
+        return await do_admin_find(update, text)
+    if state == "admin_grant" and uid in ADMIN_IDS:
+        return await do_admin_grant(update, text)
+    if state == "admin_revoke" and uid in ADMIN_IDS:
+        return await do_admin_revoke(update, text)
     await do_search(update.message, uid, text)
 
 
@@ -739,8 +771,52 @@ def admin_kb():
         [InlineKeyboardButton("Загальна статистика", callback_data="a:stats")],
         [InlineKeyboardButton("Створити промокод", callback_data="a:promo")],
         [InlineKeyboardButton("Розсилка", callback_data="a:broadcast")],
+        [InlineKeyboardButton("Знайти юзера", callback_data="a:find"),
+         InlineKeyboardButton("Видати Premium", callback_data="a:grant")],
+        [InlineKeyboardButton("Забрати Premium", callback_data="a:revoke")],
         [InlineKeyboardButton("← Меню", callback_data="home")],
     ])
+
+
+async def do_admin_find(update, text):
+    try:
+        uid = int(text.strip().split()[0])
+    except (ValueError, IndexError):
+        return await update.message.reply_text("Формат: UID (число з профілю юзера)")
+    u = db.get_user(uid)
+    if not u:
+        return await update.message.reply_text("Такого юзера нема в базі.", reply_markup=admin_kb())
+    stats = db.referral_stats(uid)
+    text = (
+        f"<b>Юзер {uid}</b>\n"
+        f"Ім'я: {esc(u.get('first_name') or '—')} (@{esc(u.get('username') or '—')})\n"
+        f"Premium: {'✅ до ' + esc(str(u.get('premium_until'))) if u.get('premium') else '❌'}\n"
+        f"Тріал використано: {'так' if u.get('trial_used') else 'ні'}\n"
+        f"Запросив друзів: {stats['invited']}\n"
+        f"Реєстрація: {esc(str(u.get('created_at') or '—'))}\n"
+    )
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=admin_kb())
+
+
+async def do_admin_grant(update, text):
+    parts = text.split()
+    try:
+        uid = int(parts[0])
+        days = int(parts[1]) if len(parts) > 1 else 30
+    except (ValueError, IndexError):
+        return await update.message.reply_text("Формат: <code>UID ДНІ</code>, напр. <code>123456789 30</code>",
+                                                parse_mode=ParseMode.HTML)
+    db.extend_premium(uid, days)
+    await update.message.reply_text(f"✅ Видано {days} дн. Premium юзеру {uid}.", reply_markup=admin_kb())
+
+
+async def do_admin_revoke(update, text):
+    try:
+        uid = int(text.strip().split()[0])
+    except (ValueError, IndexError):
+        return await update.message.reply_text("Формат: UID")
+    db.set_premium(uid, on=False)
+    await update.message.reply_text(f"❌ Premium знято з юзера {uid}.", reply_markup=admin_kb())
 
 
 async def do_make_promo(update, text):
@@ -758,18 +834,43 @@ async def do_make_promo(update, text):
 
 
 async def do_broadcast(update, ctx, text):
+    """Раніше будь-яка помилка (включно з тимчасовим 'Too Many Requests' від
+    Telegram при великій розсилці) одразу рахувалась як "не вдалося" і юзер
+    назавжди пропускав розсилку — саме тому "не всім присилало". Тепер:
+    - RetryAfter (флуд-контроль Telegram) — чекаємо і повторюємо цього ж
+      юзера, а не списуємо його як провал;
+    - Forbidden (юзер заблокував бота чи видалив акаунт) — це справді
+      постійний провал, рахуємо і йдемо далі;
+    - інша помилка — одна повторна спроба, і тільки тоді "не вдалося"."""
     uids = db.all_user_ids()
-    sent = failed = 0
+    sent = blocked = failed = 0
     note = await update.message.reply_text(f"Надсилаю {len(uids)} користувачам…")
-    for uid in uids:
-        try:
-            await ctx.bot.send_message(uid, text, parse_mode=ParseMode.HTML)
-            sent += 1
-        except Exception:
-            failed += 1
+    for i, uid in enumerate(uids):
+        for attempt in range(3):
+            try:
+                await ctx.bot.send_message(uid, text, parse_mode=ParseMode.HTML)
+                sent += 1
+                break
+            except RetryAfter as e:
+                await asyncio.sleep(e.retry_after + 0.5)
+                continue
+            except Forbidden:
+                blocked += 1
+                break
+            except (BadRequest, TelegramError):
+                if attempt == 2:
+                    failed += 1
+                else:
+                    await asyncio.sleep(1)
         await asyncio.sleep(0.05)
-    await note.edit_text(f"Готово. Доставлено: {sent}, не вдалося: {failed}.",
-                         reply_markup=admin_kb())
+        if i and i % 200 == 0:
+            try:
+                await note.edit_text(f"Надсилаю… {i}/{len(uids)} (доставлено {sent})")
+            except Exception:
+                pass
+    await note.edit_text(
+        f"Готово. Доставлено: {sent}, заблокували бота: {blocked}, не вдалося: {failed}.",
+        reply_markup=admin_kb())
 
 
 # ─── Callback ────────────────────────────────────────────────────────────────
@@ -868,6 +969,42 @@ async def _on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await q.answer()
         return await send_invoice_for(q.message.chat_id, data, ctx, user_lang(uid))
 
+    if data == "trial":
+        await q.answer()
+        lang = user_lang(uid)
+        ok = await asyncio.to_thread(db.use_trial, uid, TRIAL_DAYS)
+        if ok:
+            return await q.message.reply_text(bt(lang, "trial_done", days=TRIAL_DAYS),
+                                               reply_markup=main_kb(uid))
+        return await q.message.reply_text(bt(lang, "trial_used"), reply_markup=main_kb(uid))
+
+    if data == "donate":
+        await q.answer()
+        lang = user_lang(uid)
+        kb = [[InlineKeyboardButton(f"⭐ {n}", callback_data=f"donate:{n}")] for n in DONATE_TIERS]
+        kb.append([InlineKeyboardButton(bt(lang, "btn_back"), callback_data="premium")])
+        return await q.message.reply_text(bt(lang, "donate_intro"), reply_markup=InlineKeyboardMarkup(kb))
+
+    if data.startswith("donate:"):
+        await q.answer()
+        try:
+            amount = int(data.split(":", 1)[1])
+        except ValueError:
+            return
+        try:
+            await ctx.bot.send_invoice(
+                chat_id=q.message.chat_id,
+                title=f"{APP_NAME} — підтримка проєкту",
+                description="Одноразовий донат на розвиток MusicLSP",
+                payload=f"donate_{amount}",
+                provider_token="",
+                currency="XTR",
+                prices=[LabeledPrice("Донат", amount)],
+            )
+        except Exception as e:
+            logger.exception("Не вдалося виставити рахунок донату: %s", e)
+        return
+
     if data.startswith("t:"):
         await q.answer()
         return await show_track(q.message, uid, data[2:])
@@ -896,6 +1033,22 @@ async def _on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await q.answer()
         ctx.user_data["state"] = "broadcast"
         return await q.message.reply_text("Надішліть текст розсилки (HTML дозволено).")
+
+    if data == "a:find" and uid in ADMIN_IDS:
+        await q.answer()
+        ctx.user_data["state"] = "admin_find"
+        return await q.message.reply_text("Надішліть Telegram ID юзера (число).")
+
+    if data == "a:grant" and uid in ADMIN_IDS:
+        await q.answer()
+        ctx.user_data["state"] = "admin_grant"
+        return await q.message.reply_text("Надішліть: <code>UID ДНІ</code>, напр. <code>123456789 30</code>",
+                                          parse_mode=ParseMode.HTML)
+
+    if data == "a:revoke" and uid in ADMIN_IDS:
+        await q.answer()
+        ctx.user_data["state"] = "admin_revoke"
+        return await q.message.reply_text("Надішліть Telegram ID юзера, з якого зняти Premium.")
 
     await q.answer()
 
