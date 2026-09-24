@@ -187,6 +187,8 @@ MIGRATIONS_PG = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_last TEXT DEFAULT ''",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS ambient_style TEXT DEFAULT 'blur'",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS lang_set BOOLEAN DEFAULT FALSE",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_used BOOLEAN DEFAULT FALSE",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS renewal_notified BOOLEAN DEFAULT FALSE",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_refcode ON users(ref_code)",
 ]
 MIGRATIONS_SQLITE = [
@@ -197,6 +199,8 @@ MIGRATIONS_SQLITE = [
     "ALTER TABLE users ADD COLUMN streak_last TEXT DEFAULT ''",
     "ALTER TABLE users ADD COLUMN ambient_style TEXT DEFAULT 'blur'",
     "ALTER TABLE users ADD COLUMN lang_set INTEGER DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN trial_used INTEGER DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN renewal_notified INTEGER DEFAULT 0",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_refcode ON users(ref_code)",
 ]
 
@@ -294,10 +298,58 @@ def set_premium(uid, on=True, days=30):
     until = (datetime.datetime.utcnow() + datetime.timedelta(days=days)) if on else None
     with conn_cursor() as (conn, cur):
         cur.execute(
-            q("UPDATE users SET premium=%s, premium_until=%s WHERE uid=%s"),
+            q("UPDATE users SET premium=%s, premium_until=%s, renewal_notified=%s WHERE uid=%s"),
             (bool(on) if USE_PG else int(bool(on)),
              until.isoformat(sep=" ", timespec="seconds") if until else None,
+             False if USE_PG else 0,
              uid),
+        )
+
+
+def use_trial(uid, days=3):
+    """Одноразовий безкоштовний преміум-тріал. Повертає True, якщо видано
+    (перший раз), False — якщо цей юзер уже його використовував."""
+    u = get_user(uid)
+    if u.get("trial_used"):
+        return False
+    extend_premium(uid, days)
+    with conn_cursor() as (conn, cur):
+        cur.execute(
+            q("UPDATE users SET trial_used=%s WHERE uid=%s"),
+            (True if USE_PG else 1, uid),
+        )
+    return True
+
+
+def users_expiring_soon(hours=24):
+    """Юзери з Premium, який закінчується у найближчі `hours` годин і про
+    що їм ще не нагадували — для розсилки-нагадування про продовження."""
+    now = datetime.datetime.utcnow()
+    horizon = now + datetime.timedelta(hours=hours)
+    with conn_cursor() as (conn, cur):
+        cur.execute(
+            q("SELECT * FROM users WHERE premium=%s AND premium_until IS NOT NULL "
+              "AND renewal_notified=%s"),
+            (True if USE_PG else 1, False if USE_PG else 0),
+        )
+        out = []
+        for u in rows(cur):
+            until = u.get("premium_until")
+            if isinstance(until, str):
+                try:
+                    until = datetime.datetime.fromisoformat(until.replace("Z", "").strip())
+                except ValueError:
+                    continue
+            if isinstance(until, datetime.datetime) and now < until <= horizon:
+                out.append(u)
+        return out
+
+
+def mark_renewal_notified(uid):
+    with conn_cursor() as (conn, cur):
+        cur.execute(
+            q("UPDATE users SET renewal_notified=%s WHERE uid=%s"),
+            (True if USE_PG else 1, uid),
         )
 
 
@@ -322,8 +374,9 @@ def extend_premium(uid, days):
     until = base + datetime.timedelta(days=days)
     with conn_cursor() as (conn, cur):
         cur.execute(
-            q("UPDATE users SET premium=%s, premium_until=%s WHERE uid=%s"),
-            (True if USE_PG else 1, until.isoformat(sep=" ", timespec="seconds"), uid),
+            q("UPDATE users SET premium=%s, premium_until=%s, renewal_notified=%s WHERE uid=%s"),
+            (True if USE_PG else 1, until.isoformat(sep=" ", timespec="seconds"),
+             False if USE_PG else 0, uid),
         )
 
 
