@@ -21,6 +21,7 @@ from core import db
 from core import providers as P
 from core.config import (
     WORKER_INTERVAL, BOT_TOKEN, APP_NAME, APP_VERSION, FREE_LIMITS,
+    RENEWAL_REMINDER_HOURS,
 )
 
 logging.basicConfig(format="%(asctime)s | %(levelname)s | %(message)s", level=logging.INFO)
@@ -68,6 +69,22 @@ async def expire_premium():
     return len(expired)
 
 
+async def remind_renewals():
+    """Нагадування про закінчення Premium заздалегідь — оплата разова
+    (не автопродовження), тому без нагадування юзер просто забуває
+    продовжити й тихо йде назавжди."""
+    users = await asyncio.to_thread(db.users_expiring_soon, RENEWAL_REMINDER_HOURS)
+    for u in users:
+        uid = int(u["uid"])
+        await notify(uid, "⏳ Ваш Premium закінчується менш ніж за добу. "
+                          "Продовжити зараз, щоб не втратити Hi-Fi, офлайн-пак "
+                          "і безлімітні завантаження: /premium")
+        await asyncio.to_thread(db.mark_renewal_notified, uid)
+    if users:
+        log.info("Нагадування про продовження надіслано: %s", len(users))
+    return len(users)
+
+
 def trim_history():
     """Чистить історію глибше за ліміт плану користувача."""
     cutoff = (datetime.datetime.utcnow()
@@ -106,6 +123,7 @@ async def cycle():
     started = time.time()
     try:
         await expire_premium()
+        await remind_renewals()
         trim_history()
         clean_promos()
         warm_audius()
