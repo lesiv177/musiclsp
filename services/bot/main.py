@@ -768,6 +768,7 @@ def _fetch_bytes(url, limit=MAX_UPLOAD_MB * 1024 * 1024 + 1024):
 
 def admin_kb():
     return InlineKeyboardMarkup([
+        [InlineKeyboardButton("👥 Юзери", callback_data="a:users:0")],
         [InlineKeyboardButton("Загальна статистика", callback_data="a:stats")],
         [InlineKeyboardButton("Створити промокод", callback_data="a:promo")],
         [InlineKeyboardButton("Розсилка", callback_data="a:broadcast")],
@@ -776,6 +777,53 @@ def admin_kb():
         [InlineKeyboardButton("Забрати Premium", callback_data="a:revoke")],
         [InlineKeyboardButton("← Меню", callback_data="home")],
     ])
+
+
+def _user_status_label(u):
+    return "✨ Premium" if u.get("premium") else "Free"
+
+
+async def render_admin_users_page(offset=0):
+    items, total = await asyncio.to_thread(db.users_page, offset, 8)
+    text = f"<b>Юзери</b> — всього {total}\n\nОберіть, щоб відкрити профіль:"
+    kb = []
+    for u in items:
+        uid_ = int(u["uid"])
+        name = u.get("first_name") or u.get("username") or str(uid_)
+        label = f"{name[:20]} · {uid_} · {_user_status_label(u)}"
+        kb.append([InlineKeyboardButton(label, callback_data=f"a:u:{uid_}:{offset}")])
+    nav = []
+    if offset > 0:
+        nav.append(InlineKeyboardButton("← Назад", callback_data=f"a:users:{max(0, offset - 8)}"))
+    if offset + 8 < total:
+        nav.append(InlineKeyboardButton("Далі →", callback_data=f"a:users:{offset + 8}"))
+    if nav:
+        kb.append(nav)
+    kb.append([InlineKeyboardButton("← Адмінка", callback_data="a:menu")])
+    return text, InlineKeyboardMarkup(kb)
+
+
+async def render_admin_user_profile(uid_, back_offset=0):
+    u = await asyncio.to_thread(db.get_user, uid_)
+    if not u:
+        return "Такого юзера нема в базі.", InlineKeyboardMarkup(
+            [[InlineKeyboardButton("← До списку", callback_data=f"a:users:{back_offset}")]])
+    stats = await asyncio.to_thread(db.referral_stats, uid_)
+    text = (
+        f"<b>{esc(u.get('first_name') or '—')}</b> (@{esc(u.get('username') or '—')})\n"
+        f"ID: <code>{uid_}</code>\n"
+        f"Статус: {_user_status_label(u)}"
+        + (f" до {esc(str(u.get('premium_until')))}" if u.get("premium") else "") + "\n"
+        f"Тріал використано: {'так' if u.get('trial_used') else 'ні'}\n"
+        f"Запросив друзів: {stats['invited']}\n"
+        f"Реєстрація: {esc(str(u.get('created_at') or '—'))}"
+    )
+    kb = [
+        [InlineKeyboardButton("🎁 +7 днів Premium", callback_data=f"a:g7:{uid_}:{back_offset}")],
+        [InlineKeyboardButton("❌ Забрати Premium", callback_data=f"a:rv1:{uid_}:{back_offset}")],
+        [InlineKeyboardButton("← До списку", callback_data=f"a:users:{back_offset}")],
+    ]
+    return text, InlineKeyboardMarkup(kb)
 
 
 async def do_admin_find(update, text):
@@ -1049,6 +1097,36 @@ async def _on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await q.answer()
         ctx.user_data["state"] = "admin_revoke"
         return await q.message.reply_text("Надішліть Telegram ID юзера, з якого зняти Premium.")
+
+    if data == "a:menu" and uid in ADMIN_IDS:
+        await q.answer()
+        return await q.message.reply_text("Панель адміністратора", reply_markup=admin_kb())
+
+    if data.startswith("a:users:") and uid in ADMIN_IDS:
+        await q.answer()
+        offset = int(data.split(":")[2] or 0)
+        text, kb = await render_admin_users_page(offset)
+        return await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+    if data.startswith("a:u:") and uid in ADMIN_IDS:
+        await q.answer()
+        _, _, target_uid, back_offset = data.split(":")
+        text, kb = await render_admin_user_profile(int(target_uid), int(back_offset))
+        return await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+    if data.startswith("a:g7:") and uid in ADMIN_IDS:
+        await q.answer("Видано +7 днів Premium")
+        _, _, target_uid, back_offset = data.split(":")
+        await asyncio.to_thread(db.extend_premium, int(target_uid), 7)
+        text, kb = await render_admin_user_profile(int(target_uid), int(back_offset))
+        return await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+    if data.startswith("a:rv1:") and uid in ADMIN_IDS:
+        await q.answer("Premium знято")
+        _, _, target_uid, back_offset = data.split(":")
+        await asyncio.to_thread(db.set_premium, int(target_uid), False)
+        text, kb = await render_admin_user_profile(int(target_uid), int(back_offset))
+        return await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
     await q.answer()
 
