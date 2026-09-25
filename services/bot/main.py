@@ -235,17 +235,17 @@ def user_lang(uid):
 
 # Telegram кешує сторінку Mini App у своєму WebView досить агресивно — тому
 # оновлення webapp/index.html на GitHub Pages не завжди підхоплюються одразу.
-# BUILD_TAG унікальний для кожного запуску процесу (тобто для кожного
-# деплою на Railway) і додається до посилання, щоб Telegram завжди тягнув
-# свіжу версію файлу, а не показував стару з кешу.
-BUILD_TAG = str(int(time.time()))
-
-
+# Раніше тут був BUILD_TAG, застиглий на момент старту процесу бота — але
+# бот (Railway) і webapp (GitHub Pages) деплояться незалежно одне від одного:
+# якщо оновити тільки index.html на GitHub, не перезапускаючи бота, мітка
+# лишається тою самою, і Telegram далі показує стару версію з кешу. Тепер
+# рахуємо мітку заново при кожному відкритті плеєра, щоб кеш пробивало
+# завжди, незалежно від того, коли востаннє перезапускався бот.
 def webapp_url(path=""):
     base = WEB_APP_URL or ""
     sep = "&" if "?" in base else "?"
     url = f"{base}{sep}api={API_URL}" if API_URL else base
-    url += f"&v={BUILD_TAG}"
+    url += f"&v={int(time.time())}"
     if path:
         url += f"&start={path}"
     return url
