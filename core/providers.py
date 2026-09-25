@@ -906,8 +906,15 @@ def split_id(full_id):
 
 
 def search_tracks(query, limit=30, quality="mp32", sources=None, sort="relevance", genre=None):
-    """Змішаний пошук по всіх легальних джерелах з дедуплікацією."""
-    sources = sources or ["jamendo", "audius"]
+    """Змішаний пошук по всіх легальних джерелах з дедуплікацією.
+
+    Раніше типовим значенням тут було лише ["jamendo", "audius"] — а Internet
+    Archive (нетлейбли, укр/рос добірки), ccMixter і Openverse хоч і були
+    повністю реалізовані, фактично ніколи не викликались зі звичайного
+    пошуку, бо жоден виклик не передавав `sources` явно. Через це вся
+    робота з розширення бібліотеки була "мертвим кодом" з погляду юзера.
+    Тепер типово шукаємо по всіх п'яти джерелах відразу."""
+    sources = sources or ["jamendo", "audius", "archive", "ccmixter", "openverse"]
     results = []
     if "jamendo" in sources:
         results += jamendo_search_tracks(query, limit=limit, audioformat=quality, sort=sort)
@@ -972,8 +979,12 @@ def jamendo_search_albums_smart(query, limit=20, sort="relevance"):
 
 
 def search_everything(query, limit=12):
-    """Об'єднаний пошук: треки + альбоми + артисти обох джерел одним запитом."""
-    tracks = search_tracks_smart(query, limit=limit)
+    """Об'єднаний пошук: треки + альбоми + артисти одним запитом. Це саме
+    той пошук, який виконує вкладка "Усе" (типова при відкритті пошуку) —
+    тому треки тягнемо з усіх п'яти джерел, а не лише Jamendo/Audius."""
+    tracks = search_tracks_smart(query, limit=limit, sources=[
+        "jamendo", "audius", "archive", "ccmixter", "openverse",
+    ])
     albums = jamendo_search_albums_smart(query, limit=limit)
     jam_artists = jamendo_search_artists(query, limit=limit)
     aud_artists = audius_search_users(query, limit=max(4, limit // 3))
