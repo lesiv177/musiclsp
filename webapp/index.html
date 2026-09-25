@@ -432,15 +432,6 @@ a{color:var(--accent)}
 
   <!-- HOME -->
   <section class="screen on" id="scHome">
-    <button class="daily" id="btEntry" style="width:100%;text-align:left;cursor:pointer">
-      <div class="meta" style="flex:1">
-        <div class="tag">Гра</div>
-        <div class="t">Вгадай трек</div>
-        <div class="s">Впізнайте пісню за 8 секунд</div>
-      </div>
-      <span style="display:grid;place-items:center;width:42px;height:42px;border-radius:99px;
-        background:var(--accent);color:var(--accent-ink)" data-icon="play"></span>
-    </button>
     <div id="homeBody">
       <div class="skel"></div><div class="skel"></div><div class="skel"></div>
     </div>
@@ -467,13 +458,6 @@ a{color:var(--accent)}
         <button class="fchip on" data-sort="relevance"><span data-icon="sort" class="icon"></span><span data-i18n="sort_relevance">За збігом</span></button>
         <button class="fchip" data-sort="popularity" data-i18n="sort_popular">Популярні</button>
         <button class="fchip" data-sort="newest" data-i18n="sort_newest">Новинки</button>
-      </div>
-      <div class="frow" id="qSourceRow">
-        <button class="fchip on" data-src="jamendo">Jamendo</button>
-        <button class="fchip on" data-src="audius">Audius</button>
-        <button class="fchip" data-src="archive">Archive</button>
-        <button class="fchip" data-src="ccmixter">ccMixter</button>
-        <button class="fchip" data-src="openverse">Openverse</button>
       </div>
     </div>
     <div id="qBody">
@@ -589,7 +573,7 @@ const S = {
   queue:[], index:-1, playing:false, shuffle:false, repeat:"off",
   liked:new Set(), playlists:[], eq:null, eqNodes:null, ctx:null,
   crossfade:0, sleepAt:0, sleepTimer:null, kind:"tracks", libView:"liked",
-  sort:"relevance", sources:["jamendo","audius"],
+  sort:"relevance", sources:["jamendo","audius","archive","ccmixter","openverse"],
   speed:1, nightQuiet:false,
 };
 
@@ -1256,12 +1240,12 @@ async function loadHome(){
   try{
     // Незалежні запити йдуть паралельно, кожен зі своїм запасним варіантом —
     // одне повільне чи впале джерело більше не блокує весь екран.
-    const [dailyHtml, moodsHtml, homeData, collectionsHtml] = await Promise.all([
-      loadDaily(), loadMoodsRow(),
+    const [moodsHtml, homeData, collectionsHtml] = await Promise.all([
+      loadMoodsRow(),
       get("/api/home").catch(()=>({sections:[]})),
       loadCollections(),
     ]);
-    html += dailyHtml + moodsHtml;
+    html += moodsHtml;
     homeData.sections.forEach((sec,si)=>{
       const key = "home"+si;
       html += `<div class="sect"><h2>${esc(sec.title)}</h2>
@@ -1335,7 +1319,6 @@ async function openGenre(tag, label){
   $("qTabs").querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));
   $("qTabs").querySelector('[data-kind="genres"]').classList.add("on");
   S.kind = "genres";
-  $("qSourceRow").style.display = "none";
   $("qBody").innerHTML = `<div class="skel"></div><div class="skel"></div>`;
   try{
     const d = await get("/api/home?tag="+encodeURIComponent(tag));
@@ -1367,9 +1350,10 @@ let searchT;
 $("qInput").oninput = () => { clearTimeout(searchT); searchT = setTimeout(runSearch, 450); };
 $("qInput").onkeydown = e => { if(e.key==="Enter"){ clearTimeout(searchT); runSearch(); e.target.blur(); } };
 $("qClear").onclick = () => { $("qInput").value=""; $("qBody").innerHTML=""; };
-$("btEntry").onclick = () => openBlindTest();
 
-/* ════════ Гра "Вгадай трек" ════════ */
+/* ════════ Гра "Вгадай трек" — прибрано з головного екрана на прохання,
+   функції лишились нижче невикористаними на випадок, якщо гру захочуть
+   повернути. ════════ */
 const btAudio = new Audio();
 let btTimer = null;
 const BT = {pool:[], idx:0, streak:0, perDay:5};
@@ -1468,7 +1452,6 @@ async function btFinish(){
 $("qTabs").querySelectorAll(".tab").forEach(t => t.onclick = () => {
   $("qTabs").querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));
   t.classList.add("on"); S.kind = t.dataset.kind;
-  $("qSourceRow").style.display = (S.kind==="artists"||S.kind==="public_domain"||S.kind==="all"||S.kind==="genres") ? "none" : "flex";
   tap();
   if(S.kind === "genres"){ loadGenresGrid(); return; }
   runSearch();
@@ -1478,15 +1461,6 @@ $("qSortRow").querySelectorAll(".fchip").forEach(c => c.onclick = () => {
   $("qSortRow").querySelectorAll(".fchip").forEach(x=>x.classList.remove("on"));
   c.classList.add("on"); S.sort = c.dataset.sort; runSearch(); tap();
 });
-$("qSourceRow").querySelectorAll(".fchip").forEach(c => c.onclick = () => {
-  const willTurnOff = c.classList.contains("on");
-  const activeCount = $("qSourceRow").querySelectorAll(".fchip.on").length;
-  if(willTurnOff && activeCount <= 1) return; // хоч одне джерело має лишитись
-  c.classList.toggle("on");
-  S.sources = [...$("qSourceRow").querySelectorAll(".fchip.on")].map(x=>x.dataset.src);
-  runSearch(); tap();
-});
-
 const NO_RESULTS_HINT =
   `<div class="hint">Каталог складають незалежні артисти з відкритою ліцензією
   (Jamendo, Audius, Internet Archive) — мейнстрім-релізів тут немає за задумом,
@@ -1507,6 +1481,19 @@ async function runSearch(){
     const params = `q=${encodeURIComponent(q)}&type=${S.kind}&limit=40&sort=${S.sort}&sources=${S.sources.join(",")}`;
     const d = await get(`/api/search?${params}`);
     if(!d.results.length){
+      // Нічого не знайшли в поточному типі (альбоми/артисти/жанр тощо) —
+      // не показуємо порожній екран, а пробуємо ті самі слова серед треків.
+      if(S.kind !== "tracks"){
+        const fbParams = `q=${encodeURIComponent(q)}&type=tracks&limit=40&sort=${S.sort}&sources=${S.sources.join(",")}`;
+        const fb = await get(`/api/search?${fbParams}`).catch(()=>({results:[]}));
+        if(fb.results.length){
+          $("qBody").innerHTML = `<div class="sect"><h2 data-i18n="search_tracks">Треки</h2></div>`;
+          const wrap = document.createElement("div"); $("qBody").appendChild(wrap);
+          mountRows(wrap, fb.results, "search_fallback");
+          applyI18n();
+          return;
+        }
+      }
       $("qBody").innerHTML = `<div class="empty"><b data-i18n="nothing_found_title">Нічого не знайдено</b><span data-i18n="nothing_found_body">Спробуйте інше слово.</span></div>${NO_RESULTS_HINT}`;
       applyI18n();
       return;
