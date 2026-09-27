@@ -8,6 +8,7 @@ arc — Internet Archive (суспільне надбання та CC)
 ccm — ccMixter (автори самі викладають треки під CC, офіційне API)
 ov  — Openverse (офіційний агрегатор CC Creative Commons/Wikimedia:
       Wikimedia Commons, частково Jamendo та інші відкриті джерела)
+wm  — Wikimedia Commons напряму (офіційний MediaWiki API, без ключа)
 
 Жоден провайдер не обходить DRM і не скрейпить закриті сервіси.
 Кожен трек несе поле `license` і `source_url` — атрибуція обовʼязкова
@@ -894,6 +895,111 @@ def openverse_search(query, limit=15):
 
 
 # ════════════════════════════════════════════════════════════════════════════
+#  WIKIMEDIA COMMONS — офіційний API MediaWiki (без ключа), напряму
+#  (Openverse і так частково тягне звідти, але напряму дістаємо більше
+#  й точніше фільтруємо: народні пісні, гімни, класика, історичні записи,
+#  все під CC/суспільним надбанням з обов'язковою атрибуцією в extmetadata).
+# ════════════════════════════════════════════════════════════════════════════
+
+WIKIMEDIA_API = "https://commons.wikimedia.org/w/api.php"
+
+_wm_lock = threading.Lock()
+_WM_CACHE = {}
+
+
+def _wm_cache_put(t):
+    with _wm_lock:
+        _WM_CACHE[t["id"]] = t
+        if len(_WM_CACHE) > 3000:
+            for k in list(_WM_CACHE)[:1000]:
+                _WM_CACHE.pop(k, None)
+
+
+def _wm_cache_get(raw):
+    with _wm_lock:
+        return _WM_CACHE.get(f"wm:{raw}")
+
+
+def _wm_strip_html(s):
+    return re.sub(r"<[^>]+>", "", s or "").strip()
+
+
+def _wm_track(page):
+    try:
+        infos = page.get("imageinfo") or []
+        if not infos:
+            return None
+        info = infos[0]
+        mime = info.get("mime") or ""
+        if not mime.startswith("audio/"):
+            return None
+        url = info.get("url") or ""
+        if not url:
+            return None
+        meta = info.get("extmetadata") or {}
+
+        def _m(key, default=""):
+            v = meta.get(key)
+            return (v or {}).get("value", default) if isinstance(v, dict) else default
+
+        title = re.sub(r"^File:", "", page.get("title") or "", flags=re.I)
+        title = re.sub(r"\.\w{2,4}$", "", title).replace("_", " ").strip() or "Без назви"
+        artist = _wm_strip_html(_m("Artist")) or _wm_strip_html(_m("Credit")) or "Wikimedia Commons"
+        license_url = _m("LicenseUrl")
+        license_short = _m("LicenseShortName") or _cc_short(license_url)
+        page_url = f"https://commons.wikimedia.org/wiki/{urllib.parse.quote(page.get('title') or '')}"
+        uid = str(page.get("pageid") or hashlib.sha1(url.encode()).hexdigest()[:12])
+        return {
+            "id": f"wm:{uid}",
+            "title": title[:200],
+            "artist": artist[:120] or "Wikimedia Commons",
+            "artist_id": "", "album": "", "album_id": "",
+            "cover": "",
+            "duration": 0, "duration_str": "",
+            "source": "wikimedia",
+            "source_label": "Wikimedia Commons",
+            "source_url": page_url,
+            "license": license_url or "https://creativecommons.org/licenses/",
+            "license_short": license_short or "CC",
+            "stream": url,
+            "downloadable": True,
+            "download_url": url,
+        }
+    except Exception:
+        return None
+
+
+def wikimedia_search(query, limit=15):
+    """Пошук аудіофайлів на Wikimedia Commons через офіційний MediaWiki API.
+    Без ключа, помірні ліміти — якщо сервіс не відповів, просто повертаємо
+    порожній список і пошук триває на інших джерелах."""
+    if not query:
+        return []
+    try:
+        data = _get(WIKIMEDIA_API, {
+            "action": "query", "format": "json",
+            "generator": "search", "gsrsearch": f"filetype:audio {query}",
+            "gsrnamespace": 6, "gsrlimit": min(limit * 2, 40),
+            "prop": "imageinfo", "iiprop": "url|mime|extmetadata",
+        })
+    except Exception as e:
+        logger.warning("Wikimedia Commons запит не вдався: %s", e)
+        return []
+    if not data:
+        return []
+    pages = ((data.get("query") or {}).get("pages") or {}).values()
+    out = []
+    for page in pages:
+        t = _wm_track(page)
+        if t:
+            out.append(t)
+            _wm_cache_put(t)
+        if len(out) >= limit:
+            break
+    return out
+
+
+# ════════════════════════════════════════════════════════════════════════════
 #  АГРЕГАЦІЯ
 # ════════════════════════════════════════════════════════════════════════════
 
@@ -913,8 +1019,10 @@ def search_tracks(query, limit=30, quality="mp32", sources=None, sort="relevance
     повністю реалізовані, фактично ніколи не викликались зі звичайного
     пошуку, бо жоден виклик не передавав `sources` явно. Через це вся
     робота з розширення бібліотеки була "мертвим кодом" з погляду юзера.
-    Тепер типово шукаємо по всіх п'яти джерелах відразу."""
-    sources = sources or ["jamendo", "audius", "archive", "ccmixter", "openverse"]
+    Тепер типово шукаємо по всіх шести джерелах відразу (додано Wikimedia
+    Commons напряму — Openverse і так частково тягне звідти, але напряму
+    дістаємо більше й точніше фільтруємо)."""
+    sources = sources or ["jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia"]
     results = []
     if "jamendo" in sources:
         results += jamendo_search_tracks(query, limit=limit, audioformat=quality, sort=sort)
@@ -926,6 +1034,8 @@ def search_tracks(query, limit=30, quality="mp32", sources=None, sort="relevance
         results += ccmixter_search(query, limit=10)
     if "openverse" in sources:
         results += openverse_search(query, limit=10)
+    if "wikimedia" in sources:
+        results += wikimedia_search(query, limit=10)
 
     seen, out = set(), []
     for t in results:
@@ -981,9 +1091,9 @@ def jamendo_search_albums_smart(query, limit=20, sort="relevance"):
 def search_everything(query, limit=12):
     """Об'єднаний пошук: треки + альбоми + артисти одним запитом. Це саме
     той пошук, який виконує вкладка "Усе" (типова при відкритті пошуку) —
-    тому треки тягнемо з усіх п'яти джерел, а не лише Jamendo/Audius."""
+    тому треки тягнемо з усіх шести джерел, а не лише Jamendo/Audius."""
     tracks = search_tracks_smart(query, limit=limit, sources=[
-        "jamendo", "audius", "archive", "ccmixter", "openverse",
+        "jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia",
     ])
     albums = jamendo_search_albums_smart(query, limit=limit)
     jam_artists = jamendo_search_artists(query, limit=limit)
@@ -1190,6 +1300,8 @@ def get_track(full_id, quality="mp32"):
         return _ccm_cache_get(raw)
     if prefix == "ov":
         return _ov_cache_get(raw)
+    if prefix == "wm":
+        return _wm_cache_get(raw)
     return None
 
 
@@ -1208,6 +1320,9 @@ def resolve_stream(full_id, quality="mp32"):
         return t["stream"] if t else ""
     if prefix == "ov":
         t = _ov_cache_get(raw)
+        return t["stream"] if t else ""
+    if prefix == "wm":
+        t = _wm_cache_get(raw)
         return t["stream"] if t else ""
     return ""
 
@@ -1234,6 +1349,9 @@ def resolve_download(full_id):
         return (t["download_url"], t) if t else ("", None)
     if prefix == "ov":
         t = _ov_cache_get(raw)
+        return (t["download_url"], t) if t else ("", None)
+    if prefix == "wm":
+        t = _wm_cache_get(raw)
         return (t["download_url"], t) if t else ("", None)
     return "", None
 
