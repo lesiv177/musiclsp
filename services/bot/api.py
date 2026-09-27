@@ -97,6 +97,7 @@ async def h_health(request):
             "archive": True,
             "ccmixter": True,
             "openverse": True,
+            "wikimedia": True,
         },
     })
 
@@ -519,6 +520,18 @@ async def h_history_get(request, u):
 
 
 @require_auth
+async def h_report_post(request, u):
+    """Скарга на трек (невірна ліцензія/автор, мертве посилання тощо)."""
+    body = await request.json()
+    track = body.get("track") or {}
+    if not track.get("id"):
+        return fail("Не вказано трек")
+    reason = (body.get("reason") or "").strip()
+    await to_thread(db.report_track, int(u["uid"]), track, reason)
+    return ok({"ok": True})
+
+
+@require_auth
 async def h_stats(request, u):
     uid = int(u["uid"])
     days = min(int(request.query.get("days", 30)), db.limits_for(uid)["history_days"])
@@ -711,6 +724,7 @@ def build_app():
     r.add_get("/api/shared/{code}", h_shared)
     r.add_get("/api/history", h_history_get)
     r.add_post("/api/history", h_history_post)
+    r.add_post("/api/report", h_report_post)
     r.add_get("/api/stats", h_stats)
     r.add_post("/api/promo", h_promo)
     r.add_get("/api/download", h_download)
