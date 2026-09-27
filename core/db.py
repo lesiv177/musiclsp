@@ -160,12 +160,18 @@ SCHEMA_PG = [
         uid BIGINT PRIMARY KEY, name TEXT DEFAULT '', best_streak INTEGER DEFAULT 0,
         updated_at TIMESTAMP DEFAULT NOW()
     )""",
+    """CREATE TABLE IF NOT EXISTS track_reports (
+        id SERIAL PRIMARY KEY, uid BIGINT, tid TEXT, title TEXT DEFAULT '',
+        artist TEXT DEFAULT '', source TEXT DEFAULT '', reason TEXT DEFAULT '',
+        status TEXT DEFAULT 'open', created_at TIMESTAMP DEFAULT NOW()
+    )""",
     "CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log(actor)",
     "CREATE INDEX IF NOT EXISTS idx_lib_uid ON library(uid)",
     "CREATE INDEX IF NOT EXISTS idx_pl_uid ON playlists(uid)",
     "CREATE INDEX IF NOT EXISTS idx_plt_pid ON playlist_tracks(pid)",
     "CREATE INDEX IF NOT EXISTS idx_hist_uid ON history(uid)",
     "CREATE INDEX IF NOT EXISTS idx_eq_uid ON eq_presets(uid)",
+    "CREATE INDEX IF NOT EXISTS idx_reports_status ON track_reports(status)",
 ]
 
 SCHEMA_SQLITE = [
@@ -909,3 +915,39 @@ def login_tokens_cleanup():
     cutoff = datetime.datetime.utcnow().isoformat(sep=" ", timespec="seconds")
     with conn_cursor() as (conn, cur):
         cur.execute(q("DELETE FROM login_tokens WHERE expires_at<%s OR used=%s"), (cutoff, 1))
+
+
+# ─── Скарги на треки (проблема з ліцензією, мертве посилання тощо) ──────────
+
+def report_track(uid, t, reason=""):
+    """Користувач скаржиться на трек (невірна ліцензія/автор, не грає, тощо)."""
+    with conn_cursor() as (conn, cur):
+        cur.execute(q(
+            "INSERT INTO track_reports (uid, tid, title, artist, source, reason) "
+            "VALUES (%s,%s,%s,%s,%s,%s)"),
+            (uid, t.get("id", ""), t.get("title", ""), t.get("artist", ""),
+             t.get("source", ""), reason[:500]))
+    return True
+
+
+def reports_page(offset=0, limit=8, status="open"):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT COUNT(*) AS c FROM track_reports WHERE status=%s"), (status,))
+        total = int((one(cur) or {}).get("c") or 0)
+        cur.execute(q(
+            "SELECT * FROM track_reports WHERE status=%s "
+            "ORDER BY id DESC LIMIT %s OFFSET %s"), (status, limit, offset))
+        items = rows(cur)
+    return items, total
+
+
+def report_resolve(report_id):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("UPDATE track_reports SET status=%s WHERE id=%s"), ("resolved", report_id))
+        return cur.rowcount > 0
+
+
+def open_reports_count():
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT COUNT(*) AS c FROM track_reports WHERE status=%s"), ("open",))
+        return int((one(cur) or {}).get("c") or 0)
