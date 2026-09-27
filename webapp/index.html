@@ -517,6 +517,9 @@ a{color:var(--accent)}
   <div class="tt dspl" id="npTitle">—</div>
   <div class="aa" id="npArtist">—</div>
   <div class="lic" id="npLic"></div>
+  <div style="text-align:center;margin-top:2px">
+    <a href="javascript:void(0)" style="font-size:12px;color:var(--muted)" onclick="openReportTrack()">🚩 Поскаржитися на трек</a>
+  </div>
 
   <div class="seek">
     <button class="bkmkBtn" id="bkmkBtn" title="Позначити момент" onclick="addBookmark()">🔖</button>
@@ -2459,18 +2462,19 @@ function disableEq(){ if(S.eqNodes) S.eqNodes.forEach(f => f.gain.value = 0); }
 
 async function loadStats(){
   try{
-    const s = (await get("/api/stats?days=30")).stats;
+    const s = (await get("/api/stats?days=30")).stats || {};
+    const topArtists = s.top_artists || [];
     $("statBox").innerHTML = `
       <div class="statbox">
-        <div><b>${s.plays}</b><span>прослуховувань</span></div>
-        <div><b>${s.hours}</b><span>годин</span></div>
-        <div><b>${s.library}</b><span>у бібліотеці</span></div>
+        <div><b>${s.plays ?? 0}</b><span>прослуховувань</span></div>
+        <div><b>${s.hours ?? 0}</b><span>годин</span></div>
+        <div><b>${s.library ?? 0}</b><span>у бібліотеці</span></div>
       </div>` +
-      (s.top_artists.length ? `<div style="font-size:13px">` + s.top_artists.slice(0,5)
+      (topArtists.length ? `<div style="font-size:13px">` + topArtists.slice(0,5)
         .map((a,i)=>`<div style="display:flex;justify-content:space-between;padding:7px 0;
           border-bottom:1px solid var(--line)"><span>${i+1}. ${esc(a.name)}</span>
           <span style="color:var(--muted)">${a.plays}</span></div>`).join("") + `</div>` : "");
-  }catch(e){ $("statBox").innerHTML = `<div style="color:var(--muted);font-size:13px">${esc(e.message)}</div>`; }
+  }catch(e){ $("statBox").innerHTML = `<div style="color:var(--muted);font-size:13px">Не вдалося завантажити статистику</div>`; }
 }
 
 async function openWrapped(){
@@ -2485,28 +2489,29 @@ async function openWrapped(){
   showModal(`<h3>Мій рік у музиці</h3><div class="skel"></div>`);
   try{
     const d = await get("/api/wrapped");
-    const s = d.stats;
-    const top = s.top_artists[0]?.name || "—";
-    const track = s.top_tracks[0];
+    const s = d.stats || {};
+    const topArtists = s.top_artists || [];
+    const top = topArtists[0]?.name || "—";
+    const track = (s.top_tracks || [])[0];
     $("modalBox").innerHTML = `
       <h3>Мій рік у музиці</h3>
       <div style="text-align:center;padding:14px 0">
         <div style="font-size:13px;color:var(--muted)">Ваш тип слухача</div>
         <div style="font-family:'Space Grotesk';font-size:24px;font-weight:700;color:var(--accent);margin:4px 0 16px">
-          ${esc(d.listener_type)}</div>
+          ${esc(d.listener_type||"—")}</div>
         <div class="statbox">
-          <div><b>${s.plays}</b><span>прослуховувань</span></div>
-          <div><b>${s.hours}</b><span>годин</span></div>
-          <div><b>${s.top_artists.length}</b><span>артистів</span></div>
+          <div><b>${s.plays ?? 0}</b><span>прослуховувань</span></div>
+          <div><b>${s.hours ?? 0}</b><span>годин</span></div>
+          <div><b>${topArtists.length}</b><span>артистів</span></div>
         </div>
         <div style="margin-top:16px;font-size:14px">Улюблений артист<br>
           <b style="font-size:17px">${esc(top)}</b></div>
         ${track?`<div style="margin-top:10px;font-size:14px">Улюблений трек<br>
           <b style="font-size:17px">${esc(track.title)}</b> — ${esc(track.artist)}</div>`:""}
       </div>
-      <button class="pill" style="width:100%;justify-content:center" onclick="shareWrapped('${esc(d.listener_type)}','${esc(top)}',${s.hours})">
+      <button class="pill" style="width:100%;justify-content:center" onclick="shareWrapped('${esc(d.listener_type||"—")}','${esc(top)}',${s.hours ?? 0})">
         ${ICON("share","sm")}Поділитися</button>`;
-  }catch(e){ toast(e.message); }
+  }catch(e){ $("modalBox").innerHTML = `<h3>Мій рік у музиці</h3><div class="empty" style="padding:10px 0">Не вдалося завантажити. Спробуйте пізніше.</div>`; }
 }
 
 function shareWrapped(type, artist, hours){
@@ -2520,6 +2525,31 @@ function openPromo(){
   showModal(`<h3>Промокод</h3>
     <input class="field" id="promoInput" placeholder="Наприклад LAUNCH30" autocapitalize="characters">
     <button class="btn" onclick="redeem()">Активувати</button>`);
+}
+
+/* Скарга на трек: невірна ліцензія/автор, мертве посилання тощо —
+   важливо для платформи, побудованої виключно на легальних джерелах. */
+function openReportTrack(){
+  const t = current();
+  if(!t){ toast("Спершу увімкніть трек"); return; }
+  tap();
+  showModal(`<h3>Поскаржитися на трек</h3>
+    <div class="empty" style="padding:4px 0 10px;text-align:left">
+      <span>${esc(t.title)} — ${esc(t.artist)}</span>
+    </div>
+    <input class="field" id="reportReason" placeholder="Що не так? (необов'язково)">
+    <button class="btn" onclick="submitReport()">Надіслати скаргу</button>`);
+}
+
+async function submitReport(){
+  const t = current();
+  if(!t) return closeModal();
+  const reason = $("reportReason")?.value.trim() || "";
+  try{
+    await post("/api/report", {track: t, reason});
+    closeModal();
+    toast("Дякуємо, ми перевіримо трек");
+  }catch(e){ toast(e.message); }
 }
 
 async function redeem(){
