@@ -767,8 +767,15 @@ def _fetch_bytes(url, limit=MAX_UPLOAD_MB * 1024 * 1024 + 1024):
 # ─── Адмінка ─────────────────────────────────────────────────────────────────
 
 def admin_kb():
+    n_reports = 0
+    try:
+        n_reports = db.open_reports_count()
+    except Exception:
+        pass
+    reports_label = f"🚩 Скарги на треки ({n_reports})" if n_reports else "🚩 Скарги на треки"
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("👥 Юзери", callback_data="a:users:0")],
+        [InlineKeyboardButton(reports_label, callback_data="a:reports:0")],
         [InlineKeyboardButton("Загальна статистика", callback_data="a:stats")],
         [InlineKeyboardButton("Створити промокод", callback_data="a:promo")],
         [InlineKeyboardButton("Розсилка", callback_data="a:broadcast")],
@@ -824,6 +831,35 @@ async def render_admin_user_profile(uid_, back_offset=0):
         [InlineKeyboardButton("← До списку", callback_data=f"a:users:{back_offset}")],
     ]
     return text, InlineKeyboardMarkup(kb)
+
+
+async def render_admin_reports_page(offset=0):
+    items, total = await asyncio.to_thread(db.reports_page, offset, 8, "open")
+    if not items:
+        text = "🚩 <b>Скарги на треки</b>\n\nВідкритих скарг немає."
+        kb = [[InlineKeyboardButton("← Адмінка", callback_data="a:menu")]]
+        return text, InlineKeyboardMarkup(kb)
+    lines = [f"🚩 <b>Скарги на треки</b> — відкритих {total}\n"]
+    kb = []
+    for r in items:
+        rid = int(r["id"])
+        title = r.get("title") or r.get("tid") or "?"
+        artist = r.get("artist") or ""
+        reason = r.get("reason") or "без причини"
+        lines.append(
+            f"#{rid} · <b>{esc(title)}</b>{(' — ' + esc(artist)) if artist else ''} "
+            f"[{esc(r.get('source') or '')}]\n   {esc(reason)}"
+        )
+        kb.append([InlineKeyboardButton(f"✅ Закрити #{rid}", callback_data=f"a:rsolve:{rid}:{offset}")])
+    nav = []
+    if offset > 0:
+        nav.append(InlineKeyboardButton("← Назад", callback_data=f"a:reports:{max(0, offset - 8)}"))
+    if offset + 8 < total:
+        nav.append(InlineKeyboardButton("Далі →", callback_data=f"a:reports:{offset + 8}"))
+    if nav:
+        kb.append(nav)
+    kb.append([InlineKeyboardButton("← Адмінка", callback_data="a:menu")])
+    return "\n\n".join(lines), InlineKeyboardMarkup(kb)
 
 
 async def do_admin_find(update, text):
@@ -1126,6 +1162,19 @@ async def _on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         _, _, target_uid, back_offset = data.split(":")
         await asyncio.to_thread(db.set_premium, int(target_uid), False)
         text, kb = await render_admin_user_profile(int(target_uid), int(back_offset))
+        return await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+    if data.startswith("a:reports:") and uid in ADMIN_IDS:
+        await q.answer()
+        offset = int(data.split(":")[2] or 0)
+        text, kb = await render_admin_reports_page(offset)
+        return await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+    if data.startswith("a:rsolve:") and uid in ADMIN_IDS:
+        _, _, report_id, back_offset = data.split(":")
+        await asyncio.to_thread(db.report_resolve, int(report_id))
+        await q.answer("Скаргу закрито")
+        text, kb = await render_admin_reports_page(int(back_offset))
         return await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
     await q.answer()
