@@ -395,6 +395,161 @@ a{color:var(--accent)}
   color:var(--muted)}
 .qact:disabled{opacity:.25}
 .qact:active{background:var(--panel-2)}
+
+/* ═══════════════ ОНОВЛЕННЯ ВИГЛЯДУ: солідніше й жвавіше ═══════════════ */
+
+/* кнопки настрою/фільтри: жорстка межа висоти, щоб НІКОЛИ не розтягувались */
+.frow{align-items:center;height:auto;max-height:46px;padding:2px 0}
+.fchip{display:inline-flex;align-self:center;height:32px;max-height:32px;min-height:0;
+  background:var(--panel);box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.fchip:active,.tab:active,.pill:active,.genre:active,.btn:active{transform:scale(.95)}
+.fchip,.tab,.pill,.genre,.btn{transition:transform .16s cubic-bezier(.3,1.6,.5,1),background .2s,color .2s,border-color .2s}
+.fchip.on{box-shadow:0 4px 16px color-mix(in srgb,var(--accent) 38%,transparent)}
+
+/* шапка та навігація — «скло» */
+.top{background:linear-gradient(180deg,color-mix(in srgb,var(--bg) 96%,transparent),color-mix(in srgb,var(--bg) 78%,transparent));
+  box-shadow:0 1px 0 rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.25)}
+.nav{background:color-mix(in srgb,var(--bg) 93%,transparent);
+  backdrop-filter:blur(20px) saturate(1.3);-webkit-backdrop-filter:blur(20px) saturate(1.3);
+  border-top:1px solid rgba(255,255,255,.06)}
+
+/* обкладинки й картки — глибина */
+.art,.card img,.card .ph{box-shadow:0 8px 22px rgba(0,0,0,.42),0 0 0 1px rgba(255,255,255,.05)}
+.card img,.card .ph{transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s}
+.card:active img,.card:active .ph{transform:scale(.95)}
+.row{border-radius:13px}
+.row.now{background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 14%,var(--panel)),var(--panel));
+  box-shadow:inset 3px 0 0 var(--accent)}
+.row:active{transform:scale(.985)}
+.sect h2{letter-spacing:-.015em}
+
+/* міні-плеєр: плаваюча капсула */
+.bar{left:8px;right:8px;max-width:544px;
+  bottom:calc(var(--nav-h) + 8px + env(safe-area-inset-bottom));
+  border:1px solid rgba(255,255,255,.08);border-radius:18px;overflow:hidden;
+  background:linear-gradient(180deg,var(--panel-2),var(--panel));
+  box-shadow:0 14px 34px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);gap:8px}
+.bar .art{border-radius:10px}
+.bar .iconbtn{width:36px;height:36px}
+.bar .iconbtn.main{box-shadow:0 4px 16px color-mix(in srgb,var(--accent) 45%,transparent);
+  transition:transform .15s cubic-bezier(.3,1.6,.5,1)}
+.iconbtn:active{transform:scale(.88)}
+.iconbtn.like{color:var(--muted)}
+.iconbtn.like.on{color:#FF5D8F}
+.iconbtn.like.pop svg{animation:heartPop .5s cubic-bezier(.2,1.5,.4,1)}
+.pill.on svg{color:#FF5D8F}
+@keyframes heartPop{0%{transform:scale(.6)}45%{transform:scale(1.35)}100%{transform:scale(1)}}
+.barline{height:2.5px;background:linear-gradient(90deg,var(--accent),color-mix(in srgb,var(--accent) 55%,#fff))}
+body.is-playing .bar .art{animation:barArtPulse 2.4s ease-in-out infinite}
+@keyframes barArtPulse{0%,100%{box-shadow:0 8px 22px rgba(0,0,0,.42),0 0 0 1px rgba(255,255,255,.05)}
+  50%{box-shadow:0 8px 26px color-mix(in srgb,var(--accent) 40%,transparent),0 0 0 1px color-mix(in srgb,var(--accent) 45%,transparent)}}
+
+/* повна шторка плеєра */
+.iconbtn.main.big{width:68px;height:68px;box-shadow:0 10px 34px color-mix(in srgb,var(--accent) 50%,transparent)}
+.sheet .tt{letter-spacing:-.02em}
+
+/* ══ ПЛАТІВКА (шторка плеєра, стиль «Вініл») — чорний вініл з канавками ══ */
+.coverWrap.style-vinyl{aspect-ratio:1}
+.vinylDisc{display:none}
+.coverWrap.style-vinyl .vinylDisc{display:block;position:absolute;inset:0;border-radius:50%;z-index:1;
+  background:
+    repeating-radial-gradient(circle at 50% 50%,rgba(255,255,255,.045) 0 .6px,transparent .6px 2.4px),
+    radial-gradient(circle at 50% 50%,transparent 0 40%,rgba(0,0,0,.6) 40.4% 41%,transparent 41.4% 58%,rgba(0,0,0,.6) 58.3% 59%,transparent 59.4% 76%,rgba(0,0,0,.6) 76.3% 77%,transparent 77.4%),
+    radial-gradient(circle at 50% 50%,#1d1d22 0%,#0b0b0e 62%,#17171b 100%);
+  box-shadow:0 24px 54px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.07),inset 0 0 0 6px #09090b}
+.coverWrap.style-vinyl.playing .vinylDisc{animation:vinylSpin 5.5s linear infinite}
+.coverWrap.style-vinyl::after{content:"";position:absolute;inset:0;border-radius:50%;z-index:3;pointer-events:none;
+  background:conic-gradient(from 25deg,transparent 0 7%,rgba(255,255,255,.17) 11%,transparent 19%,transparent 57%,rgba(255,255,255,.12) 61%,transparent 69%);
+  mix-blend-mode:screen}
+.coverWrap.style-vinyl .cover{position:absolute;z-index:2;left:31%;top:31%;width:38%;height:38%;
+  border-radius:50%;box-shadow:0 0 0 3px #0a0a0c,0 0 0 4px rgba(255,255,255,.1)}
+.coverWrap.style-vinyl.playing .cover{animation:vinylSpin 5.5s linear infinite}
+.coverWrap.style-vinyl .ambientBg{display:none}
+.coverWrap.style-vinyl .vinylHole{z-index:4;width:3.4%;height:3.4%;border:0;
+  background:radial-gradient(circle at 35% 30%,#fff,#9a9aa2 55%,#52525a);
+  box-shadow:0 0 0 2px rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.6)}
+
+/* ══ ПЛАТІВКА НА ЗАСТАВЦІ — реалістична, не мультяшна ══ */
+#splash .vinylWrap{width:236px;height:236px}
+#splash .vinyl{
+  background:
+    repeating-radial-gradient(circle at 50% 50%,rgba(255,255,255,.05) 0 .6px,transparent .6px 2.3px),
+    radial-gradient(circle at 50% 50%,transparent 0 34%,rgba(0,0,0,.6) 34.4% 35%,transparent 35.4% 52%,rgba(0,0,0,.6) 52.3% 53%,transparent 53.4% 71%,rgba(0,0,0,.6) 71.3% 72%,transparent 72.4%),
+    radial-gradient(circle at 50% 50%,#1e1e24 0%,#0a0a0d 60%,#18181d 100%);
+  box-shadow:0 26px 56px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.07),inset 0 0 0 6px #08080a,inset 0 0 0 7px rgba(255,255,255,.05);
+  animation-duration:3.2s}
+#splash .vinyl::before{background:none}
+#splash .vinyl::after{display:none}
+#splash .vinylWrap::before{content:"";position:absolute;inset:0;border-radius:50%;z-index:3;pointer-events:none;
+  background:conic-gradient(from 28deg,transparent 0 7%,rgba(255,255,255,.18) 11%,transparent 19%,transparent 57%,rgba(255,255,255,.13) 61%,transparent 69%);
+  mix-blend-mode:screen}
+#splash .vlabel{width:100px;height:100px;
+  background:radial-gradient(circle at 40% 35%,#2b2433,#150f1c 75%);
+  box-shadow:0 0 0 3px #08080a,0 0 0 4px rgba(255,255,255,.1)}
+#splash .vlabelText text{fill:rgba(222,196,142,.9)}
+#splash .vlabel img{width:60px;height:60px;box-shadow:0 0 0 1.5px rgba(222,196,142,.5)}
+#splash .vhole{display:none}
+/* тонарм: хромований важіль з голівкою */
+#splash .tonearm{top:-26px;right:-22px;width:130px;height:150px;transform-origin:50% 12%;
+  transform:rotate(-28deg);filter:drop-shadow(0 6px 8px rgba(0,0,0,.5))}
+#splash .tonearm.down{transform:rotate(-6deg)}
+#splash .tonearm b{top:2px;right:auto;left:50%;width:34px;height:34px;margin-left:-17px;
+  background:radial-gradient(circle at 35% 30%,#e9e9ef,#8d8d97 55%,#3d3d45);
+  box-shadow:0 0 0 4px #17171c,0 0 0 5px rgba(255,255,255,.12)}
+#splash .tonearm i{top:19px;right:auto;left:50%;width:6px;height:112px;margin-left:-3px;border-radius:3px;
+  background:linear-gradient(90deg,#6e6e78,#f2f2f6 45%,#7a7a84);transform:rotate(14deg);transform-origin:top center}
+#splash .tonearm i::after{content:"";position:absolute;left:-6px;bottom:-14px;width:18px;height:26px;border-radius:4px 4px 7px 7px;
+  background:linear-gradient(180deg,#26262c,#0d0d10);box-shadow:inset 0 1px 0 rgba(255,255,255,.18)}
+
+/* ══ ЖВАВІСТЬ: поява екранів, списків, плавні переходи ══ */
+@media (prefers-reduced-motion:no-preference){
+  .screen.on{animation:screenIn .4s cubic-bezier(.2,.8,.2,1)}
+  .rows .row,.reel .card,.genres .genre{animation:riseIn .55s cubic-bezier(.2,.8,.2,1) backwards}
+  .rows .row:nth-child(2),.reel .card:nth-child(2){animation-delay:.05s}
+  .rows .row:nth-child(3),.reel .card:nth-child(3){animation-delay:.1s}
+  .rows .row:nth-child(4),.reel .card:nth-child(4){animation-delay:.15s}
+  .rows .row:nth-child(5),.reel .card:nth-child(5){animation-delay:.2s}
+  .rows .row:nth-child(n+6),.reel .card:nth-child(n+6){animation-delay:.25s}
+  .bar.on{animation:barUp .42s cubic-bezier(.2,.9,.3,1.15)}
+  .sheet.on .coverWrap{animation:coverIn .55s cubic-bezier(.2,.9,.3,1.1)}
+  .fchip{animation:chipIn .45s cubic-bezier(.2,1.2,.4,1) backwards}
+  .fchip:nth-child(2){animation-delay:.05s}.fchip:nth-child(3){animation-delay:.1s}
+  .fchip:nth-child(4){animation-delay:.15s}.fchip:nth-child(5){animation-delay:.2s}.fchip:nth-child(n+6){animation-delay:.25s}
+}
+@keyframes screenIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes riseIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes barUp{from{opacity:0;transform:translateY(24px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes coverIn{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:none}}
+@keyframes chipIn{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:none}}
+
+/* ══ Адмін-панель у веб-аплікації ══ */
+.adm{position:fixed;inset:0;z-index:70;background:var(--bg);display:none;flex-direction:column;
+  padding-top:env(safe-area-inset-top)}
+.adm.on{display:flex;animation:screenIn .3s cubic-bezier(.2,.8,.2,1)}
+.admTop{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.admTabs{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding:12px 16px 4px;flex:none}
+.admTabs::-webkit-scrollbar{display:none}
+.admTabs .tab{flex:none;white-space:nowrap}
+.admBody{flex:1;overflow-y:auto;padding:14px 16px calc(24px + env(safe-area-inset-bottom));max-width:560px;width:100%;margin:0 auto}
+.admGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.admStat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+.admStat b{display:block;font-size:24px;font-family:"Space Grotesk",Inter,sans-serif}
+.admStat span{font-size:12px;color:var(--muted)}
+.admRow{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:12px;background:var(--panel);
+  border:1px solid var(--line);margin-bottom:8px}
+.admRow .m{flex:1;min-width:0}
+.admRow .m b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.admRow .m span{font-size:12px;color:var(--muted)}
+.admBadge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:99px;background:var(--panel-2);color:var(--muted)}
+.admBadge.pro{background:var(--gold);color:#241800}
+.admBars{display:flex;align-items:flex-end;gap:4px;height:70px;margin:8px 0 16px}
+.admBars i{flex:1;background:linear-gradient(180deg,var(--accent),color-mix(in srgb,var(--accent) 40%,transparent));border-radius:4px 4px 2px 2px;min-height:3px}
+.admBody .field{width:100%;padding:12px;border-radius:11px;background:var(--panel);border:1px solid var(--line);margin-bottom:10px;font-size:14.5px}
+.admBody textarea.field{min-height:120px;resize:vertical;font-family:inherit}
+.admBody .btn{margin-bottom:8px}
+.admBody h3{margin:6px 0 10px;font-size:15px}
+.admMini{padding:7px 12px;border-radius:9px;background:var(--panel-2);font-size:12.5px;font-weight:500}
+.admMini.danger{color:#ff7a8a}
 </style>
 </head>
 <body>
@@ -492,6 +647,7 @@ a{color:var(--accent)}
     <div class="t" id="barTitle">—</div>
     <div class="s" id="barArtist">—</div>
   </div>
+  <button class="iconbtn like" id="barLike" onclick="toggleLike()" aria-label="Улюблене"><span data-icon="heart"></span></button>
   <button class="iconbtn" onclick="prevTrack()"><span data-icon="prev"></span></button>
   <button class="iconbtn main" id="barPlay" onclick="togglePlay()"><span data-icon="play"></span></button>
   <button class="iconbtn" onclick="nextTrack()"><span data-icon="next"></span></button>
@@ -511,6 +667,7 @@ a{color:var(--accent)}
   <div class="handle" onclick="closeSheet()"></div>
   <div class="coverWrap" id="coverWrap">
     <img class="ambientBg" id="ambientBg" alt="" aria-hidden="true">
+    <div class="vinylDisc" aria-hidden="true"></div>
     <div class="vinylHole"></div>
     <img class="cover" id="npArt" alt="">
   </div>
@@ -549,6 +706,22 @@ a{color:var(--accent)}
 <!-- modal -->
 <div class="modal" id="modal" onclick="if(event.target===this)closeModal()">
   <div class="box" id="modalBox"></div>
+</div>
+
+<!-- адмін-панель (лише для адмінів) -->
+<div class="adm" id="adm">
+  <div class="admTop">
+    <button class="iconbtn" onclick="closeAdmin()" aria-label="Закрити"><span data-icon="close"></span></button>
+    <div class="dspl" style="font-weight:700;font-size:18px">🛠 Адмін-панель</div>
+  </div>
+  <div class="admTabs" id="admTabs">
+    <button class="tab on" data-t="ov">Огляд</button>
+    <button class="tab" data-t="users">Юзери</button>
+    <button class="tab" data-t="reports">Скарги</button>
+    <button class="tab" data-t="promo">Промокоди</button>
+    <button class="tab" data-t="bc">Розсилка</button>
+  </div>
+  <div class="admBody" id="admBody"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1107,6 +1280,8 @@ function handleStartParam(){
   if(kind==="track") playById(val);
   if(kind==="radio") startRadioFrom(val);
   if(kind==="shared") openShared(val);
+  if(kind==="lib") go("Lib");
+  if(kind==="me") go("Me");
 }
 
 /* ════════ Навігація ════════ */
@@ -1252,10 +1427,18 @@ async function loadHome(){
     html += moodsHtml;
     homeData.sections.forEach((sec,si)=>{
       const key = "home"+si;
-      html += `<div class="sect"><h2>${esc(sec.title)}</h2>
-        ${sec.id==="recent" ? "" : cardsHtml(sec.tracks, key)}</div>`;
-      if(sec.id==="recent"){ CTX[key]=sec.tracks;
-        html = html.replace("</div>", rowsHtml(sec.tracks.slice(0,5), key)+"</div>"); }
+      // Порожню секцію не показуємо взагалі (раніше лишався голий заголовок).
+      if(!sec.tracks || !sec.tracks.length) return;
+      if(sec.id==="recent"){
+        // Раніше рядки вставлялись через html.replace("</div>", …) — тобто в
+        // ПЕРШИЙ </div> сторінки, а це кінець ряду кнопок «Настрій». Через це
+        // список треків потрапляв усередину ряду й розтягував кнопки на пів
+        // екрана (на телефоні, де є історія). Тепер секція збирається цілою.
+        CTX[key]=sec.tracks;
+        html += `<div class="sect"><h2>${esc(sec.title)}</h2>${rowsHtml(sec.tracks.slice(0,5), key)}</div>`;
+      } else {
+        html += `<div class="sect"><h2>${esc(sec.title)}</h2>${cardsHtml(sec.tracks, key)}</div>`;
+      }
     });
     html += collectionsHtml;
     $("homeBody").innerHTML = html;
@@ -1964,8 +2147,7 @@ function paint(t){
   $("barArtist").textContent = t.artist; $("npArtist").textContent = t.artist;
   $("npLic").innerHTML = `${esc(t.source_label||"")} · ${esc(t.license_short||"")}` +
     (t.source_url ? `<br><a href="${esc(t.source_url)}" target="_blank" rel="noopener">сторінка оригіналу</a>` : "");
-  $("pillLike").innerHTML = pillLikeHTML(S.liked.has(t.id));
-  $("pillLike").classList.toggle("on", S.liked.has(t.id));
+  syncLikeUI();
   paintPlayState();
   document.querySelectorAll(".row").forEach(r=>{
     const list = CTX[r.dataset.ctx]; const item = list?.[+r.dataset.i];
@@ -1980,7 +2162,23 @@ function paint(t){
     navigator.mediaSession.setActionHandler("pause", togglePlay);
     navigator.mediaSession.setActionHandler("nexttrack", ()=>nextTrack());
     navigator.mediaSession.setActionHandler("previoustrack", prevTrack);
+    // Перемотка з екрана блокування / шторки сповіщень (де система це дозволяє).
+    const _ms = (name, fn) => { try{ navigator.mediaSession.setActionHandler(name, fn); }catch(e){} };
+    _ms("seekbackward", d => { cur.currentTime = Math.max(0, cur.currentTime - (d?.seekOffset||10)); });
+    _ms("seekforward",  d => { cur.currentTime = Math.min(cur.duration||1e9, cur.currentTime + (d?.seekOffset||10)); });
+    _ms("seekto", d => { if(d && d.seekTime!=null) cur.currentTime = d.seekTime; });
+    navigator.mediaSession.playbackState = "playing";
   }
+}
+
+/* Єдине місце, що малює стан «улюблене» і в шторці, і в міні-плеєрі. */
+function syncLikeUI(){
+  const t = current(); const on = !!(t && S.liked.has(t.id));
+  const pl = $("pillLike");
+  if(pl){ pl.innerHTML = pillLikeHTML(on); pl.classList.toggle("on", on); }
+  const bl = $("barLike");
+  if(bl){ bl.innerHTML = ICON(on ? "heart-filled" : "heart"); bl.classList.toggle("on", on);
+    if(on){ bl.classList.remove("pop"); void bl.offsetWidth; bl.classList.add("pop"); } }
 }
 
 function pillLikeHTML(liked){
@@ -1992,6 +2190,8 @@ function paintPlayState(){
   const name = playing ? "pause" : "play";
   $("barPlay").innerHTML = ICON(name); $("npPlay").innerHTML = ICON(name);
   $("coverWrap").classList.toggle("playing", playing);
+  document.body.classList.toggle("is-playing", playing);
+  if("mediaSession" in navigator) navigator.mediaSession.playbackState = playing ? "playing" : "paused";
 }
 
 /* ── жива обкладинка ── */
@@ -2023,6 +2223,9 @@ function paintProgress(){
   $("npDur").textContent = isFinite(d) ? fmt(d) : "—";
   const pct = isFinite(d) && d>0 ? (c/d)*100 : 0;
   $("barLine").style.width = pct+"%";
+  if("mediaSession" in navigator && navigator.mediaSession.setPositionState && isFinite(d) && d>0){
+    try{ navigator.mediaSession.setPositionState({duration:d, position:Math.min(c,d), playbackRate:cur.playbackRate||1}); }catch(e){}
+  }
   if(!seeking) $("npSeek").value = Math.round(pct*10);
   if(S.crossfade>0 && isFinite(d) && d-c <= S.crossfade && d>0 && !fadeTimer && S.index+1<S.queue.length){
     S.index++; play(current());
@@ -2044,8 +2247,7 @@ async function toggleLike(){
   try{
     const d = await post("/api/library", {action:"toggle", track:t});
     if(d.in_library) S.liked.add(t.id); else S.liked.delete(t.id);
-    $("pillLike").innerHTML = pillLikeHTML(d.in_library);
-    $("pillLike").classList.toggle("on", d.in_library);
+    syncLikeUI();
     toast(d.in_library ? "Додано в бібліотеку" : "Прибрано з бібліотеки");
   }catch(e){ toast(e.message); }
 }
@@ -2068,6 +2270,7 @@ function queueNext(t){ S.queue.splice(S.index+1, 0, t); closeModal(); toast("Д�
 async function addToLib(t){
   try{ const d = await post("/api/library", {action:"toggle", track:t});
        if(d.in_library) S.liked.add(t.id); else S.liked.delete(t.id);
+       syncLikeUI();
        closeModal(); toast(d.in_library?"Збережено":"Прибрано"); }
   catch(e){ toast(e.message); }
 }
@@ -2160,6 +2363,8 @@ function renderProfile(){
     <div class="sect"><h2 data-i18n="pr_stats">Статистика</h2><div id="statBox"><div class="skel"></div></div>
       <button class="pill" style="margin-top:10px" onclick="openWrapped()">${ICON("gift","sm")}<span data-i18n="pr_wrapped">Мій рік у музиці</span></button>
     </div>
+    ${S.me.is_admin ? `<div class="sect"><h2>Адміністратор</h2>
+      <button class="btn" onclick="openAdmin()">🛠 Відкрити адмін-панель</button></div>` : ""}
 
     <div class="sect"><h2 data-i18n="pr_referral">Запросити друзів</h2>
       <div class="refcard" id="refCard"><div class="skel"></div></div>
@@ -2567,10 +2772,173 @@ function showModal(html){ $("modalBox").innerHTML = html; $("modal").classList.a
 function closeModal(){ $("modal").classList.remove("on"); }
 tg?.BackButton?.onClick(()=>{
   if($("modal").classList.contains("on")) return closeModal();
+  if($("adm").classList.contains("on")) return closeAdmin();
   if($("sheet").classList.contains("on")) return closeSheet();
   tg.close();
 });
 tg?.BackButton?.show?.();
+
+
+/* ════════ Адмін-панель (веб) ════════
+   Доступна лише адмінам (S.me.is_admin з підписаного initData) і лише після
+   пароля — той самий, що для /admin у боті. Усі перевірки дублюються на сервері. */
+const ADM = {tab:"ov", off:0, q:"", bcTimer:null};
+
+function openAdmin(){ tap(); $("adm").classList.add("on"); admBoot(); }
+function closeAdmin(){ $("adm").classList.remove("on"); clearInterval(ADM.bcTimer); }
+
+async function admCall(fn){
+  try{ return await fn(); }
+  catch(e){
+    if(/пароль/i.test(e.message)){ admLogin(); return null; }
+    toast(e.message); return null;
+  }
+}
+
+async function admBoot(){
+  $("admBody").innerHTML = `<div class="skel"></div><div class="skel"></div>`;
+  try{
+    const st = await get("/api/admin/status");
+    if(!st.is_admin){ closeAdmin(); return toast("Немає доступу"); }
+    if(!st.unlocked) return admLogin();
+    admTab(ADM.tab);
+  }catch(e){ toast(e.message); }
+}
+
+function admLogin(){
+  $("admBody").innerHTML = `<h3>Введіть пароль адмінки</h3>
+    <input class="field" id="admPass" type="password" placeholder="Пароль" autocomplete="off">
+    <button class="btn" id="admPassBtn">Увійти</button>`;
+  $("admPassBtn").onclick = async () => {
+    try{
+      await post("/api/admin/login", {password:$("admPass").value});
+      $("admPass").value = ""; tap(); admTab(ADM.tab);
+    }catch(e){ toast(e.message); }
+  };
+}
+
+$("admTabs").querySelectorAll(".tab").forEach(b => b.onclick = () => { tap(); admTab(b.dataset.t); });
+
+function admTab(t){
+  ADM.tab = t; clearInterval(ADM.bcTimer);
+  $("admTabs").querySelectorAll(".tab").forEach(x => x.classList.toggle("on", x.dataset.t===t));
+  ({ov:admOverview, users:admUsers, reports:admReports, promo:admPromo, bc:admBroadcast})[t]();
+}
+
+async function admOverview(){
+  const d = await admCall(() => get("/api/admin/overview")); if(!d) return;
+  const s = d.stats, mx = Math.max(1, ...d.signups.map(x=>x[1]));
+  $("admBody").innerHTML = `
+    <div class="admGrid">
+      <div class="admStat"><b>${s.users}</b><span>Користувачів</span></div>
+      <div class="admStat"><b>${s.premium}</b><span>Premium</span></div>
+      <div class="admStat"><b>${s.plays}</b><span>Прослуховувань</span></div>
+      <div class="admStat"><b>${s.open_reports}</b><span>Відкритих скарг</span></div>
+    </div>
+    <h3>Нові користувачі · 14 днів</h3>
+    <div class="admBars">${d.signups.map(([day,n])=>`<i title="${esc(day)}: ${n}" style="height:${Math.max(4,n/mx*100)}%"></i>`).join("")||"<span style='color:var(--muted);font-size:13px'>Поки немає даних</span>"}</div>
+    <div style="font-size:12.5px;color:var(--muted)">База: ${esc(s.engine)}<br>Плейлистів: ${s.playlists}</div>`;
+}
+
+async function admUsers(){
+  const d = await admCall(() => get(`/api/admin/users?offset=${ADM.off}&q=${encodeURIComponent(ADM.q)}`)); if(!d) return;
+  window.__admUsers = d.users;
+  $("admBody").innerHTML = `
+    <input class="field" id="admSearch" placeholder="Пошук: ім'я, @username або ID" value="${esc(ADM.q)}">
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">Усього: ${d.total}</div>
+    ${d.users.map((u,i)=>`<div class="admRow" data-u="${i}" style="cursor:pointer">
+      <div class="m"><b>${esc(u.name||u.username||u.uid)}</b>
+        <span>${u.username?"@"+esc(u.username)+" · ":""}${u.uid} · з ${esc(u.created_at)}</span></div>
+      <span class="admBadge ${u.premium?"pro":""}">${u.premium?"Premium":"Free"}</span></div>`).join("")}
+    <div style="display:flex;gap:8px;margin-top:8px">
+      ${ADM.off>0?`<button class="btn ghost" id="admPrev">← Назад</button>`:""}
+      ${ADM.off+20<d.total?`<button class="btn ghost" id="admNext">Далі →</button>`:""}</div>`;
+  let tmr; $("admSearch").oninput = e => { clearTimeout(tmr); tmr = setTimeout(()=>{ ADM.q = e.target.value.trim(); ADM.off = 0; admUsers(); }, 450); };
+  if($("admPrev")) $("admPrev").onclick = () => { ADM.off = Math.max(0, ADM.off-20); admUsers(); };
+  if($("admNext")) $("admNext").onclick = () => { ADM.off += 20; admUsers(); };
+  $("admBody").querySelectorAll("[data-u]").forEach(r => r.onclick = () => admUserModal(window.__admUsers[+r.dataset.u]));
+}
+
+function admUserModal(u){
+  tap();
+  showModal(`<h3>${esc(u.name||u.username||u.uid)}</h3>
+    <div style="color:var(--muted);font-size:13px;margin:-8px 0 14px;line-height:1.7">
+      ID: ${u.uid}${u.username?" · @"+esc(u.username):""}<br>
+      Статус: ${u.premium?"Premium"+(u.premium_until?" до "+esc(u.premium_until):""):"Free"}<br>
+      Тріал: ${u.trial_used?"використано":"ні"} · Мова: ${esc(u.lang||"—")}<br>
+      Реєстрація: ${esc(u.created_at)}</div>
+    <button class="btn" data-g="7">🎁 +7 днів Premium</button>
+    <button class="btn ghost" data-g="30">+30 днів Premium</button>
+    <button class="btn ghost" data-r="1" style="color:#ff7a8a">❌ Забрати Premium</button>`);
+  const act = async (body) => {
+    const r = await admCall(() => post("/api/admin/user", {uid:u.uid, ...body}));
+    if(r){ closeModal(); toast("Готово"); admUsers(); }
+  };
+  $("modalBox").querySelectorAll("[data-g]").forEach(b => b.onclick = () => act({action:"grant", days:+b.dataset.g}));
+  $("modalBox").querySelector("[data-r]").onclick = () => act({action:"revoke"});
+}
+
+async function admReports(){
+  const d = await admCall(() => get("/api/admin/reports?offset=0")); if(!d) return;
+  $("admBody").innerHTML = d.reports.length ? d.reports.map(r=>`<div class="admRow">
+      <div class="m"><b>${esc(r.title||r.tid)}${r.artist?" — "+esc(r.artist):""}</b>
+        <span>${esc(r.source)} · ${esc(r.created_at)}<br>${esc(r.reason||"без причини")}</span></div>
+      <button class="admMini" data-id="${r.id}">✅ Закрити</button></div>`).join("")
+    : `<div class="empty"><b>Скарг немає</b>Усе чисто.</div>`;
+  $("admBody").querySelectorAll("[data-id]").forEach(b => b.onclick = async () => {
+    const r = await admCall(() => post("/api/admin/report_resolve", {id:+b.dataset.id}));
+    if(r){ toast("Закрито"); admReports(); }
+  });
+}
+
+async function admPromo(){
+  const d = await admCall(() => req("/api/admin/promos")); if(!d) return;
+  $("admBody").innerHTML = `<h3>Новий промокод</h3>
+    <input class="field" id="pcCode" placeholder="Код (порожньо = згенерувати)" autocapitalize="characters">
+    <div style="display:flex;gap:8px"><input class="field" id="pcDays" type="number" inputmode="numeric" placeholder="Днів" value="30">
+    <input class="field" id="pcUses" type="number" inputmode="numeric" placeholder="Активацій" value="1"></div>
+    <button class="btn" id="pcMake">Створити</button>
+    <h3 style="margin-top:18px">Активні коди</h3>
+    ${d.promos.length ? d.promos.map(p=>`<div class="admRow"><div class="m"><b>${esc(p.code)}</b>
+      <span>${p.days} дн. · залишилось ${p.uses_left}</span></div>
+      <button class="admMini danger" data-del="${esc(p.code)}">Видалити</button></div>`).join("")
+      : `<div style="color:var(--muted);font-size:13px">Кодів поки немає</div>`}`;
+  $("pcMake").onclick = async () => {
+    const r = await admCall(() => post("/api/admin/promos", {action:"create", code:$("pcCode").value,
+      days:+$("pcDays").value||30, uses:+$("pcUses").value||1}));
+    if(r){ toast("Створено"); admPromo(); }
+  };
+  $("admBody").querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    const r = await admCall(() => post("/api/admin/promos", {action:"delete", code:b.dataset.del}));
+    if(r){ toast("Видалено"); admPromo(); }
+  });
+}
+
+async function admBroadcast(){
+  $("admBody").innerHTML = `<h3>Розсилка всім користувачам</h3>
+    <textarea class="field" id="bcText" placeholder="Текст (можна HTML: <b>жирний</b>, <i>курсив</i>)"></textarea>
+    <button class="btn" id="bcSend">Надіслати всім</button>
+    <div id="bcStatus" style="font-size:13px;color:var(--muted);line-height:1.7"></div>`;
+  const paint = async () => {
+    try{
+      const st = await get("/api/admin/broadcast");
+      $("bcStatus").innerHTML = (st.total||!st.done)
+        ? `${st.done?"✅ Готово":"⏳ Надсилаю…"}<br>Усього: ${st.total} · доставлено: ${st.sent} · заблокували бота: ${st.blocked} · помилок: ${st.failed}` : "";
+      if(st.done) clearInterval(ADM.bcTimer);
+    }catch(e){}
+  };
+  $("bcSend").onclick = () => {
+    const text = $("bcText").value.trim(); if(!text) return toast("Порожній текст");
+    showModal(`<h3>Надіслати всім?</h3><div style="color:var(--muted);font-size:13px;margin:-8px 0 14px">Повідомлення піде кожному користувачеві бота. Скасувати не можна.</div>
+      <button class="btn" id="bcYes">Так, надіслати</button><button class="btn ghost" onclick="closeModal()">Скасувати</button>`);
+    $("bcYes").onclick = async () => {
+      closeModal();
+      const r = await admCall(() => post("/api/admin/broadcast", {text}));
+      if(r){ toast("Розсилку запущено"); clearInterval(ADM.bcTimer); ADM.bcTimer = setInterval(paint, 2000); paint(); }
+    };
+  };
+  paint();
+}
 
 paintStaticIcons();
 </script>
