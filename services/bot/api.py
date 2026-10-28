@@ -27,6 +27,7 @@ from core.auth import verify_init_data
 from core.config import (
     ADMIN_IDS, PREMIUM_FEATURES, FREE_LIMITS, PREMIUM_LIMITS,
     APP_VERSION, JAMENDO_CLIENT_ID, BOT_USERNAME, REFERRAL_REWARD_DAYS,
+    ADMIN_CMD_PASSWORD,
 )
 
 logger = logging.getLogger(__name__)
@@ -686,6 +687,210 @@ async def h_offline_pack(request, u):
     )
 
 
+
+# ─── Веб-адмінка (лише для ADMIN_IDS + пароль, як у боті) ───────────────────
+# Підпис initData доводить, що це саме цей Telegram-користувач; пароль — друга
+# перепона на випадок, якщо чийсь акаунт/телефон потрапить не в ті руки.
+# Розблокування живе в пам'яті процесу 12 годин (після перезапуску — знову пароль).
+
+_ADMIN_UNLOCKED = {}          # uid -> час закінчення
+_ADMIN_FAILS = {}             # uid -> (кількість, час останньої спроби)
+ADMIN_UNLOCK_TTL = 12 * 3600
+
+
+def _admin_ok(uid):
+    exp = _ADMIN_UNLOCKED.get(uid, 0)
+    return uid in ADMIN_IDS and exp > time.time()
+
+
+def require_admin(handler):
+    async def wrapper(request):
+        u = auth_user(request)
+        if not u:
+            return fail("Потрібен вхід через Telegram", 401)
+        uid = int(u["uid"])
+        if uid not in ADMIN_IDS:
+            return fail("Немає доступу", 403)
+        if not _admin_ok(uid):
+            return fail("Потрібен пароль адмінки", 401)
+        return await handler(request, u)
+    return wrapper
+
+
+@require_auth
+async def h_admin_login(request, u):
+    uid = int(u["uid"])
+    if uid not in ADMIN_IDS:
+        return fail("Немає доступу", 403)
+    n, last = _ADMIN_FAILS.get(uid, (0, 0))
+    if n >= 5 and time.time() - last < 300:
+        return fail("Забагато спроб. Зачекайте 5 хвилин.", 429)
+    body = await request.json()
+    pw = str(body.get("password", ""))
+    if hmac.compare_digest(pw.encode(), ADMIN_CMD_PASSWORD.encode()):
+        _ADMIN_UNLOCKED[uid] = time.time() + ADMIN_UNLOCK_TTL
+        _ADMIN_FAILS.pop(uid, None)
+        await to_thread(db.audit, uid, "web_admin_login", "", "")
+        return ok({"ok": True})
+    _ADMIN_FAILS[uid] = (n + 1 if time.time() - last < 300 else 1, time.time())
+    logger.warning("Невдала спроба входу в веб-адмінку, uid=%s", uid)
+    return fail("Невірний пароль", 403)
+
+
+@require_auth
+async def h_admin_status(request, u):
+    uid = int(u["uid"])
+    return ok({"ok": True, "is_admin": uid in ADMIN_IDS, "unlocked": _admin_ok(uid)})
+
+
+def _user_view(u):
+    return {
+        "uid": int(u["uid"]), "name": u.get("first_name") or "",
+        "username": u.get("username") or "", "premium": bool(u.get("premium")),
+        "premium_until": str(u.get("premium_until") or "")[:10],
+        "created_at": str(u.get("created_at") or "")[:10],
+        "trial_used": bool(u.get("trial_used")),
+        "lang": u.get("lang") or "",
+    }
+
+
+@require_admin
+async def h_admin_overview(request, u):
+    stats = await to_thread(db.global_stats)
+    signups = await to_thread(db.signups_by_day, 14)
+    stats["open_reports"] = await to_thread(db.open_reports_count)
+    return ok({"ok": True, "stats": stats, "signups": signups})
+
+
+@require_admin
+async def h_admin_users(request, u):
+    offset = max(0, int(request.query.get("offset", 0) or 0))
+    search = (request.query.get("q") or "").strip()[:60]
+    items, total = await to_thread(db.users_page, offset, 20, search)
+    return ok({"ok": True, "total": total, "users": [_user_view(x) for x in items]})
+
+
+@require_admin
+async def h_admin_user_action(request, u):
+    body = await request.json()
+    try:
+        target = int(body.get("uid"))
+    except (TypeError, ValueError):
+        return fail("Невірний ID")
+    action = body.get("action", "")
+    if not await to_thread(db.get_user, target) :
+        return fail("Користувача не знайдено", 404)
+    if action == "grant":
+        days = max(1, min(int(body.get("days") or 7), 3650))
+        await to_thread(db.extend_premium, target, days)
+    elif action == "revoke":
+        await to_thread(db.set_premium, target, False)
+    else:
+        return fail("Невідома дія")
+    await to_thread(db.audit, int(u["uid"]), "web_admin_" + action, str(target),
+                    str(body.get("days") or ""))
+    fresh = await to_thread(db.get_user, target)
+    return ok({"ok": True, "user": _user_view(fresh)})
+
+
+@require_admin
+async def h_admin_reports(request, u):
+    offset = max(0, int(request.query.get("offset", 0) or 0))
+    items, total = await to_thread(db.reports_page, offset, 20, "open")
+    return ok({"ok": True, "total": total, "reports": [
+        {"id": int(r["id"]), "tid": r.get("tid") or "", "title": r.get("title") or "",
+         "artist": r.get("artist") or "", "source": r.get("source") or "",
+         "reason": r.get("reason") or "", "uid": int(r.get("uid") or 0),
+         "created_at": str(r.get("created_at") or "")[:16]} for r in items]})
+
+
+@require_admin
+async def h_admin_report_resolve(request, u):
+    body = await request.json()
+    await to_thread(db.report_resolve, int(body.get("id") or 0))
+    await to_thread(db.audit, int(u["uid"]), "web_admin_report_resolve", str(body.get("id")), "")
+    return ok({"ok": True})
+
+
+@require_admin
+async def h_admin_promos(request, u):
+    if request.method == "POST":
+        body = await request.json()
+        action = body.get("action")
+        if action == "create":
+            import random, string
+            code = (body.get("code") or "").strip().upper() or "".join(
+                random.choices(string.ascii_uppercase + string.digits, k=8))
+            days = max(1, min(int(body.get("days") or 30), 3650))
+            uses = max(1, min(int(body.get("uses") or 1), 100000))
+            try:
+                await to_thread(db.promo_create, code, days, uses)
+            except Exception:
+                return fail("Такий код уже існує")
+            await to_thread(db.audit, int(u["uid"]), "web_admin_promo_create", code, f"{days}d x{uses}")
+        elif action == "delete":
+            await to_thread(db.promo_delete, str(body.get("code") or ""))
+        else:
+            return fail("Невідома дія")
+    promos = await to_thread(db.promo_list)
+    return ok({"ok": True, "promos": [
+        {"code": p["code"], "days": int(p["days"]), "uses_left": int(p["uses_left"])} for p in promos]})
+
+
+_BROADCAST_STATE = {"running": False, "text": "", "total": 0, "sent": 0, "blocked": 0, "failed": 0, "done": True}
+
+
+async def _broadcast_job(text):
+    from telegram.constants import ParseMode
+    from telegram.error import RetryAfter, Forbidden, TelegramError
+    bot = RT.get_bot()
+    st = _BROADCAST_STATE
+    try:
+        uids = await to_thread(db.all_user_ids)
+        st.update(total=len(uids), sent=0, blocked=0, failed=0, done=False)
+        for uid in uids:
+            for attempt in range(3):
+                try:
+                    await bot.send_message(uid, text, parse_mode=ParseMode.HTML)
+                    st["sent"] += 1
+                    break
+                except RetryAfter as e:
+                    await asyncio.sleep(e.retry_after + 0.5)
+                except Forbidden:
+                    st["blocked"] += 1
+                    break
+                except TelegramError:
+                    if attempt == 2:
+                        st["failed"] += 1
+                    else:
+                        await asyncio.sleep(1)
+            await asyncio.sleep(0.05)
+    finally:
+        st["done"] = True
+        st["running"] = False
+
+
+@require_admin
+async def h_admin_broadcast(request, u):
+    st = _BROADCAST_STATE
+    if request.method == "GET":
+        return ok({"ok": True, **{k: st[k] for k in ("running", "total", "sent", "blocked", "failed", "done")}})
+    body = await request.json()
+    text = (body.get("text") or "").strip()
+    if not text:
+        return fail("Порожній текст")
+    if len(text) > 3500:
+        return fail("Занадто довгий текст")
+    if st["running"]:
+        return fail("Розсилка вже триває")
+    if RT.get_bot() is None:
+        return fail("Бот ще не готовий")
+    st.update(running=True, text=text, done=False, sent=0, blocked=0, failed=0, total=0)
+    await to_thread(db.audit, int(u["uid"]), "web_admin_broadcast", "", text[:100])
+    asyncio.get_running_loop().create_task(_broadcast_job(text))
+    return ok({"ok": True})
+
+
 def build_app():
     app = web.Application(client_max_size=2 * 1024 * 1024)
     r = app.router
@@ -728,4 +933,13 @@ def build_app():
     r.add_get("/api/stats", h_stats)
     r.add_post("/api/promo", h_promo)
     r.add_get("/api/download", h_download)
+    r.add_post("/api/admin/login", h_admin_login)
+    r.add_get("/api/admin/status", h_admin_status)
+    r.add_get("/api/admin/overview", h_admin_overview)
+    r.add_get("/api/admin/users", h_admin_users)
+    r.add_post("/api/admin/user", h_admin_user_action)
+    r.add_get("/api/admin/reports", h_admin_reports)
+    r.add_post("/api/admin/report_resolve", h_admin_report_resolve)
+    r.add_route("*", "/api/admin/promos", h_admin_promos)
+    r.add_route("*", "/api/admin/broadcast", h_admin_broadcast)
     return app
