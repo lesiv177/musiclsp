@@ -11,6 +11,7 @@ import io
 import os
 import time
 import html
+import urllib.parse
 import json
 import asyncio
 import logging
@@ -24,6 +25,7 @@ from telegram import (
 )
 from telegram.constants import ParseMode
 from telegram.error import RetryAfter, Forbidden, BadRequest, TelegramError
+from telegram import LinkPreviewOptions
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
     ContextTypes, filters, PreCheckoutQueryHandler,
@@ -219,6 +221,71 @@ BOT_TR = {
 }
 
 
+# ─── Оновлений вигляд: привітання й нові кнопки на 8 мовах ───────────────────
+_SRC = "Jamendo, Audius, Internet Archive, ccMixter, Openverse, Wikimedia Commons"
+_WELCOME = {
+ "uk": "🎧 <b>{name}</b>\n<i>Легальна музика без обмежень</i>\n\nПривіт, <b>{user}</b>! Сотні тисяч треків із відкритих джерел: "+_SRC+".\n\n🔎 Напишіть назву пісні чи артиста — знайду одразу\n🎧 Або відкрийте плеєр: настрої, радіо, плейлисти\n\n{status}",
+ "ru": "🎧 <b>{name}</b>\n<i>Легальная музыка без ограничений</i>\n\nПривет, <b>{user}</b>! Сотни тысяч треков из открытых источников: "+_SRC+".\n\n🔎 Напишите название песни или артиста — найду сразу\n🎧 Или откройте плеер: настроения, радио, плейлисты\n\n{status}",
+ "en": "🎧 <b>{name}</b>\n<i>Legal music, no limits</i>\n\nHi, <b>{user}</b>! Hundreds of thousands of tracks from open sources: "+_SRC+".\n\n🔎 Type a song or artist — I'll find it right away\n🎧 Or open the player: moods, radio, playlists\n\n{status}",
+ "pl": "🎧 <b>{name}</b>\n<i>Legalna muzyka bez limitów</i>\n\nCześć, <b>{user}</b>! Setki tysięcy utworów z otwartych źródeł: "+_SRC+".\n\n🔎 Wpisz tytuł utworu lub wykonawcę — znajdę od razu\n🎧 Albo otwórz odtwarzacz: nastroje, radio, playlisty\n\n{status}",
+ "de": "🎧 <b>{name}</b>\n<i>Legale Musik ohne Grenzen</i>\n\nHallo, <b>{user}</b>! Hunderttausende Tracks aus offenen Quellen: "+_SRC+".\n\n🔎 Schreib einen Songtitel oder Künstler — ich finde ihn sofort\n🎧 Oder öffne den Player: Stimmungen, Radio, Playlists\n\n{status}",
+ "es": "🎧 <b>{name}</b>\n<i>Música legal sin límites</i>\n\n¡Hola, <b>{user}</b>! Cientos de miles de pistas de fuentes abiertas: "+_SRC+".\n\n🔎 Escribe una canción o artista — la encuentro al instante\n🎧 O abre el reproductor: ambientes, radio, listas\n\n{status}",
+ "fr": "🎧 <b>{name}</b>\n<i>Musique légale, sans limites</i>\n\nSalut, <b>{user}</b> ! Des centaines de milliers de titres issus de sources ouvertes : "+_SRC+".\n\n🔎 Écris un titre ou un artiste — je le trouve aussitôt\n🎧 Ou ouvre le lecteur : ambiances, radio, playlists\n\n{status}",
+ "tr": "🎧 <b>{name}</b>\n<i>Yasal müzik, sınırsız</i>\n\nMerhaba, <b>{user}</b>! Açık kaynaklardan yüz binlerce parça: "+_SRC+".\n\n🔎 Bir şarkı veya sanatçı yaz — hemen bulayım\n🎧 Ya da oynatıcıyı aç: ruh halleri, radyo, çalma listeleri\n\n{status}",
+}
+# Єдиний «карткoвий» вигляд привітання для всіх 8 мов: шапка → лінія →
+# статус → підказки. Тексти короткі, щоб вміщались без прокрутки.
+_WL = {  # tagline, greet, hint_search, hint_player
+ "uk": ("Легальна музика без обмежень", "Привіт", "Напишіть назву треку чи артиста — я знайду одразу", "Або відкрийте плеєр: настрої, радіо, плейлисти"),
+ "ru": ("Легальная музыка без ограничений", "Привет", "Напишите название трека или артиста — найду сразу", "Или откройте плеер: настроения, радио, плейлисты"),
+ "en": ("Legal music, no limits", "Hi", "Type a song or artist — I'll find it right away", "Or open the player: moods, radio, playlists"),
+ "pl": ("Legalna muzyka bez limitów", "Cześć", "Wpisz tytuł lub wykonawcę — znajdę od razu", "Albo otwórz odtwarzacz: nastroje, radio, playlisty"),
+ "de": ("Legale Musik ohne Grenzen", "Hallo", "Schreib Titel oder Künstler — ich finde es sofort", "Oder öffne den Player: Stimmungen, Radio, Playlists"),
+ "es": ("Música legal sin límites", "Hola", "Escribe una canción o artista — la encuentro al instante", "O abre el reproductor: ambientes, radio, listas"),
+ "fr": ("Musique légale, sans limites", "Salut", "Écris un titre ou un artiste — je le trouve aussitôt", "Ou ouvre le lecteur : ambiances, radio, playlists"),
+ "tr": ("Yasal müzik, sınırsız", "Merhaba", "Bir şarkı veya sanatçı yaz — hemen bulayım", "Ya da oynatıcıyı aç: ruh halleri, radyo, listeler"),
+}
+_WELCOME = {
+    _l: ("🎧 <b>{name}</b>\n<i>" + _t + "</i>\n"
+         "▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"
+         "👋 " + _g + ", <b>{user}</b>!   {status}\n\n"
+         "🔎 " + _h1 + "\n🎧 " + _h2)
+    for _l, (_t, _g, _h1, _h2) in _WL.items()
+}
+_BTN_KEYS = ["btn_search","btn_trending","btn_stats","btn_lang","btn_help","btn_legal",
+             "btn_fav_add","btn_fav_del","btn_mp3","btn_listen","btn_origin","btn_menu"]
+_BTN = {
+ "uk": ["🔎 Пошук","🔥 Тренди","📊 Статистика","🌐 Мова","ℹ️ Допомога","📚 Джерела","❤️ В улюблене","💔 Прибрати","💾 MP3","▶️ Слухати в плеєрі","🔗 Оригінал","← Меню"],
+ "ru": ["🔎 Поиск","🔥 Тренды","📊 Статистика","🌐 Язык","ℹ️ Помощь","📚 Источники","❤️ В избранное","💔 Убрать","💾 MP3","▶️ Слушать в плеере","🔗 Оригинал","← Меню"],
+ "en": ["🔎 Search","🔥 Trending","📊 Stats","🌐 Language","ℹ️ Help","📚 Sources","❤️ Favorite","💔 Remove","💾 MP3","▶️ Listen in player","🔗 Original","← Menu"],
+ "pl": ["🔎 Szukaj","🔥 Na czasie","📊 Statystyki","🌐 Język","ℹ️ Pomoc","📚 Źródła","❤️ Do ulubionych","💔 Usuń","💾 MP3","▶️ Słuchaj w odtwarzaczu","🔗 Oryginał","← Menu"],
+ "de": ["🔎 Suche","🔥 Trends","📊 Statistik","🌐 Sprache","ℹ️ Hilfe","📚 Quellen","❤️ Favorit","💔 Entfernen","💾 MP3","▶️ Im Player hören","🔗 Original","← Menü"],
+ "es": ["🔎 Buscar","🔥 Tendencias","📊 Estadísticas","🌐 Idioma","ℹ️ Ayuda","📚 Fuentes","❤️ Favorito","💔 Quitar","💾 MP3","▶️ Escuchar en el reproductor","🔗 Original","← Menú"],
+ "fr": ["🔎 Recherche","🔥 Tendances","📊 Statistiques","🌐 Langue","ℹ️ Aide","📚 Sources","❤️ Favori","💔 Retirer","💾 MP3","▶️ Écouter dans le lecteur","🔗 Original","← Menu"],
+ "tr": ["🔎 Ara","🔥 Trendler","📊 İstatistik","🌐 Dil","ℹ️ Yardım","📚 Kaynaklar","❤️ Favori","💔 Kaldır","💾 MP3","▶️ Oynatıcıda dinle","🔗 Orijinal","← Menü"],
+}
+_HELP = {
+ "uk": "📋 <b>Що вмію</b>\n\n🔎 Просто напишіть назву — це пошук\n/search <i>назва</i> — знайти трек\n/radio <i>назва</i> — радіо на основі треку\n\n✨ /premium — Premium\n🤝 /referral — запросити друзів\n🎁 /code <i>КОД</i> — промокод\n📊 /stats — статистика\n🌐 /lang — мова\n📚 /legal — джерела й ліцензії\n🔒 /privacy — приватність",
+ "ru": "📋 <b>Что умею</b>\n\n🔎 Просто напишите название — это поиск\n/search <i>название</i> — найти трек\n/radio <i>название</i> — радио по треку\n\n✨ /premium — Premium\n🤝 /referral — пригласить друзей\n🎁 /code <i>КОД</i> — промокод\n📊 /stats — статистика\n🌐 /lang — язык\n📚 /legal — источники и лицензии\n🔒 /privacy — приватность",
+ "en": "📋 <b>What I can do</b>\n\n🔎 Just type a name — that's a search\n/search <i>name</i> — find a track\n/radio <i>name</i> — radio from a track\n\n✨ /premium — Premium\n🤝 /referral — invite friends\n🎁 /code <i>CODE</i> — promo code\n📊 /stats — statistics\n🌐 /lang — language\n📚 /legal — sources & licenses\n🔒 /privacy — privacy",
+}
+_NEWTR = {
+ "uk": dict(btn_library="❤️ Моя бібліотека", library_title="❤️ <b>Моя бібліотека</b>", library_empty="Тут з'являться треки, які ви збережете сердечком ❤️ у плеєрі чи в чаті.", library_open="📚 Вся бібліотека в плеєрі", library_more="…і ще {n} у плеєрі"),
+ "ru": dict(btn_library="❤️ Моя библиотека", library_title="❤️ <b>Моя библиотека</b>", library_empty="Здесь появятся треки, которые вы сохраните сердечком ❤️ в плеере или чате.", library_open="📚 Вся библиотека в плеере", library_more="…и ещё {n} в плеере"),
+ "en": dict(btn_library="❤️ My library", library_title="❤️ <b>My library</b>", library_empty="Tracks you save with the ❤️ in the player or chat will show up here.", library_open="📚 Full library in the player", library_more="…and {n} more in the player"),
+ "pl": dict(btn_library="❤️ Moja biblioteka", library_title="❤️ <b>Moja biblioteka</b>", library_empty="Tu pojawią się utwory zapisane ❤️ w odtwarzaczu lub czacie.", library_open="📚 Cała biblioteka w odtwarzaczu", library_more="…i jeszcze {n} w odtwarzaczu"),
+ "de": dict(btn_library="❤️ Meine Bibliothek", library_title="❤️ <b>Meine Bibliothek</b>", library_empty="Hier erscheinen Tracks, die du mit ❤️ im Player oder Chat speicherst.", library_open="📚 Ganze Bibliothek im Player", library_more="…und {n} weitere im Player"),
+ "es": dict(btn_library="❤️ Mi biblioteca", library_title="❤️ <b>Mi biblioteca</b>", library_empty="Aquí aparecerán las pistas que guardes con ❤️ en el reproductor o el chat.", library_open="📚 Biblioteca completa en el reproductor", library_more="…y {n} más en el reproductor"),
+ "fr": dict(btn_library="❤️ Ma bibliothèque", library_title="❤️ <b>Ma bibliothèque</b>", library_empty="Les titres enregistrés avec ❤️ dans le lecteur ou le chat apparaîtront ici.", library_open="📚 Toute la bibliothèque dans le lecteur", library_more="…et {n} de plus dans le lecteur"),
+ "tr": dict(btn_library="❤️ Kitaplığım", library_title="❤️ <b>Kitaplığım</b>", library_empty="Oynatıcıda veya sohbette ❤️ ile kaydettiğin parçalar burada görünür.", library_open="📚 Tüm kitaplık oynatıcıda", library_more="…ve oynatıcıda {n} tane daha"),
+}
+for _l in BOT_TR:
+    BOT_TR[_l].update(_NEWTR[_l])
+    BOT_TR[_l]["welcome"] = _WELCOME[_l]
+    BOT_TR[_l].update(dict(zip(_BTN_KEYS, _BTN[_l])))
+    BOT_TR[_l]["help_body"] = _HELP.get(_l, _HELP["en"])
+
+
 def bt(ui_lang, key, **kw):
     """Дістає переклад рядка. Перший параметр навмисно НЕ зветься "lang" —
     інакше виклик на кшталт bt(lang, "lang_changed", lang=назва_мови)
@@ -265,6 +332,40 @@ def esc(s):
     return html.escape(str(s or ""))
 
 
+_NOPREVIEW = LinkPreviewOptions(is_disabled=True)
+
+
+async def screen(update, text, kb=None):
+    """Показує «екран» по-аплікаційному: якщо людина тисне кнопку — міняємо
+    те саме повідомлення на місці (чат не засмічується), а на команду чи
+    текст — надсилаємо нове. Якщо редагувати не можна (це фото/аудіо чи
+    повідомлення застаре) — тихо падаємо на звичайну відповідь."""
+    q = update.callback_query
+    if q and q.message:
+        try:
+            await q.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb,
+                                      link_preview_options=_NOPREVIEW)
+            return q.message
+        except BadRequest as e:
+            if "not modified" in str(e).lower():
+                return q.message
+        except Exception:
+            pass
+        return await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb,
+                                          link_preview_options=_NOPREVIEW)
+    return await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb,
+                                           link_preview_options=_NOPREVIEW)
+
+
+def welcome_text(uid, lang, first_name=""):
+    u = db.get_user(uid)
+    if db.is_premium(uid):
+        status = "✨ <b>Premium</b> · " + esc(_fmt_until(u.get("premium_until")))
+    else:
+        status = "🆓 <b>Free</b> · /premium"
+    return bt(lang, "welcome", name=APP_NAME, user=esc(first_name) or "👋", status=status)
+
+
 # ─── Клавіатури ──────────────────────────────────────────────────────────────
 
 def main_kb(uid):
@@ -276,10 +377,17 @@ def main_kb(uid):
     )
     kb = [
         [open_btn],
+        [InlineKeyboardButton(bt(lang, "btn_search"), callback_data="search"),
+         InlineKeyboardButton(bt(lang, "btn_trending"), callback_data="trending")],
+        [InlineKeyboardButton(bt(lang, "btn_library"), callback_data="library"),
+         InlineKeyboardButton(bt(lang, "btn_stats"), callback_data="stats")],
         [InlineKeyboardButton(bt(lang, "btn_premium"), callback_data="premium"),
          InlineKeyboardButton(bt(lang, "btn_invite"), callback_data="referral")],
+        [InlineKeyboardButton(bt(lang, "btn_lang"), callback_data="lang"),
+         InlineKeyboardButton(bt(lang, "btn_legal"), callback_data="legal"),
+         InlineKeyboardButton(bt(lang, "btn_help"), callback_data="help")],
     ]
-    # Кнопку адмінки прибрано — доступ тепер лише через команду /admin + пароль.
+    # Адмінка — лише через /admin + пароль, кнопки в меню немає.
     return InlineKeyboardMarkup(kb)
 
 
@@ -302,25 +410,28 @@ LANG_PICKER_TEXT = (
 )
 
 
-def track_kb(t):
+def track_kb(t, liked=False, lang="uk"):
     kb = []
     if WEB_APP_URL:
         kb.append([InlineKeyboardButton(
-            "Слухати в плеєрі",
+            bt(lang, "btn_listen"),
             web_app=WebAppInfo(url=webapp_url(f"track:{t['id']}")),
         )])
-    kb.append([InlineKeyboardButton("Зберегти MP3", callback_data=f"dl:{t['id']}")])
-    kb.append([InlineKeyboardButton("Сторінка треку", url=t.get("source_url") or "https://jamendo.com")])
+    kb.append([
+        InlineKeyboardButton(bt(lang, "btn_fav_del" if liked else "btn_fav_add"),
+                             callback_data=f"fav:{t['id']}"),
+        InlineKeyboardButton(bt(lang, "btn_mp3"), callback_data=f"dl:{t['id']}"),
+    ])
+    kb.append([InlineKeyboardButton(bt(lang, "btn_origin"),
+                                    url=t.get("source_url") or "https://jamendo.com")])
     return InlineKeyboardMarkup(kb)
 
 
 # ─── Команди ─────────────────────────────────────────────────────────────────
 
 async def send_welcome(update: Update, uid, lang):
-    await update.message.reply_text(
-        bt(lang, "welcome", name=APP_NAME),
-        parse_mode=ParseMode.HTML, reply_markup=main_kb(uid),
-    )
+    await screen(update, welcome_text(uid, lang, update.effective_user.first_name or ""),
+                 main_kb(uid))
 
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -350,25 +461,18 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_lang(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    if q and q.message:
+        try:
+            return await q.message.edit_text(LANG_PICKER_TEXT, reply_markup=lang_kb())
+        except Exception:
+            return await q.message.reply_text(LANG_PICKER_TEXT, reply_markup=lang_kb())
     await update.message.reply_text(LANG_PICKER_TEXT, reply_markup=lang_kb())
 
 
 async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "📋 <b>Команди</b>\n"
-        "/start — головне меню\n"
-        "/search назва — пошук треку\n"
-        "/radio назва — радіо на основі треку\n"
-        "/premium — про Premium ✨\n"
-        "/referral — запросити друзів і отримати Premium 🤝\n"
-        "/code КОД — активувати промокод\n"
-        "/stats — ваша статистика 📊\n"
-        "/lang — змінити мову 🌐\n"
-        "/legal — джерела та ліцензії\n"
-        "/privacy — політика конфіденційності\n\n"
-        "Або просто надішліть текст — це теж пошук 🔎.",
-        parse_mode=ParseMode.HTML, reply_markup=back_kb(),
-    )
+    lang = user_lang(update.effective_user.id)
+    await screen(update, bt(lang, "help_body"), back_kb(update.effective_user.id))
 
 
 async def cmd_privacy(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -379,27 +483,26 @@ async def cmd_privacy(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "передаються, крім самого Telegram (для оплат Stars).")
     if url:
         text += f"\n\n📄 Повний текст: {esc(url)}"
-    await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=back_kb())
+    await screen(update, text, back_kb(update.effective_user.id))
 
 
 async def cmd_legal(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await (update.message or update.callback_query.message).reply_text(
-        "<b>Звідки музика</b>\n\n"
-        "<b>Jamendo</b> — каталог Creative Commons. Офіційний API, стрімінг і показ "
+    await screen(update,
+        "📚 <b>Звідки музика</b>\n\n"
+        "🎵 <b>Jamendo</b> — каталог Creative Commons. Офіційний API, стрімінг і показ "
         "метаданих дозволені умовами сервісу.\n"
-        "<b>Audius</b> — відкритий протокол, де артисти самі публікують треки й "
+        "🌐 <b>Audius</b> — відкритий протокол, де артисти самі публікують треки й "
         "дозволяють прослуховування.\n"
-        "<b>Internet Archive</b> — записи в суспільному надбанні.\n"
-        "<b>ccMixter</b> — треки, завантажені самими авторами під Creative "
-        "Commons через офіційне API сервісу.\n"
-        "<b>Openverse</b> — офіційний агрегатор Creative Commons від "
-        "Wikimedia: архівні записи, класика та інші відкриті джерела.\n\n"
+        "🏛 <b>Internet Archive</b> — записи в суспільному надбанні та CC-нетлейбли.\n"
+        "🎛 <b>ccMixter</b> — треки авторів під Creative Commons через офіційне API.\n"
+        "🔎 <b>Openverse</b> — офіційний агрегатор Creative Commons.\n"
+        "📖 <b>Wikimedia Commons</b> — відкрита медіатека: народні записи, класика, "
+        "гімни; кожен файл несе свою ліцензію.\n\n"
         "Кожен трек показує ліцензію й посилання на оригінал — цього вимагає "
-        "Creative Commons. Завантаження доступне лише для треків, чия ліцензія "
-        "прямо це дозволяє.\n\n"
-        "Тут немає обходу DRM і немає контенту закритих сервісів.",
-        parse_mode=ParseMode.HTML, reply_markup=back_kb(),
-    )
+        "Creative Commons. Завантаження — лише для треків, чия ліцензія прямо це дозволяє.\n\n"
+        "🚫 Немає обходу DRM і немає контенту закритих сервісів.\n"
+        "🚩 Помітили трек із хибною ліцензією? Кнопка «Поскаржитися» є в плеєрі.",
+        back_kb(update.effective_user.id))
 
 
 def _fmt_until(val):
@@ -414,23 +517,20 @@ def _fmt_until(val):
 
 
 async def cmd_premium(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    msg = update.message or update.callback_query.message
     uid = update.effective_user.id
     lang = user_lang(uid)
     active = db.is_premium(uid)
     u_now = db.get_user(uid)
     if active:
-        u = db.get_user(uid)
-        until = _fmt_until(u.get("premium_until"))
-        lines = [bt(lang, "premium_active_title"),
-                 bt(lang, "premium_active_until", until=until)]
+        until = _fmt_until(u_now.get("premium_until"))
+        head = "\n".join([bt(lang, "premium_active_title"),
+                          bt(lang, "premium_active_until", until=until)])
     else:
-        lines = [bt(lang, "premium_inactive_title"),
-                 bt(lang, "premium_inactive_sub")]
-    # Компактний список — самі назви через крапку, без довгих описів,
-    # щоб повідомлення не розтягувалось на весь екран.
-    lines.append("· " + " · ".join(esc(title) for _, title, _ in PREMIUM_FEATURES))
-    lines.append(bt(lang, "premium_promo"))
+        head = "\n".join([bt(lang, "premium_inactive_title"),
+                          bt(lang, "premium_inactive_sub")])
+    # Список можливостей — розгортаюча цитата: компактно, але все видно за дотиком.
+    feats = "\n".join(f"✓ {esc(title)}" for _, title, _ in PREMIUM_FEATURES)
+    lines = [head, f"<blockquote expandable>{feats}</blockquote>", bt(lang, "premium_promo")]
     kb = []
     if not active:
         if not u_now.get("trial_used"):
@@ -443,8 +543,7 @@ async def cmd_premium(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ]
     kb.append([InlineKeyboardButton(bt(lang, "btn_donate"), callback_data="donate")])
     kb.append([InlineKeyboardButton(bt(lang, "btn_back"), callback_data="home")])
-    await msg.reply_text("\n\n".join(lines), parse_mode=ParseMode.HTML,
-                         reply_markup=InlineKeyboardMarkup(kb))
+    await screen(update, "\n\n".join(lines), InlineKeyboardMarkup(kb))
 
 
 # ─── Оплата (Telegram Stars) ─────────────────────────────────────────────────
@@ -519,24 +618,27 @@ async def on_successful_payment(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_referral(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    msg = update.message or update.callback_query.message
     uid = update.effective_user.id
     lang = user_lang(uid)
     stats = await asyncio.to_thread(db.referral_stats, uid)
     username = RT.get_bot_username()
     link = f"https://t.me/{username}?start=ref_{stats['code']}" if username else ""
-    text = bt(lang, "referral_intro", name=APP_NAME, days=stats["reward_days"]) + "\n\n"
     earned = stats["invited"] * stats["reward_days"]
-    text += f"Запрошено / Invited: <b>{stats['invited']}</b>\n"
-    text += f"Отримано днів Premium / Days earned: <b>{earned}</b>\n"
-    next_earn = stats["reward_days"]
-    text += f"➕ Ще один друг = +{next_earn} дн. Premium\n"
-    text += f"Код / Code: <code>{esc(stats['code'])}</code>\n"
+    text = bt(lang, "referral_intro", name=APP_NAME, days=stats["reward_days"]) + "\n\n"
+    text += (f"👥 Запрошено: <b>{stats['invited']}</b>\n"
+             f"🎁 Отримано днів Premium: <b>{earned}</b>\n"
+             f"➕ Ще один друг = <b>+{stats['reward_days']} дн.</b>\n\n"
+             f"🔑 Ваш код: <code>{esc(stats['code'])}</code>")
+    kb = []
     if link:
-        text += f"\n🔗 {esc(link)}"
+        text += f"\n🔗 <code>{esc(link)}</code>"
+        share = "https://t.me/share/url?url=" + urllib.parse.quote(link) + "&text=" + \
+                urllib.parse.quote(f"🎧 {APP_NAME} — легальна музика в Telegram")
+        kb.append([InlineKeyboardButton("📨 Поділитися", url=share)])
     else:
         text += "\n⚠️ Спробуйте ще раз за хвилину після перезапуску."
-    await msg.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=back_kb(uid))
+    kb.append([InlineKeyboardButton(bt(lang, "btn_back"), callback_data="home")])
+    await screen(update, text, InlineKeyboardMarkup(kb))
 
 
 async def cmd_code(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -551,24 +653,53 @@ async def cmd_code(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Код недійсний або вже використаний.")
 
 
+async def cmd_library(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Бібліотека прямо в чаті: останні збережені треки з кнопкою ▶ + перехід
+    у повну бібліотеку в плеєрі."""
+    uid = update.effective_user.id
+    lang = user_lang(uid)
+    tracks = await asyncio.to_thread(db.lib_list, uid, 200)
+    if not tracks:
+        text = bt(lang, "library_title") + "\n\n" + bt(lang, "library_empty")
+        kb = [[InlineKeyboardButton(bt(lang, "btn_search"), callback_data="search")],
+              [InlineKeyboardButton(bt(lang, "btn_back"), callback_data="home")]]
+        return await screen(update, text, InlineKeyboardMarkup(kb))
+    shown = tracks[:8]
+    lines = [f"{bt(lang, 'library_title')} · <b>{len(tracks)}</b>\n"]
+    kb = []
+    for i, t in enumerate(shown, 1):
+        lines.append(f"{i}. <b>{esc(t['title'])}</b> — {esc(t['artist'])}")
+        kb.append([InlineKeyboardButton(f"▶️ {t['title'][:28]} — {t['artist'][:14]}",
+                                        callback_data=f"t:{t['id']}")])
+    if len(tracks) > len(shown):
+        lines.append("\n" + bt(lang, "library_more", n=len(tracks) - len(shown)))
+    if WEB_APP_URL:
+        kb.append([InlineKeyboardButton(bt(lang, "library_open"),
+                                        web_app=WebAppInfo(url=webapp_url("lib")))])
+    kb.append([InlineKeyboardButton(bt(lang, "btn_back"), callback_data="home")])
+    await screen(update, "\n".join(lines), InlineKeyboardMarkup(kb))
+
+
 async def cmd_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    msg = update.message or update.callback_query.message
     uid = update.effective_user.id
     days = db.limits_for(uid)["history_days"]
-    s = db.stats_for(uid, min(days, 365))
+    s_ = db.stats_for(uid, min(days, 365))
     text = [
-        f"<b>Ваша статистика за {s['days']} днів</b>\n",
-        f"Прослуховувань: <b>{s['plays']}</b>",
-        f"Годин музики: <b>{s['hours']}</b>",
-        f"У бібліотеці: <b>{s['library']}</b> треків",
+        f"📊 <b>Ваша статистика</b> · {s_['days']} дн.\n",
+        f"🎧 Прослуховувань: <b>{s_['plays']}</b>",
+        f"⏱ Годин музики: <b>{s_['hours']}</b>",
+        f"❤️ У бібліотеці: <b>{s_['library']}</b>",
     ]
-    if s["top_artists"]:
-        text.append("\n<b>Топ артистів</b>")
-        for i, a in enumerate(s["top_artists"][:5], 1):
-            text.append(f"{i}. {esc(a['name'])} — {a['plays']}")
+    if s_["top_artists"]:
+        text.append("\n🏆 <b>Топ артистів</b>")
+        medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+        for m, a in zip(medals, s_["top_artists"][:5]):
+            text.append(f"{m} {esc(a['name'])} — {a['plays']}")
+    else:
+        text.append("\nПоки порожньо — увімкніть кілька треків 🎶")
     if not db.is_premium(uid):
-        text.append("\nPremium показує статистику за весь час і підсумки року.")
-    await msg.reply_text("\n".join(text), parse_mode=ParseMode.HTML, reply_markup=back_kb())
+        text.append("\n✨ Premium показує статистику за весь час і підсумки року.")
+    await screen(update, "\n".join(text), back_kb(uid))
 
 
 async def cmd_search(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -647,58 +778,71 @@ async def do_search(msg, uid, query):
     allowed, used, cap = db.bump_counter(uid, "searches")
     if not allowed:
         return await msg.reply_text(
-            f"Ліміт пошуку на сьогодні вичерпано ({cap} запитів). "
-            "Premium знімає обмеження.", reply_markup=back_kb())
+            f"⏳ Ліміт пошуку на сьогодні вичерпано ({cap} запитів).\n"
+            "✨ Premium знімає обмеження.", reply_markup=back_kb())
 
-    wait = await msg.reply_text(f"Шукаю «{query}»…")
+    try:
+        await msg.chat.send_action("typing")
+    except Exception:
+        pass
+    wait = await msg.reply_text(f"🔎 Шукаю «{esc(query)}»…", parse_mode=ParseMode.HTML)
     quality = db.limits_for(uid)["quality"]
     results = await asyncio.to_thread(P.search_tracks, query, 8, quality)
     if not results:
         return await wait.edit_text(
-            "Нічого не знайшов. У каталозі незалежна музика, тому світові хіти "
-            "тут відсутні — спробуйте жанр або ім'я інді-артиста.",
+            "😕 Нічого не знайшов.\n\nУ каталозі незалежна й відкрита музика, тому світові "
+            "хіти тут відсутні — спробуйте жанр, настрій або ім'я інді-артиста.",
             reply_markup=back_kb())
 
-    lines = [f"<b>Знайдено за запитом «{esc(query)}»</b>\n"]
+    nums = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣"]
+    lines = [f"🔎 <b>«{esc(query)}»</b> — знайдено {len(results)}\n"]
     kb = []
-    for i, t in enumerate(results, 1):
-        lines.append(
-            f"{i}. <b>{esc(t['title'])}</b> — {esc(t['artist'])}"
-            f"{' · ' + t['duration_str'] if t['duration_str'] else ''}"
-            f" · <i>{esc(t['source_label'])}</i>"
-        )
+    for i, t in enumerate(results):
+        dur = f" · {t['duration_str']}" if t.get("duration_str") else ""
+        lines.append(f"{nums[i]} <b>{esc(t['title'])}</b>\n      {esc(t['artist'])}{dur} · <i>{esc(t['source_label'])}</i>")
         kb.append([InlineKeyboardButton(
-            f"{i}. {t['title'][:28]} — {t['artist'][:18]}",
+            f"▶️ {t['title'][:26]} — {t['artist'][:16]}",
             callback_data=f"t:{t['id']}")])
     if WEB_APP_URL:
         kb.append([InlineKeyboardButton(
-            "Усі результати в плеєрі",
+            "🎧 Усі результати в плеєрі",
             web_app=WebAppInfo(url=webapp_url(f"search:{query}")))])
-    kb.append([InlineKeyboardButton("← Меню", callback_data="home")])
+    kb.append([InlineKeyboardButton(bt(user_lang(uid), "btn_menu"), callback_data="home")])
     await wait.edit_text("\n".join(lines), parse_mode=ParseMode.HTML,
-                         reply_markup=InlineKeyboardMarkup(kb))
+                         reply_markup=InlineKeyboardMarkup(kb),
+                         link_preview_options=_NOPREVIEW)
 
 
 async def show_track(msg, uid, tid):
     t = await asyncio.to_thread(P.get_track, tid, db.limits_for(uid)["quality"])
     if not t:
-        return await msg.reply_text("Трек недоступний.")
-    caption = (
-        f"<b>{esc(t['title'])}</b>\n{esc(t['artist'])}\n"
-        f"{esc(t['album']) if t['album'] else ''}\n\n"
-        f"Джерело: {esc(t['source_label'])}\n"
-        f"Ліцензія: {esc(t['license_short'])}\n"
-        f"{'Завантаження дозволене ліцензією' if t['downloadable'] else 'Ліцензія дозволяє лише прослуховування'}"
-    )
+        return await msg.reply_text("😕 Трек недоступний.")
+    lang = user_lang(uid)
+    liked = await asyncio.to_thread(db.lib_has, uid, t["id"])
+    parts = [f"🎵 <b>{esc(t['title'])}</b>", f"👤 {esc(t['artist'])}"]
+    if t.get("album"):
+        parts.append(f"💿 {esc(t['album'])}")
+    parts += ["",
+        f"📻 {esc(t['source_label'])}",
+        f"📜 {esc(t['license_short'])}",
+        "💾 Завантаження дозволене ліцензією" if t.get("downloadable")
+        else "🔒 Ліцензія дозволяє лише прослуховування"]
+    caption = "\n".join(parts)
+    kb = track_kb(t, liked=liked, lang=lang)
     if t.get("cover"):
-        await msg.reply_photo(t["cover"], caption=caption,
-                              parse_mode=ParseMode.HTML, reply_markup=track_kb(t))
-    else:
-        await msg.reply_text(caption, parse_mode=ParseMode.HTML, reply_markup=track_kb(t))
+        try:
+            return await msg.reply_photo(t["cover"], caption=caption,
+                                         parse_mode=ParseMode.HTML, reply_markup=kb)
+        except Exception:
+            pass
+    await msg.reply_text(caption, parse_mode=ParseMode.HTML, reply_markup=kb)
 
 
 async def show_shared_playlist(msg, p):
-    lines = [f"<b>{esc(p['name'])}</b>\n{esc(p.get('description') or '')}\n"]
+    lines = [f"💿 <b>{esc(p['name'])}</b>"]
+    if p.get("description"):
+        lines.append(f"<i>{esc(p['description'])}</i>")
+    lines.append("")
     for i, t in enumerate(p["tracks"][:15], 1):
         lines.append(f"{i}. {esc(t['title'])} — {esc(t['artist'])}")
     if p["count"] > 15:
@@ -706,7 +850,7 @@ async def show_shared_playlist(msg, p):
     kb = []
     if WEB_APP_URL:
         kb.append([InlineKeyboardButton(
-            "Відкрити плейлист",
+            "▶️ Відкрити плейлист",
             web_app=WebAppInfo(url=webapp_url(f"shared:{p['share_code']}")))])
     await msg.reply_text("\n".join(lines), parse_mode=ParseMode.HTML,
                          reply_markup=InlineKeyboardMarkup(kb) if kb else None)
@@ -776,12 +920,12 @@ def admin_kb():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("👥 Юзери", callback_data="a:users:0")],
         [InlineKeyboardButton(reports_label, callback_data="a:reports:0")],
-        [InlineKeyboardButton("Загальна статистика", callback_data="a:stats")],
-        [InlineKeyboardButton("Створити промокод", callback_data="a:promo")],
-        [InlineKeyboardButton("Розсилка", callback_data="a:broadcast")],
-        [InlineKeyboardButton("Знайти юзера", callback_data="a:find"),
-         InlineKeyboardButton("Видати Premium", callback_data="a:grant")],
-        [InlineKeyboardButton("Забрати Premium", callback_data="a:revoke")],
+        [InlineKeyboardButton("📊 Загальна статистика", callback_data="a:stats")],
+        [InlineKeyboardButton("🎟 Створити промокод", callback_data="a:promo")],
+        [InlineKeyboardButton("📣 Розсилка", callback_data="a:broadcast")],
+        [InlineKeyboardButton("🔍 Знайти юзера", callback_data="a:find"),
+         InlineKeyboardButton("🎁 Видати Premium", callback_data="a:grant")],
+        [InlineKeyboardButton("❌ Забрати Premium", callback_data="a:revoke")],
         [InlineKeyboardButton("← Меню", callback_data="home")],
     ])
 
@@ -987,9 +1131,8 @@ async def _on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             return await q.answer()
         first_time = not int((db.get_user(uid).get("lang_set")) or 0)
         await asyncio.to_thread(db.update_user, uid, lang=code, lang_set=True)
-        await q.answer()
         lang_label = dict(BOT_LANGS)[code]
-        await q.message.reply_text(bt(code, "lang_changed", lang=lang_label), parse_mode=ParseMode.HTML)
+        await q.answer(f"✅ {lang_label}")
         if first_time:
             arg = ctx.user_data.pop("pending_start_arg", "")
             if arg.startswith("pl_"):
@@ -1002,36 +1145,62 @@ async def _on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     await q.message.reply_text(
                         f"🎉 {esc(who) or '🎁'} · +{REFERRAL_REWARD_DAYS} Premium",
                         parse_mode=ParseMode.HTML)
-            await q.message.reply_text(
-                bt(code, "welcome", name=APP_NAME),
-                parse_mode=ParseMode.HTML, reply_markup=main_kb(uid))
-        return
+        # Вікно вибору мови перетворюється на привітання новою мовою.
+        return await screen(update, welcome_text(uid, code, update.effective_user.first_name or ""),
+                            main_kb(uid))
 
     if data == "home":
         await q.answer()
         lang = user_lang(uid)
-        return await q.message.reply_text(
-            bt(lang, "welcome", name=APP_NAME),
-            parse_mode=ParseMode.HTML, reply_markup=main_kb(uid))
+        return await screen(update, welcome_text(uid, lang, update.effective_user.first_name or ""),
+                            main_kb(uid))
+
+    if data == "lang":
+        await q.answer()
+        return await cmd_lang(update, ctx)
+
+    if data == "help":
+        await q.answer()
+        return await cmd_help(update, ctx)
+
+    if data == "library":
+        await q.answer()
+        return await cmd_library(update, ctx)
+
+    if data.startswith("fav:"):
+        tid = data[4:]
+        lang = user_lang(uid)
+        t = await asyncio.to_thread(P.get_track, tid, db.limits_for(uid)["quality"])
+        if not t:
+            return await q.answer("😕 Трек недоступний", show_alert=True)
+        added = await asyncio.to_thread(db.lib_add, uid, t)
+        if not added:
+            await asyncio.to_thread(db.lib_remove, uid, t["id"])
+        await q.answer("❤️ Додано в улюблене" if added else "💔 Прибрано з улюбленого")
+        try:
+            await q.edit_message_reply_markup(reply_markup=track_kb(t, liked=added, lang=lang))
+        except Exception:
+            pass
+        return
 
     if data == "search":
         await q.answer()
-        return await q.message.reply_text("Надішліть назву треку, артиста або жанр.")
+        return await screen(update, "🔎 Напишіть назву треку, артиста або жанру — і я знайду.",
+                            back_kb(uid))
 
     if data == "trending":
         await q.answer()
         tracks = await asyncio.to_thread(P.audius_trending, None, 8)
         if not tracks:
             tracks = await asyncio.to_thread(P.jamendo_tag_tracks, "pop", 8)
-        lines = ["<b>Зараз слухають</b>\n"]
+        lines = ["🔥 <b>Зараз слухають</b>\n"]
         kb = []
         for i, t in enumerate(tracks, 1):
             lines.append(f"{i}. <b>{esc(t['title'])}</b> — {esc(t['artist'])}")
-            kb.append([InlineKeyboardButton(f"{i}. {t['title'][:30]}",
+            kb.append([InlineKeyboardButton(f"▶️ {t['title'][:30]}",
                                             callback_data=f"t:{t['id']}")])
-        kb.append([InlineKeyboardButton("← Меню", callback_data="home")])
-        return await q.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML,
-                                          reply_markup=InlineKeyboardMarkup(kb))
+        kb.append([InlineKeyboardButton(bt(user_lang(uid), "btn_menu"), callback_data="home")])
+        return await screen(update, "\n".join(lines), InlineKeyboardMarkup(kb))
 
     if data == "premium":
         await q.answer()
@@ -1233,6 +1402,7 @@ async def run():
     application.add_handler(CommandHandler("legal", cmd_legal))
     application.add_handler(CommandHandler("privacy", cmd_privacy))
     application.add_handler(CommandHandler("referral", cmd_referral))
+    application.add_handler(CommandHandler("library", cmd_library))
     application.add_handler(CommandHandler("admin", cmd_admin))
     application.add_handler(CallbackQueryHandler(on_callback))
     application.add_handler(PreCheckoutQueryHandler(on_precheckout))
@@ -1242,6 +1412,7 @@ async def run():
     application.add_error_handler(on_error)
 
     await application.initialize()
+    RT.set_bot(application.bot)
     try:
         me = await application.bot.get_me()
         if me and me.username:
@@ -1252,19 +1423,35 @@ async def run():
     if WEB_APP_URL:
         try:
             await application.bot.set_chat_menu_button(
-                menu_button=MenuButtonWebApp(text="Плеєр",
+                menu_button=MenuButtonWebApp(text="🎧 Плеєр",
                                              web_app=WebAppInfo(url=webapp_url())))
         except Exception as e:
             logger.warning("Кнопка меню не встановлена: %s", e)
     try:
-        # Список команд у Telegram-клієнті (кнопка "/" біля поля вводу).
-        await application.bot.set_my_commands([
-            ("start", "Головне меню"), ("premium", "Про Premium ✨"),
-            ("referral", "Запросити друзів 🤝"), ("code", "Активувати промокод"),
-            ("stats", "Моя статистика 📊"), ("lang", "Змінити мову 🌐"),
-            ("legal", "Джерела та ліцензії"), ("privacy", "Приватність"),
-            ("help", "Допомога"),
-        ])
+        # Список команд у Telegram-клієнті (кнопка "/" біля поля вводу) —
+        # українською за замовчуванням + російською й англійською за мовою клієнта.
+        _CMDS = {
+            None: [("start", "🏠 Головне меню"), ("search", "🔎 Пошук треку"),
+                   ("library", "❤️ Моя бібліотека"), ("radio", "📻 Радіо за треком"),
+                   ("premium", "✨ Premium"), ("referral", "🤝 Запросити друзів"),
+                   ("code", "🎁 Промокод"), ("stats", "📊 Моя статистика"),
+                   ("lang", "🌐 Змінити мову"), ("legal", "📚 Джерела та ліцензії"),
+                   ("privacy", "🔒 Приватність"), ("help", "ℹ️ Допомога")],
+            "ru": [("start", "🏠 Главное меню"), ("search", "🔎 Поиск трека"),
+                   ("library", "❤️ Моя библиотека"), ("radio", "📻 Радио по треку"),
+                   ("premium", "✨ Premium"), ("referral", "🤝 Пригласить друзей"),
+                   ("code", "🎁 Промокод"), ("stats", "📊 Моя статистика"),
+                   ("lang", "🌐 Сменить язык"), ("legal", "📚 Источники и лицензии"),
+                   ("privacy", "🔒 Приватность"), ("help", "ℹ️ Помощь")],
+            "en": [("start", "🏠 Main menu"), ("search", "🔎 Search a track"),
+                   ("library", "❤️ My library"), ("radio", "📻 Radio from a track"),
+                   ("premium", "✨ Premium"), ("referral", "🤝 Invite friends"),
+                   ("code", "🎁 Promo code"), ("stats", "📊 My stats"),
+                   ("lang", "🌐 Change language"), ("legal", "📚 Sources & licenses"),
+                   ("privacy", "🔒 Privacy"), ("help", "ℹ️ Help")],
+        }
+        for _lc, _cmds in _CMDS.items():
+            await application.bot.set_my_commands(_cmds, language_code=_lc)
     except Exception as e:
         logger.warning("Не вдалося встановити список команд: %s", e)
     try:
@@ -1275,7 +1462,7 @@ async def run():
                                "Audius, Internet Archive. Без крадених релізів.")
         await application.bot.set_my_description(
             description=f"{APP_NAME} — плеєр легальної музики просто в Telegram. "
-                        "600 000+ треків з відкритих джерел (Creative Commons, публікації "
+                        "Сотні тисяч треків з відкритих джерел (Creative Commons, публікації "
                         "самих артистів, суспільне надбання). Черга, радіо, плейлисти, "
                         "історія — і Premium за Telegram Stars для Hi-Fi та безлімітів. "
                         "Підтримує 8 мов інтерфейсу.")
