@@ -951,3 +951,81 @@ def open_reports_count():
     with conn_cursor() as (conn, cur):
         cur.execute(q("SELECT COUNT(*) AS c FROM track_reports WHERE status=%s"), ("open",))
         return int((one(cur) or {}).get("c") or 0)
+
+
+# ─── Розширена статистика для веб-адмінки ────────────────────────────────────
+
+def _ago(**kw):
+    return (datetime.datetime.utcnow() - datetime.timedelta(**kw)).isoformat(
+        sep=" ", timespec="seconds")
+
+
+def _count(cur, sql, params=()):
+    cur.execute(q(sql), params)
+    return int((one(cur) or {}).get("c") or 0)
+
+
+def admin_extra_stats():
+    """Активність, нові юзери, Premium що скоро закінчиться, топи за 7 днів."""
+    d1, d7 = _ago(days=1), _ago(days=7)
+    soon = (datetime.datetime.utcnow() + datetime.timedelta(days=7)).isoformat(
+        sep=" ", timespec="seconds")
+    now = now_str()
+    out = {}
+    with conn_cursor() as (conn, cur):
+        out["new_24h"] = _count(cur, "SELECT COUNT(*) AS c FROM users WHERE created_at>=%s", (d1,))
+        out["new_7d"] = _count(cur, "SELECT COUNT(*) AS c FROM users WHERE created_at>=%s", (d7,))
+        out["active_24h"] = _count(cur, "SELECT COUNT(DISTINCT uid) AS c FROM history WHERE played_at>=%s", (d1,))
+        out["active_7d"] = _count(cur, "SELECT COUNT(DISTINCT uid) AS c FROM history WHERE played_at>=%s", (d7,))
+        out["plays_24h"] = _count(cur, "SELECT COUNT(*) AS c FROM history WHERE played_at>=%s", (d1,))
+        out["expiring"] = _count(
+            cur, "SELECT COUNT(*) AS c FROM users WHERE premium_until IS NOT NULL "
+                 "AND premium_until>=%s AND premium_until<=%s", (now, soon))
+        cur.execute(q("SELECT artist, COUNT(*) AS c FROM history WHERE played_at>=%s AND artist<>'' "
+                      "GROUP BY artist ORDER BY c DESC LIMIT 5"), (d7,))
+        out["top_artists"] = [[r["artist"], int(r["c"])] for r in rows(cur)]
+        cur.execute(q("SELECT title, artist, COUNT(*) AS c FROM history WHERE played_at>=%s "
+                      "GROUP BY title, artist ORDER BY c DESC LIMIT 5"), (d7,))
+        out["top_tracks"] = [[r["title"], r["artist"], int(r["c"])] for r in rows(cur)]
+        cur.execute(q("SELECT source, COUNT(*) AS c FROM history WHERE played_at>=%s "
+                      "GROUP BY source ORDER BY c DESC"), (d7,))
+        out["sources"] = [[r["source"] or "?", int(r["c"])] for r in rows(cur)]
+    return out
+
+
+def user_exists(uid):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT uid FROM users WHERE uid=%s"), (uid,))
+        return one(cur) is not None
+
+
+def user_detail(uid):
+    """Профіль користувача для адміна. None, якщо такого немає."""
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT * FROM users WHERE uid=%s"), (uid,))
+        u = one(cur)
+        if not u:
+            return None
+        u["plays"] = _count(cur, "SELECT COUNT(*) AS c FROM history WHERE uid=%s", (uid,))
+        u["playlists"] = _count(cur, "SELECT COUNT(*) AS c FROM playlists WHERE uid=%s", (uid,))
+        u["library"] = _count(cur, "SELECT COUNT(*) AS c FROM library WHERE uid=%s", (uid,))
+        cur.execute(q("SELECT played_at FROM history WHERE uid=%s ORDER BY id DESC LIMIT 1"), (uid,))
+        last = one(cur)
+        u["last_play"] = str((last or {}).get("played_at") or "")[:16]
+        cur.execute(q("SELECT artist, COUNT(*) AS c FROM history WHERE uid=%s AND artist<>'' "
+                      "GROUP BY artist ORDER BY c DESC LIMIT 3"), (uid,))
+        u["top_artists"] = [r["artist"] for r in rows(cur)]
+    return u
+
+
+def user_ids_by_segment(segment="all"):
+    """all | premium | free"""
+    with conn_cursor() as (conn, cur):
+        if segment == "premium":
+            cur.execute(q("SELECT uid FROM users WHERE premium=%s"), (True if USE_PG else 1,))
+        elif segment == "free":
+            cur.execute(q("SELECT uid FROM users WHERE premium=%s OR premium IS NULL"),
+                        (False if USE_PG else 0,))
+        else:
+            cur.execute("SELECT uid FROM users")
+        return [int(r["uid"]) for r in rows(cur)]
