@@ -1257,6 +1257,7 @@ function revealApp(){
   }
   await dataReady;
   handleStartParam();
+  await resumeRestore();
   revealApp();
 })();
 
@@ -1952,6 +1953,7 @@ function nightCap(base){
 let fadeTimer = null;
 function play(t){
   if(!t) return;
+  RESUME.pending = null;
   clearInterval(fadeTimer);
   if(S.crossfade > 0 && S.playing){ crossfadeTo(t); }
   else {
@@ -1995,6 +1997,7 @@ function toggleNightQuiet(){
 function togglePlay(){
   tap();
   if(!current()) return;
+  if(RESUME.pending){ startPending(); return; }
   if(cur.paused){ cur.play(); S.playing = true; } else { cur.pause(); S.playing = false; }
   paintPlayState();
 }
@@ -2094,7 +2097,8 @@ function toggleRepeat(){
 
 [A,B].forEach(el=>{
   el.addEventListener("ended", ()=>{ if(el===cur) nextTrack(true); });
-  el.addEventListener("timeupdate", ()=>{ if(el===cur) paintProgress(); });
+  el.addEventListener("timeupdate", ()=>{ if(el===cur){ paintProgress(); resumeSave(false); } });
+  el.addEventListener("pause", ()=>{ if(el===cur) resumeSave(true); });
   el.addEventListener("loadedmetadata", ()=>{ if(el===cur) renderBkmkTicks(current()); });
   el.addEventListener("error", ()=>{ if(el===cur && S.playing) toast("Трек недоступний, гортаю далі"),
     setTimeout(()=>nextTrack(true), 600); });
@@ -2241,6 +2245,8 @@ function paintProgress(){
 $("npSeek").addEventListener("input", ()=>{ seeking = true; });
 $("npSeek").addEventListener("change", e=>{
   seeking = false;
+  if(RESUME.pending){ const d = (current()||{}).duration || 0;
+    if(d) RESUME.pending.t = d * (e.target.value/1000); return; }
   if(isFinite(cur.duration)) cur.currentTime = cur.duration * (e.target.value/1000);
 });
 
@@ -2980,6 +2986,81 @@ async function admBroadcast(){
   };
   paint();
 }
+
+
+/* ════════ Продовження з місця зупинки ════════
+   Зберігаємо трек, чергу й секунду. Основне сховище — localStorage, дублюємо
+   поточний трек у Telegram CloudStorage (переживає очищення кешу WebView).
+   Стрім не запускаємо автоматично: чекаємо натиску ▶ (на iOS автоплей
+   заборонений), тоді підставляємо свіжий URL і перемотуємо на збережену секунду. */
+const RESUME = {pending:null, last:0};
+function resumeKey(){ return "mlsp_resume_" + (tg?.initDataUnsafe?.user?.id || "x"); }
+function slimTrack(t){
+  return {id:t.id, title:t.title, artist:t.artist, album:t.album||"", cover:t.cover||"",
+    duration:t.duration||0, duration_str:t.duration_str||"", source:t.source||"",
+    source_label:t.source_label||"", source_url:t.source_url||"", license:t.license||"",
+    license_short:t.license_short||"", downloadable:!!t.downloadable};
+}
+function resumeSave(force){
+  const t = current(); if(!t || RESUME.pending) return;
+  const now = Date.now();
+  if(!force && now - RESUME.last < 3000) return;
+  RESUME.last = now;
+  const pos = Math.floor(cur.currentTime || 0);
+  const from = Math.max(0, S.index - 2);
+  const q = S.queue.slice(from, from + 25).map(slimTrack);
+  const data = {i:S.index - from, q, t:pos, at:now};
+  try{ localStorage.setItem(resumeKey(), JSON.stringify(data)); }catch(e){}
+  try{
+    if(tg?.CloudStorage?.setItem && force){
+      tg.CloudStorage.setItem("resume", JSON.stringify({i:0, q:[slimTrack(t)], t:pos, at:now}), ()=>{});
+    }
+  }catch(e){}
+}
+function resumeLoadCloud(){
+  return new Promise(res => {
+    try{
+      if(!tg?.CloudStorage?.getItem) return res(null);
+      const to = setTimeout(()=>res(null), 1500);
+      tg.CloudStorage.getItem("resume", (err, v) => {
+        clearTimeout(to);
+        try{ res(!err && v ? JSON.parse(v) : null); }catch(e){ res(null); }
+      });
+    }catch(e){ res(null); }
+  });
+}
+async function resumeRestore(){
+  if(current()) return;                       // уже щось грає (глибоке посилання)
+  let d = null;
+  try{ d = JSON.parse(localStorage.getItem(resumeKey()) || "null"); }catch(e){}
+  const c = await resumeLoadCloud();
+  if(c && (!d || (c.at||0) > (d.at||0))) d = c;
+  if(!d || !d.q || !d.q.length) return;
+  S.queue = d.q; S.index = Math.min(Math.max(d.i||0, 0), d.q.length-1);
+  RESUME.pending = {t: d.t || 0};
+  const t = current();
+  paint(t);
+  S.playing = false; paintPlayState();
+  $("npCur").textContent = fmt(RESUME.pending.t);
+  const dur = t.duration || 0;
+  if(dur > 0){
+    $("barLine").style.width = Math.min(100, RESUME.pending.t/dur*100) + "%";
+    $("npSeek").value = Math.round(Math.min(1, RESUME.pending.t/dur)*1000);
+  }
+}
+function startPending(){
+  const t = current(), p = RESUME.pending; if(!t || !p) return;
+  RESUME.pending = null;
+  cur.pause(); cur.src = streamUrl(t); cur.playbackRate = S.speed; cur.volume = nightCap(1);
+  if(p.t > 2){
+    const seek = () => { try{ cur.currentTime = p.t; }catch(e){} cur.removeEventListener("loadedmetadata", seek); };
+    cur.addEventListener("loadedmetadata", seek);
+  }
+  cur.play().catch(()=>toast("Джерело не віддало потік"));
+  S.playing = true; paintPlayState();
+}
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "hidden") resumeSave(true); });
+window.addEventListener("pagehide", () => resumeSave(true));
 
 paintStaticIcons();
 </script>
