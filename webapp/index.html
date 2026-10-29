@@ -720,6 +720,7 @@ body.is-playing .bar .art{animation:barArtPulse 2.4s ease-in-out infinite}
     <button class="tab" data-t="reports">Скарги</button>
     <button class="tab" data-t="promo">Промокоди</button>
     <button class="tab" data-t="bc">Розсилка</button>
+    <button class="tab" data-t="log">Журнал</button>
   </div>
   <div class="admBody" id="admBody"></div>
 </div>
@@ -1173,11 +1174,16 @@ function toast(msg){
 /* ════════ API ════════ */
 async function req(path, opts={}){
   if(!API) throw new Error("Адресу API не передано. Відкрийте плеєр кнопкою в боті.");
-  const res = await fetch(API+path, {
-    ...opts,
-    headers:{ "Content-Type":"application/json",
-              "X-Telegram-Init-Data": INIT, ...(opts.headers||{}) },
-  });
+  let res;
+  try{
+    res = await fetch(API+path, {
+      ...opts,
+      headers:{ "Content-Type":"application/json",
+                "X-Telegram-Init-Data": INIT, ...(opts.headers||{}) },
+    });
+  }catch(e){
+    throw new Error("Немає зв'язку із сервером. Перевірте інтернет або перезапуск бота на Railway.");
+  }
   const data = await res.json().catch(()=>({}));
   if(!res.ok || data.ok === false) throw new Error(data.error || ("Помилка "+res.status));
   return data;
@@ -2784,14 +2790,17 @@ tg?.BackButton?.show?.();
    пароля — той самий, що для /admin у боті. Усі перевірки дублюються на сервері. */
 const ADM = {tab:"ov", off:0, q:"", bcTimer:null};
 
-function openAdmin(){ tap(); $("adm").classList.add("on"); admBoot(); }
+function openAdmin(){ if(!S.me||!S.me.is_admin) return; tap(); $("adm").classList.add("on"); admBoot(); }
 function closeAdmin(){ $("adm").classList.remove("on"); clearInterval(ADM.bcTimer); }
 
 async function admCall(fn){
   try{ return await fn(); }
   catch(e){
     if(/пароль/i.test(e.message)){ admLogin(); return null; }
-    toast(e.message); return null;
+    if(/Немає доступу/i.test(e.message)){ closeAdmin(); toast("Немає доступу"); return null; }
+    $("admBody").innerHTML = `<div class="empty"><b>Не вдалося завантажити</b>${esc(e.message)}
+      <button class="btn" style="margin-top:14px" onclick="admTab(ADM.tab)">Повторити</button></div>`;
+    return null;
   }
 }
 
@@ -2802,7 +2811,10 @@ async function admBoot(){
     if(!st.is_admin){ closeAdmin(); return toast("Немає доступу"); }
     if(!st.unlocked) return admLogin();
     admTab(ADM.tab);
-  }catch(e){ toast(e.message); }
+  }catch(e){
+    $("admBody").innerHTML = `<div class="empty"><b>Не вдалося завантажити</b>${esc(e.message)}
+      <button class="btn" style="margin-top:14px" onclick="admBoot()">Повторити</button></div>`;
+  }
 }
 
 function admLogin(){
@@ -2822,7 +2834,7 @@ $("admTabs").querySelectorAll(".tab").forEach(b => b.onclick = () => { tap(); ad
 function admTab(t){
   ADM.tab = t; clearInterval(ADM.bcTimer);
   $("admTabs").querySelectorAll(".tab").forEach(x => x.classList.toggle("on", x.dataset.t===t));
-  ({ov:admOverview, users:admUsers, reports:admReports, promo:admPromo, bc:admBroadcast})[t]();
+  ({ov:admOverview, users:admUsers, reports:admReports, promo:admPromo, bc:admBroadcast, log:admLog})[t]();
 }
 
 async function admOverview(){
@@ -2859,23 +2871,50 @@ async function admUsers(){
   $("admBody").querySelectorAll("[data-u]").forEach(r => r.onclick = () => admUserModal(window.__admUsers[+r.dataset.u]));
 }
 
-function admUserModal(u){
+async function admUserModal(u){
   tap();
-  showModal(`<h3>${esc(u.name||u.username||u.uid)}</h3>
-    <div style="color:var(--muted);font-size:13px;margin:-8px 0 14px;line-height:1.7">
-      ID: ${u.uid}${u.username?" · @"+esc(u.username):""}<br>
-      Статус: ${u.premium?"Premium"+(u.premium_until?" до "+esc(u.premium_until):""):"Free"}<br>
-      Тріал: ${u.trial_used?"використано":"ні"} · Мова: ${esc(u.lang||"—")}<br>
-      Реєстрація: ${esc(u.created_at)}</div>
+  showModal(`<h3>${esc(u.name||u.username||u.uid)}</h3><div id="admUi" style="color:var(--muted);font-size:13px">Завантаження…</div>`);
+  const r = await admCall(() => get("/api/admin/user_info?uid="+u.uid));
+  if(!r){ closeModal(); return; }
+  const d = r.user;
+  showModal(`<h3>${esc(d.name||d.username||d.uid)}</h3>
+    <div style="color:var(--muted);font-size:13px;margin:-8px 0 14px;line-height:1.75">
+      ID: ${d.uid}${d.username?" · @"+esc(d.username):""}<br>
+      Статус: ${d.premium?"Premium"+(d.premium_until?" до "+esc(d.premium_until):""):"Free"}<br>
+      Тріал: ${d.trial_used?"використано":"ні"} · Мова: ${esc(d.lang||"—")}<br>
+      Реєстрація: ${esc(d.created_at)} · остання активність: ${esc(d.last_play||"—")}<br>
+      Прослухано: ${d.plays} · плейлистів: ${d.playlists} · у бібліотеці: ${d.library}<br>
+      ${d.top_artists&&d.top_artists.length?"Топ артисти: "+d.top_artists.map(esc).join(", "):""}</div>
     <button class="btn" data-g="7">🎁 +7 днів Premium</button>
     <button class="btn ghost" data-g="30">+30 днів Premium</button>
+    <button class="btn ghost" id="admDm">✉️ Написати користувачу</button>
     <button class="btn ghost" data-r="1" style="color:#ff7a8a">❌ Забрати Premium</button>`);
   const act = async (body) => {
-    const r = await admCall(() => post("/api/admin/user", {uid:u.uid, ...body}));
-    if(r){ closeModal(); toast("Готово"); admUsers(); }
+    const x = await admCall(() => post("/api/admin/user", {uid:u.uid, ...body}));
+    if(x){ closeModal(); toast("Готово"); admUsers(); }
   };
   $("modalBox").querySelectorAll("[data-g]").forEach(b => b.onclick = () => act({action:"grant", days:+b.dataset.g}));
   $("modalBox").querySelector("[data-r]").onclick = () => act({action:"revoke"});
+  $("admDm").onclick = () => {
+    showModal(`<h3>Повідомлення для ${esc(d.name||d.uid)}</h3>
+      <textarea class="field" id="dmText" style="min-height:110px" placeholder="Текст (можна HTML)"></textarea>
+      <button class="btn" id="dmSend">Надіслати</button>`);
+    $("dmSend").onclick = async () => {
+      const text = $("dmText").value.trim(); if(!text) return toast("Порожній текст");
+      const x = await admCall(() => post("/api/admin/dm", {uid:d.uid, text}));
+      if(x){ closeModal(); toast("Надіслано"); }
+    };
+  };
+}
+
+async function admLog(){
+  const d = await admCall(() => get("/api/admin/audit")); if(!d) return;
+  const nm = {web_admin_login:"Вхід у веб-адмінку", web_admin_grant:"Видано Premium", web_admin_revoke:"Забрано Premium",
+    web_admin_report_resolve:"Закрито скаргу", web_admin_promo_create:"Створено промокод", web_admin_broadcast:"Розсилка", web_admin_dm:"Особисте повідомлення"};
+  $("admBody").innerHTML = d.items.length ? d.items.map(r=>`<div class="admRow"><div class="m">
+      <b>${esc(nm[r.action]||r.action)}</b>
+      <span>${esc(r.created_at)} · адмін ${r.actor}${r.target?" · ціль "+esc(r.target):""}${r.details?"<br>"+esc(r.details):""}</span></div></div>`).join("")
+    : `<div class="empty"><b>Журнал порожній</b></div>`;
 }
 
 async function admReports(){
@@ -2916,6 +2955,8 @@ async function admPromo(){
 
 async function admBroadcast(){
   $("admBody").innerHTML = `<h3>Розсилка всім користувачам</h3>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <select class="field" id="bcSeg" style="margin:0"><option value="all">Усім</option><option value="premium">Лише Premium</option><option value="free">Лише безкоштовним</option></select></div>
     <textarea class="field" id="bcText" placeholder="Текст (можна HTML: <b>жирний</b>, <i>курсив</i>)"></textarea>
     <button class="btn" id="bcSend">Надіслати всім</button>
     <div id="bcStatus" style="font-size:13px;color:var(--muted);line-height:1.7"></div>`;
@@ -2929,11 +2970,11 @@ async function admBroadcast(){
   };
   $("bcSend").onclick = () => {
     const text = $("bcText").value.trim(); if(!text) return toast("Порожній текст");
-    showModal(`<h3>Надіслати всім?</h3><div style="color:var(--muted);font-size:13px;margin:-8px 0 14px">Повідомлення піде кожному користувачеві бота. Скасувати не можна.</div>
+    showModal(`<h3>Надіслати всім?</h3><div style="color:var(--muted);font-size:13px;margin:-8px 0 14px">Повідомлення піде вибраній групі користувачів. Скасувати не можна.</div>
       <button class="btn" id="bcYes">Так, надіслати</button><button class="btn ghost" onclick="closeModal()">Скасувати</button>`);
     $("bcYes").onclick = async () => {
       closeModal();
-      const r = await admCall(() => post("/api/admin/broadcast", {text}));
+      const r = await admCall(() => post("/api/admin/broadcast", {text, segment:$("bcSeg").value}));
       if(r){ toast("Розсилку запущено"); clearInterval(ADM.bcTimer); ADM.bcTimer = setInterval(paint, 2000); paint(); }
     };
   };
