@@ -946,6 +946,8 @@ async def error_middleware(request, handler):
     try:
         return await handler(request)
     except web.HTTPException as e:
+        if e.status < 400:      # редіректи (302 на аудіо) — це не помилки, віддаємо як є
+            raise
         if e.status == 404:
             return fail("Не знайдено. Перезапустіть сервіс bot на Railway — можливо, він старої версії.", 404)
         return fail(e.reason or "Помилка", e.status)
