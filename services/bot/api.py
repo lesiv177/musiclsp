@@ -759,7 +759,8 @@ async def h_admin_overview(request, u):
     stats = await to_thread(db.global_stats)
     signups = await to_thread(db.signups_by_day, 14)
     stats["open_reports"] = await to_thread(db.open_reports_count)
-    return ok({"ok": True, "stats": stats, "signups": signups})
+    extra = await to_thread(db.admin_extra_stats)
+    return ok({"ok": True, "stats": stats, "extra": extra, "signups": signups})
 
 
 @require_admin
@@ -778,7 +779,7 @@ async def h_admin_user_action(request, u):
     except (TypeError, ValueError):
         return fail("Невірний ID")
     action = body.get("action", "")
-    if not await to_thread(db.get_user, target) :
+    if not await to_thread(db.user_exists, target):
         return fail("Користувача не знайдено", 404)
     if action == "grant":
         days = max(1, min(int(body.get("days") or 7), 3650))
@@ -837,16 +838,62 @@ async def h_admin_promos(request, u):
         {"code": p["code"], "days": int(p["days"]), "uses_left": int(p["uses_left"])} for p in promos]})
 
 
+@require_admin
+async def h_admin_user_info(request, u):
+    try:
+        target = int(request.query.get("uid", ""))
+    except ValueError:
+        return fail("Невірний ID")
+    d = await to_thread(db.user_detail, target)
+    if not d:
+        return fail("Користувача не знайдено", 404)
+    v = _user_view(d)
+    v.update(plays=d["plays"], playlists=d["playlists"], library=d["library"],
+             last_play=d["last_play"], top_artists=d["top_artists"])
+    return ok({"ok": True, "user": v})
+
+
+@require_admin
+async def h_admin_dm(request, u):
+    body = await request.json()
+    text = (body.get("text") or "").strip()
+    try:
+        target = int(body.get("uid"))
+    except (TypeError, ValueError):
+        return fail("Невірний ID")
+    if not text or len(text) > 3500:
+        return fail("Текст порожній або задовгий")
+    bot = RT.get_bot()
+    if bot is None:
+        return fail("Бот ще не готовий")
+    from telegram.constants import ParseMode
+    try:
+        await bot.send_message(target, text, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        return fail("Не вдалося надіслати: " + str(e)[:120])
+    await to_thread(db.audit, int(u["uid"]), "web_admin_dm", str(target), text[:100])
+    return ok({"ok": True})
+
+
+@require_admin
+async def h_admin_audit(request, u):
+    items = await to_thread(db.audit_list, 40)
+    return ok({"ok": True, "items": [
+        {"actor": int(r.get("actor") or 0), "action": r.get("action") or "",
+         "target": r.get("target") or "", "details": r.get("details") or "",
+         "created_at": str(r.get("created_at") or "")[:16]} for r in items]})
+
+
 _BROADCAST_STATE = {"running": False, "text": "", "total": 0, "sent": 0, "blocked": 0, "failed": 0, "done": True}
 
 
-async def _broadcast_job(text):
+async def _broadcast_job(text, segment="all"):
     from telegram.constants import ParseMode
     from telegram.error import RetryAfter, Forbidden, TelegramError
     bot = RT.get_bot()
     st = _BROADCAST_STATE
     try:
-        uids = await to_thread(db.all_user_ids)
+        uids = await to_thread(db.user_ids_by_segment, segment)
         st.update(total=len(uids), sent=0, blocked=0, failed=0, done=False)
         for uid in uids:
             for attempt in range(3):
@@ -885,14 +932,32 @@ async def h_admin_broadcast(request, u):
         return fail("Розсилка вже триває")
     if RT.get_bot() is None:
         return fail("Бот ще не готовий")
+    segment = body.get("segment") if body.get("segment") in ("all", "premium", "free") else "all"
     st.update(running=True, text=text, done=False, sent=0, blocked=0, failed=0, total=0)
-    await to_thread(db.audit, int(u["uid"]), "web_admin_broadcast", "", text[:100])
-    asyncio.get_running_loop().create_task(_broadcast_job(text))
+    await to_thread(db.audit, int(u["uid"]), "web_admin_broadcast", segment, text[:100])
+    asyncio.get_running_loop().create_task(_broadcast_job(text, segment))
     return ok({"ok": True})
 
 
+@web.middleware
+async def error_middleware(request, handler):
+    """Будь-яка помилка або 404 повертається як JSON із CORS-заголовками.
+    Без цього Safari показує безглузде «Load failed» замість причини."""
+    try:
+        return await handler(request)
+    except web.HTTPException as e:
+        if e.status == 404:
+            return fail("Не знайдено. Перезапустіть сервіс bot на Railway — можливо, він старої версії.", 404)
+        return fail(e.reason or "Помилка", e.status)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        logger.exception("Необроблена помилка API %s", request.path)
+        return fail("Помилка сервера: " + str(e)[:120], 500)
+
+
 def build_app():
-    app = web.Application(client_max_size=2 * 1024 * 1024)
+    app = web.Application(client_max_size=2 * 1024 * 1024, middlewares=[error_middleware])
     r = app.router
     r.add_route("OPTIONS", "/{tail:.*}", h_options)
     r.add_get("/", h_health)
@@ -938,6 +1003,9 @@ def build_app():
     r.add_get("/api/admin/overview", h_admin_overview)
     r.add_get("/api/admin/users", h_admin_users)
     r.add_post("/api/admin/user", h_admin_user_action)
+    r.add_get("/api/admin/user_info", h_admin_user_info)
+    r.add_post("/api/admin/dm", h_admin_dm)
+    r.add_get("/api/admin/audit", h_admin_audit)
     r.add_get("/api/admin/reports", h_admin_reports)
     r.add_post("/api/admin/report_resolve", h_admin_report_resolve)
     r.add_route("*", "/api/admin/promos", h_admin_promos)
