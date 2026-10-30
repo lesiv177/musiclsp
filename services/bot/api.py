@@ -23,6 +23,7 @@ from aiohttp import web
 from core import db
 from core import runtime as RT
 from core import providers as P
+from core import smart as SM
 from core.auth import verify_init_data
 from core.config import (
     ADMIN_IDS, PREMIUM_FEATURES, FREE_LIMITS, PREMIUM_LIMITS,
@@ -187,7 +188,7 @@ async def h_search(request, u):
         sort = "relevance"
     sources_raw = (request.query.get("sources") or "").strip()
     sources = [s for s in sources_raw.split(",")
-               if s in ("jamendo", "audius", "archive", "ccmixter", "openverse")] or None
+               if s in ("jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia")] or None
 
     allowed, used, cap = await to_thread(db.bump_counter, uid, "searches")
     if not allowed:
@@ -207,7 +208,7 @@ async def h_search(request, u):
     elif kind == "public_domain":
         data = await to_thread(P.archive_search, query, limit)
     else:
-        data = await to_thread(P.search_tracks_smart, query, limit, qual, sources, sort)
+        data = await to_thread(SM.search, query, limit, qual, sources, sort)
     return ok({"ok": True, "type": kind, "query": query, "sort": sort,
                "results": data, "searches_left": max(0, cap - used)})
 
@@ -421,7 +422,10 @@ async def h_stream(request):
     if not tid:
         return fail("Немає id треку")
     qual = quality_for(int(u["uid"])) if u else "mp31"
-    url = await to_thread(P.resolve_stream, tid, qual)
+    # перевірка посилання + запасне джерело, якщо основне не відповідає
+    url, _played = await to_thread(SM.resolve_stream_robust, tid, qual,
+                                   (request.query.get("t") or "")[:200],
+                                   (request.query.get("a") or "")[:200])
     if not url:
         return fail("Стрім недоступний", 404)
     raise web.HTTPFound(location=url, headers=CORS)
