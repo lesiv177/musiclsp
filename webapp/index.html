@@ -2402,7 +2402,7 @@ function streamUrl(t){
      Не віддаємо iOS старі прямі URL з кешу пошуку. */
   return `${API}/api/stream?id=${encodeURIComponent(t.id)}&initData=${encodeURIComponent(INIT)}`
     + `&t=${encodeURIComponent((t.title||"").slice(0,120))}&a=${encodeURIComponent((t.artist||"").slice(0,120))}`
-    + (RETRY.n ? `&r=${RETRY.n}` : "");
+    + (RETRY.n ? "&r=1" : "");
 }
 
 /* «Тихий вечір»: 23:00–07:00 сам м'яко притишує гучність, щоб не будити
@@ -2424,10 +2424,11 @@ function play(t){
   }
   S.playing = true;
   paint(t);
-  reportPlay(t);
   publishDeviceState();
   Promise.resolve(start).then(()=>{
-    S.playing = true; paintPlayState();
+    S.playing = true;
+    reportPlay(t); // історія лише після фактичного старту аудіо
+    paintPlayState();
   }).catch(()=>{
     S.playing = false; paintPlayState();
     toast("Джерело не віддало потік");
@@ -2592,6 +2593,7 @@ function toggleRepeat(){
   el.addEventListener("pause", ()=>{ if(el===cur) resumeSave(true); });
   el.addEventListener("loadedmetadata", ()=>{ if(el===cur) renderBkmkTicks(current()); });
   el.addEventListener("error", ()=>{ if(el===cur && S.playing) reconnect("error"); });
+  el.addEventListener("stalled", ()=>{ if(el===cur && S.playing) reconnect("stalled"); });
   el.addEventListener("playing", ()=>{ if(el===cur){ RETRY.n = 0; RETRY.lastProg = Date.now(); prefetchNext(); } });
   el.addEventListener("timeupdate", ()=>{ if(el===cur) RETRY.lastProg = Date.now(); });
 });
