@@ -65,6 +65,9 @@ JAMENDO_API = "https://api.jamendo.com/v3.0"
 AUDIUS_APP_NAME = _env("AUDIUS_APP_NAME", APP_NAME)
 AUDIUS_BOOTSTRAP = "https://api.audius.co"
 ARCHIVE_ENABLED = _env("ARCHIVE_ENABLED", "1") == "1"
+# SoundCloud — офіційне API; працює лише з ключами зареєстрованого застосунку
+SOUNDCLOUD_CLIENT_ID = _env("SOUNDCLOUD_CLIENT_ID")
+SOUNDCLOUD_CLIENT_SECRET = _env("SOUNDCLOUD_CLIENT_SECRET")
 
 HTTP_TIMEOUT = 12
 USER_AGENT = f"{APP_NAME}/{APP_VERSION}"
