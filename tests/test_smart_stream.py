@@ -24,6 +24,12 @@ class StreamValidationTests(unittest.TestCase):
             self.assertTrue(smart.check_url("https://audio.example.test/unique-range-check"))
             session.return_value.get.assert_called_once()
 
+    def test_soundcloud_signed_stream_is_not_rejected_by_head_probe(self):
+        url = "https://cf-media.sndcdn.com/signed-stream-regression-test"
+        with patch.object(smart.P, "resolve_stream", return_value=url), \
+             patch.object(smart, "check_url", return_value=False):
+            self.assertEqual(smart._resolve_checked("sc:regression-test-unique", "mp32"), url)
+
 
 if __name__ == "__main__":
     unittest.main()
