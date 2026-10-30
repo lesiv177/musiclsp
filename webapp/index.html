@@ -2565,7 +2565,8 @@ async function selectPlaybackDevice(targetId, devices){
     S.queue=queue.slice(0,30);S.index=Math.min(index,S.queue.length-1);
     try{
       const started=await play(current());
-      if(started && position>0){
+      if(!started)return;
+      if(position>0){
         const seek=()=>{try{cur.currentTime=position;}catch(e){}cur.removeEventListener("loadedmetadata",seek);};
         if(cur.readyState>=1)seek();else cur.addEventListener("loadedmetadata",seek,{once:true});
       }
@@ -2691,7 +2692,7 @@ function play(t){
     const payload={track:t,queue:S.queue.slice(0,30),index:S.index,position:0};
     return post("/api/devices/command",{device_id:DEVICE_SYNC.remoteTarget,action:"handoff",payload})
       .then(()=>toast("Відтворення передано на пристрій"))
-      .catch(e=>{toast(e.message);throw e;});
+      .catch(e=>{toast(e.message);return false;});
   }
   RESUME.pending = null; RETRY.n = 0;
   clearInterval(fadeTimer);
@@ -2710,10 +2711,10 @@ function play(t){
     paintPlayState();
     publishDeviceState();
     return true;
-  }).catch(err=>{
+  }).catch(()=>{
     S.playing = false; paintPlayState();
     toast("Джерело не віддало потік");
-    throw err;
+    return false;
   });
 }
 
