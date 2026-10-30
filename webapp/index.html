@@ -2847,6 +2847,11 @@ function toggleNightQuiet(){
 
 function togglePlay(){
   tap();
+  if(DEVICE_SYNC.remoteTarget){
+    const state=DEVICE_SYNC.remoteStates[DEVICE_SYNC.remoteTarget]||{};
+    sendDeviceCommand(DEVICE_SYNC.remoteTarget,state.playing?"pause":"play");
+    return;
+  }
   if(!current()) return;
   if(RESUME.pending){ startPending(); return; }
   if(cur.paused){
@@ -2870,6 +2875,7 @@ async function continueWithRadio(){
 }
 
 function nextTrack(auto){
+  if(DEVICE_SYNC.remoteTarget){sendDeviceCommand(DEVICE_SYNC.remoteTarget,"next");return;}
   if(!S.queue.length) return;
   if(S.repeat === "one" && auto){ cur.currentTime = 0; cur.play(); return; }
   let i;
@@ -2884,6 +2890,7 @@ function nextTrack(auto){
 }
 
 function prevTrack(){
+  if(DEVICE_SYNC.remoteTarget){sendDeviceCommand(DEVICE_SYNC.remoteTarget,"previous");return;}
   if(cur.currentTime > 4){ cur.currentTime = 0; return; }
   S.index = S.index > 0 ? S.index-1 : 0; play(current());
 }
@@ -3117,6 +3124,12 @@ $("npSeek").addEventListener("change", e=>{
   seeking = false;
   if(RESUME.pending){ const d = (current()||{}).duration || 0;
     if(d) RESUME.pending.t = d * (e.target.value/1000); return; }
+  if(DEVICE_SYNC.remoteTarget){
+    const state=DEVICE_SYNC.remoteStates[DEVICE_SYNC.remoteTarget]||{};
+    const duration=Number((state.track||current()||{}).duration)||Number((current()||{}).duration)||0;
+    if(duration) sendDeviceCommand(DEVICE_SYNC.remoteTarget,"seek",{position:duration*(e.target.value/1000)});
+    return;
+  }
   if(isFinite(cur.duration)) cur.currentTime = cur.duration * (e.target.value/1000);
 });
 
