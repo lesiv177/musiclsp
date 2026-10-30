@@ -2387,7 +2387,9 @@ async function pollDeviceCommands(){
   try{
     const d=await get("/api/devices/commands?device_id="+encodeURIComponent(DEVICE_SYNC.id)+"&after="+DEVICE_SYNC.cursor);
     for(const command of (d.commands||[])){
-      DEVICE_SYNC.cursor=Math.max(DEVICE_SYNC.cursor,command.id||0);
+      const id=Number(command.id)||0;
+      if(id && id<=DEVICE_SYNC.cursor) continue;
+      DEVICE_SYNC.cursor=Math.max(DEVICE_SYNC.cursor,id);
       try{ localStorage.setItem("mlsp_device_cursor",String(DEVICE_SYNC.cursor)); }catch(e){}
       await applyDeviceCommand(command);
     }
@@ -2435,7 +2437,7 @@ async function openDevices(){
     };
     $("devicesList").innerHTML=(own?card(own,true):"")+(other.length?other.map(x=>card(x,false)).join(""):'<div class="empty">'+esc(t("devices_empty"))+'</div>');
     $("devicesList").querySelectorAll("[data-device-target]").forEach(b=>b.onclick=()=>handoffToDevice(b.dataset.deviceTarget));
-    $("devicesList").querySelectorAll("[data-remote-select]").forEach(b=>b.onclick=()=>setRemoteTarget(b.dataset.remoteSelect));
+    $("devicesList").querySelectorAll("[data-remote-select]").forEach(b=>b.onclick=()=>setRemoteTarget(DEVICE_SYNC.remoteTarget===b.dataset.remoteSelect?"":b.dataset.remoteSelect));
     $("devicesList").querySelectorAll("[data-device-cmd]").forEach(b=>b.onclick=()=>sendDeviceCommand(b.dataset.id,b.dataset.deviceCmd));
     $("devicesList").querySelectorAll("[data-device-volume]").forEach(el=>el.onchange=()=>sendDeviceCommand(el.dataset.deviceVolume,"volume",{volume:Number(el.value)/100}));
   }catch(e){ $("devicesList").innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
