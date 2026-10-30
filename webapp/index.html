@@ -2522,7 +2522,11 @@ function connectDeviceSocket(){
       if(!DEVICE_SYNC.started || DEVICE_SYNC.reconnectTimer)return;
       const delay=DEVICE_SYNC.reconnectDelay;
       DEVICE_SYNC.reconnectDelay=Math.min(20000,Math.round(DEVICE_SYNC.reconnectDelay*1.8));
-      DEVICE_SYNC.reconnectTimer=setTimeout(()=>{DEVICE_SYNC.reconnectTimer=null;connectDeviceSocket();},delay);
+      DEVICE_SYNC.reconnectTimer=setTimeout(async ()=>{
+        DEVICE_SYNC.reconnectTimer=null;
+        try{await post("/api/devices/register",{device_id:DEVICE_SYNC.id,name:deviceLabel(),platform:navigator.platform||"web"});}catch(e){}
+        connectDeviceSocket();
+      },delay);
     };
   }catch(e){
     if(!DEVICE_SYNC.reconnectTimer){
