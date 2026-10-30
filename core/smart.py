@@ -86,9 +86,9 @@ def check_url(url, timeout=4):
         return hit
     ok = True
     try:
-        r = P._session.head(url, timeout=timeout, allow_redirects=True)
+        r = P._http_session().head(url, timeout=timeout, allow_redirects=True)
         if r.status_code in (403, 405, 501):          # HEAD не підтримується — пробуємо шматок
-            r = P._session.get(url, timeout=timeout, headers={"Range": "bytes=0-1"},
+            r = P._http_session().get(url, timeout=timeout, headers={"Range": "bytes=0-1"},
                                stream=True, allow_redirects=True)
             r.close()
         ok = r.status_code < 400
