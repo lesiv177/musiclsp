@@ -880,6 +880,33 @@ def player_session_set(uid, owner_device_id, state_json):
             (int(uid), str(owner_device_id or "")[:80], state_json, now_str()))
     return True
 
+def player_session_claim(uid, device_id, state_json, expected_owner=""):
+    """Atomically move the account playback lease from expected_owner to device_id.
+
+    A device may refresh its own session. A different device can claim only
+    against the owner it observed, preventing stale/competing clients winning.
+    """
+    uid = int(uid)
+    device_id = str(device_id or "")[:80]
+    expected_owner = str(expected_owner or "")[:80]
+    stamp = now_str()
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("""UPDATE account_playback
+            SET owner_device_id=%s, state_json=%s, updated_at=%s
+            WHERE uid=%s AND (owner_device_id=%s OR owner_device_id=%s)"""),
+            (device_id, state_json, stamp, uid, expected_owner, device_id))
+        if cur.rowcount:
+            return True
+        cur.execute(q("""INSERT INTO account_playback
+            (uid, owner_device_id, state_json, updated_at)
+            VALUES (%s,%s,%s,%s) ON CONFLICT(uid) DO NOTHING"""),
+            (uid, device_id, state_json, stamp))
+        if cur.rowcount:
+            return True
+        cur.execute(q("SELECT owner_device_id FROM account_playback WHERE uid=%s"), (uid,))
+        row = one(cur) or {}
+        return str(row.get("owner_device_id") or "") == device_id
+
 
 def device_command_add(uid, device_id, action, payload):
     with conn_cursor() as (conn, cur):
