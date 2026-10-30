@@ -114,6 +114,25 @@ class SQLiteDevicePersistenceTests(unittest.TestCase):
         db.device_register(111, "owner-phone", "Owner", "iOS")
         self.assertIsNone(db.device_command_add(222, "owner-phone", "pause", "{}"))
 
+    def test_playback_reset_clears_only_the_requested_account(self):
+        db.device_register(111, "phone-a", "A", "iOS")
+        db.device_register(222, "phone-b", "B", "Windows")
+        db.player_session_set(111, "phone-a", json.dumps({"track": {"id": "a"}}))
+        db.player_session_set(222, "phone-b", json.dumps({"track": {"id": "b"}}))
+        db.device_command_add(111, "phone-a", "pause", "{}")
+        db.device_command_add(222, "phone-b", "pause", "{}")
+
+        result = db.playback_reset(111)
+
+        self.assertEqual(result["devices"], 1)
+        self.assertEqual(result["sessions"], 1)
+        self.assertEqual(result["commands"], 1)
+        self.assertEqual(db.device_list(111), [])
+        self.assertIsNone(db.player_session_get(111))
+        self.assertEqual(len(db.device_list(222)), 1)
+        self.assertIsNotNone(db.player_session_get(222))
+        self.assertEqual(len(db.device_commands_get(222, "phone-b", 0)), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
