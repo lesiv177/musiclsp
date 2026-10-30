@@ -474,10 +474,24 @@ async def h_home(request, u):
     tag = request.query.get("tag") or ""
 
     if tag:
-        tracks = await _safe(to_thread(P.jamendo_tag_tracks, tag, 40, 0, qual))
+        # Genre pages must not depend on Jamendo alone: combine the primary
+        # SoundCloud catalogue with Jamendo and Audius, then deduplicate.
+        sc, jam, aud = await asyncio.gather(
+            _safe(to_thread(P.soundcloud_search, tag, 24)),
+            _safe(to_thread(P.jamendo_tag_tracks, tag, 24, 0, qual)),
+            _safe(to_thread(P.audius_trending, tag, 24)),
+        )
+        tracks, seen = [], set()
+        for track in (sc or []) + (jam or []) + (aud or []):
+            key = (str(track.get("title", "")).strip().casefold(),
+                   str(track.get("artist", "")).strip().casefold())
+            if key in seen:
+                continue
+            seen.add(key)
+            tracks.append(track)
         return ok({"ok": True, "sections": [
-            {"id": f"tag:{tag}", "title": tag.capitalize(), "tracks": tracks}
-        ]})
+            {"id": f"tag:{tag}", "title": tag.capitalize(), "tracks": tracks[:60]}
+        ], "sources": {"soundcloud": P.soundcloud_enabled()}})
 
     popular, fresh, trending, recent = await asyncio.gather(
         _safe(to_thread(P.jamendo_tag_tracks, "pop", 20, 0, qual, "popularity_month")),
