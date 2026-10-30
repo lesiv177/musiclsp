@@ -87,7 +87,7 @@ jobs:
               if depth or quote or comment:
                   raise SystemExit(f"Unbalanced CSS syntax in {href}: braces={depth}, quote={quote}, comment={comment}")
               print(f"Validated {href} ({len(css.splitlines())} lines)")
-          static_html = re.sub(r"<script\\b[^>]*>.*?</script\\s*>", "", html, flags=re.I | re.S)
+          static_html = re.sub(r"<script[^>]*>.*?</script\\s*>", "", html, flags=re.I | re.S)
           ids = re.findall(r'\bid="([^"]+)"', static_html)
           duplicates = sorted({item for item in ids if ids.count(item) > 1})
           if duplicates:
