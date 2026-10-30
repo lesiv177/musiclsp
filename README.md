@@ -7,7 +7,7 @@
 core/                спільний код — база, джерела музики, автентифікація
 ├── config.py        усі змінні середовища в одному місці
 ├── db.py            схема і запити (PostgreSQL або SQLite)
-├── providers.py     Jamendo, Audius, Internet Archive
+├── providers.py     SoundCloud, Jamendo, Audius та інші джерела
 └── auth.py          підпис Telegram, сесії панелі
 
 services/
@@ -45,6 +45,7 @@ git clone --mirror https://github.com/ВАШ_НІК/старий-репо.git ba
 | `BOT_TOKEN` | @BotFather → новий бот |
 | `AUTH_BOT_TOKEN` | @BotFather → ще один бот, окремий |
 | `JAMENDO_CLIENT_ID` | devportal.jamendo.com, безкоштовно |
+| `SOUNDCLOUD_CLIENT_ID` + `SOUNDCLOUD_CLIENT_SECRET` | необов'язкові ключі SoundCloud API; вмикають основний пошук |
 | `PANEL_SECRET` | `python -c "import secrets;print(secrets.token_hex(32))"` |
 | `ADMIN_IDS` | ваш Telegram ID (@userinfobot) |
 
@@ -96,10 +97,13 @@ python -m services.migrate.main
 Скопійований рядок застаріє, щойно Railway оновить пароль бази.
 
 Спільні для всіх чотирьох: `DATABASE_URL`, `ADMIN_IDS`, `JAMENDO_CLIENT_ID`, `ENV=production`.
+Для основного пошуку через SoundCloud додайте `SOUNDCLOUD_CLIENT_ID` і
+`SOUNDCLOUD_CLIENT_SECRET` у змінні сервісу `bot`. Без них бот автоматично
+продовжить пошук через інші джерела.
 
 | Сервіс | Додатково |
 |---|---|
-| bot | `BOT_TOKEN`, `WEB_APP_URL`, `API_URL` |
+| bot | `BOT_TOKEN`, `WEB_APP_URL`, `API_URL`, `SOUNDCLOUD_CLIENT_ID`, `SOUNDCLOUD_CLIENT_SECRET` (необов'язково) |
 | auth | `AUTH_BOT_TOKEN`, `BOT_TOKEN`, `PANEL_URL` |
 | panel | `PANEL_SECRET`, `PANEL_SESSION_HOURS=12` |
 | worker | `BOT_TOKEN`, `WORKER_INTERVAL=600` |
