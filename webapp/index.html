@@ -734,6 +734,34 @@ body{background:radial-gradient(120% 45% at 50% -10%,color-mix(in srgb,var(--acc
 .explore-note b{font-size:12px}.explore-note p{font-size:10px;color:var(--muted);margin-top:3px;line-height:1.5}
 @media(max-width:380px){.screen{padding-left:14px;padding-right:14px}.nav button{font-size:9px}.mood-grid,.genre-grid{gap:7px}.home-hero h1{font-size:30px}}
 
+
+/* Spotify Connect inspired device picker */
+#devicesList{display:grid;gap:10px}
+#devicesList .connect-device{padding:14px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,var(--panel),color-mix(in srgb,var(--panel-2) 65%,var(--panel)));transition:border-color .18s,background .18s}
+#devicesList .connect-device.selected{border-color:color-mix(in srgb,#1ed760 72%,transparent);background:linear-gradient(145deg,color-mix(in srgb,#1ed760 9%,var(--panel)),var(--panel))}
+#devicesList .connect-device-head{display:flex;align-items:center;gap:12px;min-width:0}
+#devicesList .device-platform{width:44px;height:44px;flex:none;border-radius:13px;display:grid;place-items:center;background:#252525;color:#fff;font-size:25px;font-weight:600}
+#devicesList .device-platform.apple{font-size:27px} #devicesList .device-platform.windows{font-size:28px}
+#devicesList .device-info{flex:1;min-width:0}
+#devicesList .device-name{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#devicesList .device-status{display:flex;align-items:center;gap:6px;margin-top:5px;color:var(--muted);font-size:11px}
+#devicesList .device-status i{width:7px;height:7px;border-radius:50%;background:#777}
+#devicesList .device-status i.online{background:#1ed760;box-shadow:0 0 9px #1ed76080}
+#devicesList .device-you{font-size:9px;letter-spacing:.08em;color:var(--muted);font-weight:700}
+#devicesList .device-connect{padding:9px 13px;border-radius:20px;background:#1ed760;color:#071b0d;font-size:11px;font-weight:800;white-space:nowrap}
+#devicesList .device-now{display:flex;align-items:center;gap:7px;min-width:0;margin:13px 0 2px;padding:10px 11px;border-radius:11px;background:rgba(0,0,0,.16)}
+#devicesList .device-live{width:7px;height:7px;border-radius:50%;background:#8b8493;flex:none}
+#devicesList .device-live.is-playing{background:#1ed760;box-shadow:0 0 8px #1ed760}
+#devicesList .device-track{font-size:12px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#devicesList .device-artist{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#devicesList .device-track.muted{color:var(--muted);font-weight:500}
+#devicesList .device-remote{display:flex;align-items:center;gap:9px;margin-top:12px}
+#devicesList .device-control{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--panel-2);font-size:15px}
+#devicesList .device-control.primary{width:42px;height:42px;background:#1ed760;color:#071b0d;font-weight:800}
+#devicesList .device-volume{margin-left:auto;color:var(--muted);font-size:10px;display:flex;align-items:center;gap:7px}
+#devicesList .device-volume input{width:90px;accent-color:#1ed760}
+#barRemote.on{color:#1ed760;border-color:#1ed760}
+
 </style>
 </head>
 <body>
@@ -1392,6 +1420,7 @@ const ICONS = {
   search:      `<circle cx="11" cy="11" r="6.5"/><path d="M20 20 15.8 15.8"/>`,
   library:     `<path d="M5 4v16"/><path d="M10 4v16"/><path d="M15 6l4 15.5"/>`,
   profile:     `<circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c1.7-4 4.4-6 7.5-6s5.8 2 7.5 6"/>`,
+  monitor:     `<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>`,
   play:        `<path d="M6 4.5v15l13-7.5z" fill="currentColor" stroke="none"/>`,
   pause:       `<rect x="6" y="4.5" width="4.2" height="15" rx="1" fill="currentColor" stroke="none"/><rect x="13.8" y="4.5" width="4.2" height="15" rx="1" fill="currentColor" stroke="none"/>`,
   prev:        `<path d="M6 4.5v15" /><path d="M18 5 8 12l10 7z" fill="currentColor" stroke="none"/>`,
@@ -1443,8 +1472,11 @@ function fmt(s){ if(!isFinite(s)||s<0) s=0; const m=Math.floor(s/60);
 
 let toastT;
 function toast(msg){
-  const el=$("toast"); el.textContent=msg; el.classList.add("on");
-  clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove("on"),2600);
+  const text=String(msg||"");
+  if(/команду надіслано|джерело.{0,40}потік|потік.{0,40}джерело/i.test(text)) return;
+  const el=$("toast"); if(!el) return;
+  el.textContent=text; el.classList.add("on");
+  clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove("on"),2200);
 }
 
 /* ════════ API ════════ */
@@ -2375,10 +2407,11 @@ function connectDeviceSocket(){
 }
 function publishDeviceState(){
   if(!DEVICE_SYNC.id || !S.me) return;
-  const q=S.queue.slice(0,30);
+  const q=S.queue.slice(0,30), track=current();
+  const actuallyPlaying=!!(track && cur && !cur.paused && !cur.ended);
   post("/api/devices/state",{device_id:DEVICE_SYNC.id,state:{
-    playing:!!(S.playing && !cur.paused),position:Math.floor(cur.currentTime||0),volume:cur.volume||0,
-    track:current(),queue:q,index:S.index
+    playing:actuallyPlaying,position:Math.floor(cur.currentTime||0),volume:cur.volume||0,
+    track:track||null,queue:q,index:S.index
   }}).catch(()=>{});
 }
 async function pollDeviceCommands(){
@@ -2426,16 +2459,19 @@ async function openDevices(){
     const card=(x,isOwn)=>{
       const state=x.state||{}, track=state.track||{};
       DEVICE_SYNC.remoteStates[x.device_id]=state;
-      const status=state.playing?"Відтворюється":(track.title?"На паузі":"Не відтворює");
-      const controls=isOwn?"":'<div class="device-remote" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:9px">'
-        +'<button class="pill" data-device-cmd="previous" data-id="'+esc(x.device_id)+'">⏮</button>'
-        +'<button class="pill" data-device-cmd="'+(state.playing?"pause":"play")+'" data-id="'+esc(x.device_id)+'">'+(state.playing?"Ⅱ":"▶")+'</button>'
-        +'<button class="pill" data-device-cmd="next" data-id="'+esc(x.device_id)+'">⏭</button>'
-        +'<label style="font-size:11px;color:var(--muted)">Гучність <input data-device-volume="'+esc(x.device_id)+'" type="range" min="0" max="100" value="'+Math.round((Number(state.volume)||0)*100)+'" style="width:100px;vertical-align:middle"></label>'
+      const status=state.playing?"Зараз відтворюється":(track.title?"Призупинено":"Очікує відтворення");
+      const platform=String(x.platform||x.name||"").toLowerCase();
+      const deviceIcon=/mac|macintosh|mac os/.test(platform)?"apple":/windows|win32/.test(platform)?"windows":/iphone|ipad|ios/.test(platform)?"phone":/android/.test(platform)?"android":"monitor";
+      const icon=deviceIcon==="apple"?'':deviceIcon==="windows"?'⊞':deviceIcon==="phone"?'▯':deviceIcon==="android"?'◉':'▣';
+      const controls=isOwn?"":'<div class="device-remote">'
+        +'<button class="device-control" data-device-cmd="previous" data-id="'+esc(x.device_id)+'" aria-label="Попередній">⏮</button>'
+        +'<button class="device-control primary" data-device-cmd="'+(state.playing?"pause":"play")+'" data-id="'+esc(x.device_id)+'">'+(state.playing?"Ⅱ":"▶")+'</button>'
+        +'<button class="device-control" data-device-cmd="next" data-id="'+esc(x.device_id)+'" aria-label="Наступний">⏭</button>'
+        +'<label class="device-volume">Гучність <input data-device-volume="'+esc(x.device_id)+'" type="range" min="0" max="100" value="'+Math.round((Number(state.volume)||0)*100)+'"></label>'
         +'</div>';
-      return '<div class="row" style="padding:12px 0;display:block;cursor:default"><div style="display:flex;align-items:center;gap:12px"><div class="meta"><div class="t">'+esc(x.name||"Device")+(isOwn?' · '+esc(t("devices_this")):'')+'</div><div class="s">'+esc(x.platform||"Web")+' · '+esc(x.active?t("devices_online"):t("devices_offline"))+(track.title?" · "+esc(track.title):"")+(x.active?" · "+status:"")+'</div></div>'+(isOwn?'<span class="pill">●</span>': '<button class="pill" data-device-target="'+esc(x.device_id)+'">'+esc(t("devices_handoff"))+'</button>')+'</div>'+controls+(isOwn?"":'<button class="pill" style="margin-top:8px" data-remote-select="'+esc(x.device_id)+'">'+(DEVICE_SYNC.remoteTarget===x.device_id?"✓ Керується з телефона":"Керувати з телефона")+'</button>')+'</div>';
-    };
-    $("devicesList").innerHTML=(own?card(own,true):"")+(other.length?other.map(x=>card(x,false)).join(""):'<div class="empty">'+esc(t("devices_empty"))+'</div>');
+      const nowPlaying=track.title?'<div class="device-now"><span class="device-live '+(state.playing?"is-playing":"")+'"></span><span class="device-track">'+esc(track.title)+'</span><span class="device-artist">'+esc(track.artist||"")+'</span></div>':'<div class="device-now"><span class="device-track muted">Нічого не відтворюється</span></div>';
+      return '<div class="connect-device '+(DEVICE_SYNC.remoteTarget===x.device_id?"selected":"")+'"><div class="connect-device-head"><div class="device-platform '+deviceIcon+'">'+icon+'</div><div class="device-info"><div class="device-name">'+esc(x.name||"Пристрій")+(isOwn?' · '+esc(t("devices_this")):'')+'</div><div class="device-status"><i class="'+(x.active?"online":"offline")+'"></i>'+esc(x.active?(state.playing?"Відтворюється":status):t("devices_offline"))+'</div></div>'+(isOwn?'<span class="device-you">ЦЕЙ ПРИСТРІЙ</span>':'<button class="device-connect" data-remote-select="'+esc(x.device_id)+'">'+(DEVICE_SYNC.remoteTarget===x.device_id?"Підключено":"Підключити")+'</button>')+'</div>'+nowPlaying+controls+'</div>';
+    };    $("devicesList").innerHTML=(own?card(own,true):"")+(other.length?other.map(x=>card(x,false)).join(""):'<div class="empty">'+esc(t("devices_empty"))+'</div>');
     $("devicesList").querySelectorAll("[data-device-target]").forEach(b=>b.onclick=()=>handoffToDevice(b.dataset.deviceTarget));
     $("devicesList").querySelectorAll("[data-remote-select]").forEach(b=>b.onclick=()=>setRemoteTarget(DEVICE_SYNC.remoteTarget===b.dataset.remoteSelect?"":b.dataset.remoteSelect));
     $("devicesList").querySelectorAll("[data-device-cmd]").forEach(b=>b.onclick=()=>sendDeviceCommand(b.dataset.id,b.dataset.deviceCmd));
@@ -2446,22 +2482,27 @@ function setRemoteTarget(targetId){
   DEVICE_SYNC.remoteTarget=targetId||"";
   try{if(DEVICE_SYNC.remoteTarget)localStorage.setItem("mlsp_remote_target",DEVICE_SYNC.remoteTarget);else localStorage.removeItem("mlsp_remote_target");}catch(e){}
   const button=$("barRemote");
-  if(button){button.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);button.textContent=DEVICE_SYNC.remoteTarget?"ПК ✓":"ПК";}
-  const deviceChip=$("deviceChip");if(deviceChip)deviceChip.textContent=DEVICE_SYNC.remoteTarget?"ПК ✓":"ПК";
+  if(button){button.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);button.innerHTML=ICON("monitor","sm")+(DEVICE_SYNC.remoteTarget?" ПК":"");}
+  const deviceChip=$("deviceChip");if(deviceChip)deviceChip.innerHTML=ICON("monitor","sm")+" ПК";
   const state=DEVICE_SYNC.remoteStates[DEVICE_SYNC.remoteTarget];
   if(state)renderRemoteBar(state);
+  else if(DEVICE_SYNC.remoteTarget)renderRemoteBar({playing:false,track:null});
   closeModal();
-  toast(DEVICE_SYNC.remoteTarget?"Керування ПК увімкнено":"Керування ПК вимкнено");
 }
 function renderRemoteBar(state){
-  const track=state.track||{};
-  if(track.title){
-    $("bar").classList.add("on");
-    $("barTitle").textContent=track.title||"—";
+  const track=state.track||{}, hasTrack=!!track.title;
+  $("bar").classList.toggle("on",hasTrack);
+  if(hasTrack){
+    $("barTitle").textContent=track.title;
     $("barArtist").textContent=track.artist||"";
-    $("npTitle").textContent=track.title||"—";
+    $("npTitle").textContent=track.title;
     $("npArtist").textContent=track.artist||"";
     if(track.cover){$("barArt").src=track.cover;$("npArt").src=track.cover;$("ambientBg").src=track.cover;}
+  }else if(DEVICE_SYNC.remoteTarget){
+    $("barTitle").textContent="Очікує відтворення";
+    $("barArtist").textContent="ПК підключено";
+    $("npTitle").textContent="Очікує відтворення";
+    $("npArtist").textContent="ПК підключено";
   }
   $("barPlay").innerHTML=ICON(state.playing?"pause":"play");
   $("npPlay").innerHTML=ICON(state.playing?"pause":"play");
@@ -2476,11 +2517,19 @@ function barTogglePlay(){
   togglePlay();
 }
 async function sendDeviceCommand(targetId, action, payload={}){
+  const previous=DEVICE_SYNC.remoteStates[targetId]||{};
+  const optimistic={...previous,track:previous.track||current()};
+  if(action==="play" || action==="handoff") optimistic.playing=true;
+  if(action==="pause") optimistic.playing=false;
+  DEVICE_SYNC.remoteStates[targetId]=optimistic;
+  if(targetId===DEVICE_SYNC.remoteTarget)renderRemoteBar(optimistic);
   try{
-    // Один POST: сервер перевіряє online-стан і формує play payload зі свого стану.
     await post("/api/devices/command",{device_id:targetId,action,payload});
-    toast("Команду надіслано");
-  }catch(e){toast(e.message);}
+  }catch(e){
+    DEVICE_SYNC.remoteStates[targetId]=previous;
+    if(targetId===DEVICE_SYNC.remoteTarget)renderRemoteBar(previous);
+    toast(e.message);
+  }
 }
 async function handoffToDevice(targetId){
   const track=current();
@@ -2488,7 +2537,7 @@ async function handoffToDevice(targetId){
   const payload={track,queue:S.queue.slice(0,30),index:S.index,position:Math.floor(cur.currentTime||0)};
   try{
     await post("/api/devices/command",{device_id:targetId,action:"handoff",payload});
-    cur.pause(); S.playing=false; paintPlayState(); closeModal(); toast(t("devices_sent"));
+    cur.pause(); S.playing=false; paintPlayState(); closeModal();
   }catch(e){ toast(e.message); }
 }
 
