@@ -246,7 +246,8 @@ SCHEMA_PG = [
     )""",
     """CREATE TABLE IF NOT EXISTS playback_commands (
         id SERIAL PRIMARY KEY, uid BIGINT, device_id TEXT, action TEXT,
-        payload TEXT DEFAULT '{}', created_at TIMESTAMP DEFAULT NOW()
+        payload TEXT DEFAULT '{}', created_at TIMESTAMP DEFAULT NOW(),
+        acked_at TIMESTAMP, result TEXT DEFAULT ''
     )""",
     "CREATE INDEX IF NOT EXISTS idx_playback_devices_uid ON playback_devices(uid)",
     "CREATE INDEX IF NOT EXISTS idx_playback_commands_target ON playback_commands(uid, device_id, id)",
@@ -276,6 +277,8 @@ SCHEMA_SQLITE = [
 # Пізніші доповнення до вже існуючих таблиць (реферали, серії днів).
 # Кожен рядок виконується окремо й толерантно до помилки "колонка вже є".
 MIGRATIONS_PG = [
+    "ALTER TABLE playback_commands ADD COLUMN IF NOT EXISTS acked_at TIMESTAMP",
+    "ALTER TABLE playback_commands ADD COLUMN IF NOT EXISTS result TEXT DEFAULT ''",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS ref_code TEXT",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by BIGINT",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS ref_rewarded BOOLEAN DEFAULT FALSE",
@@ -288,6 +291,8 @@ MIGRATIONS_PG = [
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_refcode ON users(ref_code)",
 ]
 MIGRATIONS_SQLITE = [
+    "ALTER TABLE playback_commands ADD COLUMN acked_at TEXT",
+    "ALTER TABLE playback_commands ADD COLUMN result TEXT DEFAULT ''",
     "ALTER TABLE users ADD COLUMN ref_code TEXT",
     "ALTER TABLE users ADD COLUMN referred_by INTEGER",
     "ALTER TABLE users ADD COLUMN ref_rewarded INTEGER DEFAULT 0",
@@ -925,7 +930,7 @@ def device_command_add(uid, device_id, action, payload):
 
 def device_commands_get(uid, device_id, after_id=0):
     with conn_cursor() as (conn, cur):
-        cur.execute(q("SELECT id, action, payload FROM playback_commands WHERE uid=%s AND device_id=%s AND id>%s ORDER BY id ASC LIMIT 20"),
+        cur.execute(q("SELECT id, action, payload FROM playback_commands WHERE uid=%s AND device_id=%s AND id>%s AND acked_at IS NULL ORDER BY id ASC LIMIT 20"),
                     (int(uid), device_id, int(after_id)))
         found = rows(cur)
     out = []
@@ -936,6 +941,23 @@ def device_commands_get(uid, device_id, after_id=0):
             payload = {}
         out.append({"id": int(item["id"]), "action": item["action"], "payload": payload})
     return out
+
+
+def device_command_ack(uid, device_id, command_id, result="ok"):
+    """Acknowledge a device command only after the client has applied it."""
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("""UPDATE playback_commands
+            SET acked_at=%s, result=%s
+            WHERE uid=%s AND device_id=%s AND id=%s AND acked_at IS NULL"""),
+            (now_str(), str(result or "ok")[:300], int(uid), str(device_id), int(command_id)))
+        if cur.rowcount:
+            return True
+        cur.execute(q("""SELECT acked_at FROM playback_commands
+            WHERE uid=%s AND device_id=%s AND id=%s"""),
+            (int(uid), str(device_id), int(command_id)))
+        row = one(cur)
+        return bool(row and row.get("acked_at"))
+
 
 def playback_reset(uid):
     """Remove only this Telegram account's device registrations and playback state."""
