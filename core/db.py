@@ -910,6 +910,19 @@ def device_commands_get(uid, device_id, after_id=0):
         out.append({"id": int(item["id"]), "action": item["action"], "payload": payload})
     return out
 
+def playback_reset(uid):
+    """Remove only this Telegram account's device registrations and playback state."""
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("DELETE FROM playback_commands WHERE uid=%s"), (int(uid),))
+        commands = cur.rowcount
+        cur.execute(q("DELETE FROM account_playback WHERE uid=%s"), (int(uid),))
+        sessions = cur.rowcount
+        cur.execute(q("DELETE FROM playback_devices WHERE uid=%s"), (int(uid),))
+        devices = cur.rowcount
+    return {"devices": devices, "sessions": sessions, "commands": commands}
+
+
+
 def history_list(uid, limit=100):
     with conn_cursor() as (conn, cur):
         cur.execute(q("SELECT * FROM history WHERE uid=%s ORDER BY id DESC LIMIT %s"),
