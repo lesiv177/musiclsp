@@ -99,32 +99,46 @@ def check_url(url, timeout=4):
     return ok
 
 
-def filter_available(tracks, budget=2.5, workers=10):
-    """Прибирає з видачі треки, чиє пряме посилання точно мертве. Перевіряємо
-    паралельно й не довше `budget` секунд — не завершені перевірки не блокують."""
+def _preflight_track(track, quality="mp32"):
+    """Повертає True лише якщо отримано URL і він пройшов мережеву перевірку."""
+    tid = str(track.get("id") or "")
+    if not tid or is_dead(tid):
+        return False
+    url = str(track.get("stream") or "")
+    if not url:
+        try:
+            url = P.resolve_stream(tid, quality) or ""
+        except Exception:
+            return False
+    if not url or not check_url(url, timeout=5):
+        mark_dead(tid)
+        return False
+    track["stream"] = url
+    cache_put(("stream", tid, quality), url, STREAM_TTL)
+    return True
+
+
+def filter_available(tracks, budget=12, workers=10, quality="mp32"):
+    """Показуємо лише треки з URL, який пройшов preflight-перевірку.
+    Неперевірені через таймаут або повільне джерело треки не показуємо."""
     if not tracks:
-        return tracks
-    todo = [t for t in tracks if t.get("stream") and not is_dead(t["id"])]
+        return []
+    candidates = [t for t in tracks if t.get("id") and not is_dead(t["id"])]
+    if not candidates:
+        return []
     verdict = {}
-    if todo:
-        ex = ThreadPoolExecutor(max_workers=workers)
-        futs = {ex.submit(check_url, t["stream"]): t for t in todo}
-        done, _ = wait(list(futs), timeout=budget)
-        for f in done:
+    with ThreadPoolExecutor(max_workers=max(1, min(workers, 12))) as ex:
+        futs = {ex.submit(_preflight_track, t, quality): t for t in candidates}
+        done, pending = wait(list(futs), timeout=budget)
+        for future in done:
+            track = futs[future]
             try:
-                verdict[futs[f]["id"]] = f.result()
+                verdict[track["id"]] = bool(future.result())
             except Exception:
-                pass
-        ex.shutdown(wait=False, cancel_futures=True)
-    out = []
-    for t in tracks:
-        if is_dead(t["id"]):
-            continue
-        if verdict.get(t["id"]) is False:
-            mark_dead(t["id"])
-            continue
-        out.append(t)
-    return out
+                verdict[track["id"]] = False
+        for future in pending:
+            future.cancel()
+    return [t for t in candidates if verdict.get(t["id"], False)]
 
 
 # ─── Розумний пошук ──────────────────────────────────────────────────────────
@@ -205,7 +219,7 @@ def search(query, limit=30, quality="mp32", sources=None, sort="relevance", chec
         for t in res:
             if (t.get("stream") or "").startswith("https://"):
                 cache_put(("stream", t["id"], quality), t["stream"], STREAM_TTL)
-    return filter_available(res) if check else res
+    return filter_available(res, quality=quality) if check else res
 
 
 # ─── Стрім: перевірка + запасне джерело ──────────────────────────────────────
@@ -226,10 +240,7 @@ def _resolve_checked(track_id, quality, force=False):
     if is_dead(track_id) and not force:
         return ""
     url = P.resolve_stream(track_id, quality)
-    # Audius validates its own stream node. SoundCloud URLs are short-lived
-    # signed CDN/HLS URLs and commonly reject HEAD despite being playable.
-    prefix = P.split_id(track_id)[0]
-    if url and (prefix in ("aud", "sc") or check_url(url)):
+    if url and check_url(url):
         cache_put(key, url, STREAM_TTL)
         return url
     return ""
@@ -264,16 +275,12 @@ def _alternative(track_id, title, artist, quality):
 
 
 def resolve_stream_robust(track_id, quality="mp32", title="", artist="", force=False):
-    """(url, id_що_грає). force=True оновлює URL після помилки відтворення."""
+    """Повертає лише перевірений URL саме вибраного треку; без повторів і fallback."""
     url = _resolve_checked(track_id, quality, force=force)
     if url:
         return url, track_id
     if not force:
         mark_dead(track_id)
-    alt_url, alt_id = _alternative(track_id, title, artist, quality)
-    if alt_url:
-        cache_put(("stream", track_id, quality), alt_url, 120)
-        return alt_url, alt_id
     return "", ""
 
 
