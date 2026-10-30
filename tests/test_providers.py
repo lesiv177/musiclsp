@@ -63,6 +63,49 @@ class SoundCloudPriorityTests(unittest.TestCase):
         soundcloud_search.assert_not_called()
         self.assertEqual([track["id"] for track in results], ["jam:2"])
 
+    def test_parallel_runner_preserves_source_order_and_ignores_failure(self):
+        def broken():
+            raise RuntimeError("provider unavailable")
+
+        results = P._run_parallel([
+            lambda: [{"id": "first"}],
+            broken,
+            lambda: [{"id": "third"}],
+        ], timeout=2)
+        self.assertEqual([item["id"] for item in results], ["first", "third"])
+
+    def test_parallel_runner_uses_bounded_shared_pool(self):
+        self.assertEqual(P._PROVIDER_EXECUTOR._max_workers, 12)
+
+    def test_safe_log_url_never_includes_query_secrets(self):
+        safe = P._safe_log_url("https://api.example.test/search?client_secret=do-not-log")
+        self.assertEqual(safe, "api.example.test/search")
+        self.assertNotIn("do-not-log", safe)
+
+    def test_get_returns_none_for_provider_http_errors(self):
+        class Response:
+            status_code = 503
+            def json(self):
+                raise AssertionError("JSON must not be parsed for HTTP errors")
+
+        with patch.object(P, "_http_session") as session:
+            session.return_value.get.return_value = Response()
+            self.assertIsNone(P._get("https://provider.test/search"))
+
+    def test_get_returns_parsed_json_for_success(self):
+        class Response:
+            status_code = 200
+            def json(self):
+                return {"results": [{"id": 1}]}
+
+        with patch.object(P, "_http_session") as session:
+            session.return_value.get.return_value = Response()
+            self.assertEqual(P._get("https://provider.test/search"), {"results": [{"id": 1}]})
+
+    def test_duration_parser_handles_invalid_values(self):
+        self.assertEqual(P.fmt_duration(125), "2:05")
+        self.assertEqual(P.fmt_duration("not-a-duration"), "")
+
 
 if __name__ == "__main__":
     unittest.main()
