@@ -2619,8 +2619,14 @@ async function applyDeviceCommand(command){
       if(Number.isFinite(Number(p.volume)))cur.volume=Math.max(0,Math.min(1,Number(p.volume)));
       const state={track:current(),queue:S.queue.slice(0,30),index:S.index,
         position:Math.floor(cur.currentTime||target),duration:Math.floor(cur.duration||0),
-        playing:!cur.paused,volume:cur.volume||1};
-      await post("/api/player/session",{device_id:DEVICE_SYNC.id,state});
+        playing:!cur.paused,volume:Math.max(0,Math.min(1,Number(cur.volume)||0))};
+      try{
+        await post("/api/player/session",{device_id:DEVICE_SYNC.id,state});
+      }catch(e){
+        cur.pause();S.playing=false;paintPlayState();
+        toast("Не вдалося підтвердити перемикання. Попередній пристрій продовжить грати");
+        return;
+      }
       DEVICE_SYNC.session={owner_device_id:DEVICE_SYNC.id,state,updated_at:new Date().toISOString()};
       publishDeviceState();
       return;
@@ -2712,7 +2718,13 @@ async function selectPlaybackDevice(targetId, devices){
       const state={track:current(),queue:S.queue.slice(0,30),index:S.index,
         position:Math.floor(cur.currentTime||snapshot.position),duration:Math.floor(cur.duration||0),
         playing:!cur.paused,volume:cur.volume||1};
-      await post("/api/player/session",{device_id:DEVICE_SYNC.id,state});
+      try{
+        await post("/api/player/session",{device_id:DEVICE_SYNC.id,state});
+      }catch(e){
+        cur.pause();S.playing=false;paintPlayState();
+        toast("Не вдалося підтвердити перемикання. Попередній пристрій продовжить грати");
+        return;
+      }
       DEVICE_SYNC.session={owner_device_id:DEVICE_SYNC.id,state,updated_at:new Date().toISOString()};
       publishDeviceState();
       await syncAccountSession(false);
