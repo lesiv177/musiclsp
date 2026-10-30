@@ -336,8 +336,19 @@ async def h_device_state(request, u):
     if not updated:
         return fail("Пристрій не зареєстрований", 404)
     session = await to_thread(db.player_session_get, uid)
-    if (isinstance(session, dict) and session.get("owner_device_id") == device_id) or (not session and safe.get("track")):
-        await to_thread(db.player_session_set, uid, device_id, json.dumps(safe, ensure_ascii=False))
+    if isinstance(session, dict) and session.get("owner_device_id") == device_id:
+        # Refresh only while this device still owns the lease. A concurrent
+        # handoff must never be overwritten by a delayed heartbeat.
+        claimed = await to_thread(db.player_session_claim, uid, device_id,
+                                  json.dumps(safe, ensure_ascii=False), device_id)
+    elif not session and safe.get("track"):
+        # First playback session: create it only if another device has not
+        # initialized the account session in the meantime.
+        claimed = await to_thread(db.player_session_claim, uid, device_id,
+                                  json.dumps(safe, ensure_ascii=False), "")
+    else:
+        claimed = False
+    if claimed:
         await broadcast_device_event(uid, {"type": "session", "owner_device_id": device_id, "state": safe})
     await broadcast_device_event(uid, {"type": "state", "device_id": device_id, "state": safe})
     return ok({"ok": True})
