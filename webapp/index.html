@@ -1215,20 +1215,32 @@ function toast(msg){
 async function req(path, opts={}){
   if(!API) throw new Error("Адресу API не передано. Відкрийте плеєр кнопкою в боті.");
   let res;
+  const controller = new AbortController();
+  const timeout = setTimeout(()=>controller.abort(), 15000);
   try{
     res = await fetch(API+path, {
       ...opts,
+      signal: opts.signal || controller.signal,
       headers:{ "Content-Type":"application/json",
                 "X-Telegram-Init-Data": INIT, ...(opts.headers||{}) },
     });
   }catch(e){
+    if(e?.name === "AbortError") throw new Error("Сервер довго не відповідає. Спробуйте ще раз.");
     throw new Error("Немає зв'язку із сервером. Перевірте інтернет або перезапуск бота на Railway.");
+  }finally{
+    clearTimeout(timeout);
   }
   const data = await res.json().catch(()=>({}));
   if(!res.ok || data.ok === false) throw new Error(data.error || ("Помилка "+res.status));
   return data;
 }
-const get  = p => req(p);
+const INFLIGHT_GETS = new Map();
+const get = p => {
+  if(INFLIGHT_GETS.has(p)) return INFLIGHT_GETS.get(p);
+  const task = req(p).finally(()=>INFLIGHT_GETS.delete(p));
+  INFLIGHT_GETS.set(p,task);
+  return task;
+};
 const post = (p,body) => req(p,{method:"POST",body:JSON.stringify(body||{})});
 
 /* ════════ Старт: вінілова заставка ════════ */
@@ -1600,7 +1612,9 @@ function renderSearchHistory(){
   const items = searchHistoryRead();
   if(q || !items.length){ el.classList.remove("on"); el.innerHTML=""; return; }
   el.classList.add("on");
-  el.innerHTML = '<div class="search-recent-head"><span>Нещодавні пошуки</span><button class="search-recent-clear" type="button" id="searchHistoryClear">Очистити</button></div>' +
+  const labels = {uk:["Нещодавні пошуки","Очистити"],ru:["Недавние поиски","Очистить"],en:["Recent searches","Clear"],pl:["Ostatnie wyszukiwania","Wyczyść"],de:["Letzte Suchen","Löschen"],es:["Búsquedas recientes","Borrar"],fr:["Recherches récentes","Effacer"],tr:["Son aramalar","Temizle"]};
+  const words = labels[S.me?.lang] || labels.uk;
+  el.innerHTML = '<div class="search-recent-head"><span>'+words[0]+'</span><button class="search-recent-clear" type="button" id="searchHistoryClear">'+words[1]+'</button></div>' +
     '<div class="search-recent-list">' + items.map((v,i)=>'<button class="search-recent-chip" type="button" data-recent="'+i+'">'+ICON("history")+'<span>'+esc(v)+'</span></button>').join("") + '</div>';
   el.querySelectorAll("[data-recent]").forEach(b=>b.onclick=()=>{
     const value=searchHistoryRead()[+b.dataset.recent]; if(!value) return;
