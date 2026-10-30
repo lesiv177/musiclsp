@@ -55,6 +55,10 @@ async def expire_premium():
                     until = datetime.datetime.fromisoformat(until.replace("Z", "").strip())
                 except ValueError:
                     continue
+            # PostgreSQL може повернути timestamp із часовим поясом,
+            # тоді як now() тут naive UTC. Нормалізуємо обидва до naive UTC.
+            if getattr(until, "tzinfo", None) is not None:
+                until = until.astimezone(datetime.timezone.utc).replace(tzinfo=None)
             if until < now:
                 expired.append(int(r["uid"]))
 
