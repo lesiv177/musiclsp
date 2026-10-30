@@ -2536,6 +2536,7 @@ function publishDeviceState(){
 }
 function applyAccountSession(session, initial=false){
   if(!session || !session.owner_device_id || !session.state) return;
+  const previousOwner=DEVICE_SYNC.session&&DEVICE_SYNC.session.owner_device_id;
   DEVICE_SYNC.session=session;
   const owner=session.owner_device_id, state=session.state||{};
   const queue=Array.isArray(state.queue)&&state.queue.length?state.queue:(state.track?[state.track]:[]);
@@ -2552,7 +2553,7 @@ function applyAccountSession(session, initial=false){
   }
   DEVICE_SYNC.remoteTarget="";
   try{localStorage.removeItem("mlsp_remote_target");}catch(e){}
-  if(queue.length && (initial || !current())){
+  if(queue.length && (initial || previousOwner!==owner || !current())){
     S.queue=queue.slice(0,30);
     S.index=Math.max(0,Math.min(S.queue.length-1,Number(state.index)||0));
     if(current()){paint(current());paintPlayState();}
@@ -2608,8 +2609,15 @@ async function applyDeviceCommand(command){
 async function openDevices(){
   showModal('<div class="connect-title"><span>'+esc(t("pr_devices"))+'</span><small>MusicLSP Connect</small></div><div id="devicesList"><div class="skel"></div></div>');
   try{
-    const d=await get("/api/devices");
+    const [d,sessionData]=await Promise.all([get("/api/devices"),get("/api/player/session").catch(()=>({session:null}))]);
     const devices=(d.devices||[]).filter(x=>x.active);
+    const session=sessionData.session||null;
+    if(session){
+      DEVICE_SYNC.session=session;
+      const owner=devices.find(x=>x.device_id===session.owner_device_id);
+      if(owner) owner.state=session.state||{};
+      if(session.owner_device_id!==DEVICE_SYNC.id) applyAccountSession(session,false);
+    }
     devices.forEach(x=>{DEVICE_SYNC.remoteStates[x.device_id]=x.state||{};});
     const own=devices.find(x=>x.device_id===DEVICE_SYNC.id);
     const playingSource=devices.find(x=>x.device_id!==DEVICE_SYNC.id && x.state && x.state.track);
