@@ -1467,18 +1467,35 @@ async def run():
                         "для Hi-Fi та розширених можливостей. Підтримує 8 мов інтерфейсу.")
     except Exception as e:
         logger.warning("Не вдалося встановити опис бота: %s", e)
-    await application.start()
-    await application.updater.start_polling(drop_pending_updates=True)
-    logger.info("%s %s запущено", APP_NAME, APP_VERSION)
+    # Railway може коротко тримати старий і новий контейнер одночасно.
+    # PostgreSQL advisory lock не дозволяє обом екземплярам опитувати Telegram.
+    if db.USE_PG:
+        deadline = time.monotonic() + 120
+        while not await asyncio.to_thread(db.acquire_bot_polling_lock):
+            if time.monotonic() >= deadline:
+                raise RuntimeError("Не вдалося отримати Telegram polling lock за 120 секунд")
+            logger.info("Інший екземпляр ще завершує роботу; чекаю на звільнення polling lock")
+            await asyncio.sleep(2)
+    else:
+        logger.warning("PostgreSQL недоступний: міжконтейнерний polling lock не активний")
 
     try:
+        await application.start()
+        # Не відкидаємо повідомлення користувачів під час кожного деплою.
+        await application.updater.start_polling(drop_pending_updates=False)
+        logger.info("%s %s запущено", APP_NAME, APP_VERSION)
         while True:
             await asyncio.sleep(3600)
     finally:
-        await application.updater.stop()
-        await application.stop()
-        await application.shutdown()
-        await runner.cleanup()
+        try:
+            if application.updater.running:
+                await application.updater.stop()
+            if application.running:
+                await application.stop()
+            await application.shutdown()
+        finally:
+            db.release_bot_polling_lock()
+            await runner.cleanup()
 
 
 if __name__ == "__main__":
