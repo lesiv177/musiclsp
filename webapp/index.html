@@ -964,7 +964,7 @@ function rowsHtml(list, ctxKey){
            onerror="this.style.visibility='hidden'">
       <div class="meta">
         <div class="t">${esc(t.title)}</div>
-        <div class="s">${t.artist_id?`<button class="artist-link" type="button" data-artist-id="${esc(t.artist_id)}" data-artist-name="${esc(t.artist)}">${esc(t.artist)}</button>`:esc(t.artist)}${t.duration_str?" · "+esc(t.duration_str):""}</div>
+        <div class="s">${t.artist_id?("<button class=\"artist-link\" type=\"button\" data-artist-id=\""+esc(t.artist_id)+"\" data-artist-name=\""+esc(t.artist)+"\">"+esc(t.artist)+"</button>"):esc(t.artist)}${t.duration_str?" · "+esc(t.duration_str):""}</div>
       </div>
       <button class="act" data-menu="${i}">${ICON("kebab")}</button>
     </div>`).join("") + `</div>`;
