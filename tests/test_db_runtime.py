@@ -114,6 +114,20 @@ class SQLiteDevicePersistenceTests(unittest.TestCase):
         db.device_register(111, "owner-phone", "Owner", "iOS")
         self.assertIsNone(db.device_command_add(222, "owner-phone", "pause", "{}"))
 
+    def test_playback_claim_rejects_stale_owner_after_handoff(self):
+        first = json.dumps({"track": {"id": "a"}, "playing": True})
+        second = json.dumps({"track": {"id": "b"}, "playing": True})
+        stale = json.dumps({"track": {"id": "stale"}, "playing": True})
+
+        self.assertTrue(db.player_session_claim(111, "phone-a", first, ""))
+        self.assertTrue(db.player_session_claim(111, "desktop-b", second, "phone-a"))
+
+        # A delayed heartbeat from the old owner must not steal the session back.
+        self.assertFalse(db.player_session_claim(111, "phone-a", stale, "phone-a"))
+        session = db.player_session_get(111)
+        self.assertEqual(session["owner_device_id"], "desktop-b")
+        self.assertEqual(session["state"]["track"]["id"], "b")
+
     def test_playback_reset_clears_only_the_requested_account(self):
         db.device_register(111, "phone-a", "A", "iOS")
         db.device_register(222, "phone-b", "B", "Windows")
