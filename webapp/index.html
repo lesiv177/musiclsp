@@ -2929,7 +2929,13 @@ function play(t){
     reportPlay(t); // історія лише після фактичного старту аудіо
     paintPlayState();
     publishDeviceState();
-    await claimLocalPlayback();
+    const claimed=await claimLocalPlayback();
+    if(!claimed){
+      cur.pause();S.playing=false;paintPlayState();
+      await syncAccountSession(false);
+      toast("Відтворення вже активне на іншому пристрої. Синхронізували стан акаунта.");
+      return false;
+    }
     return true;
   }).catch(()=>{
     S.playing = false; paintPlayState();
