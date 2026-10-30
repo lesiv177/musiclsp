@@ -2460,7 +2460,7 @@ async function openDevices(){
       const state=x.state||{}, track=state.track||{};
       DEVICE_SYNC.remoteStates[x.device_id]=state;
       const status=state.playing?"Зараз відтворюється":(track.title?"Призупинено":"Очікує відтворення");
-      const platform=String(x.platform||x.name||"").toLowerCase();
+      const platform=String((x.platform||"")+" "+(x.name||"")).toLowerCase();
       const deviceIcon=/mac|macintosh|mac os/.test(platform)?"apple":/windows|win32/.test(platform)?"windows":/iphone|ipad|ios/.test(platform)?"phone":/android/.test(platform)?"android":"monitor";
       const icon=deviceIcon==="apple"?'':deviceIcon==="windows"?'⊞':deviceIcon==="phone"?'▯':deviceIcon==="android"?'◉':'▣';
       const controls=isOwn?"":'<div class="device-remote">'
