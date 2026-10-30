@@ -29,14 +29,14 @@ jobs:
           import pathlib, re
           html = pathlib.Path("webapp/index.html").read_text(encoding="utf-8")
           scripts = []
-          for match in re.finditer(r'<script\\b([^>]*)>(.*?)</script>', html, flags=re.I|re.S):
+          for match in re.finditer(r'<script\b([^>]*)>(.*?)</script>', html, flags=re.I|re.S):
               attrs, body = match.groups()
-              kind = re.search(r"""\\btype\\s*=\\s*["']([^"']+)["']""", attrs, flags=re.I)
+              kind = re.search(r"""\btype\s*=\s*["']([^"']+)["']""", attrs, flags=re.I)
               if kind is None or "javascript" in kind.group(1).lower():
                   scripts.append(body)
           if not scripts:
               raise SystemExit("No inline JavaScript found")
-          pathlib.Path("/tmp/musiclsp-inline.js").write_text("\\n;\\n".join(scripts), encoding="utf-8")
+          pathlib.Path("/tmp/musiclsp-inline.js").write_text("\n;\n".join(scripts), encoding="utf-8")
           print(f"Checking {len(scripts)} inline script block(s)")
           PY
           node --check /tmp/musiclsp-inline.js
