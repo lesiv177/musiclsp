@@ -110,6 +110,22 @@ class SQLiteDevicePersistenceTests(unittest.TestCase):
         self.assertEqual(commands[0]["id"], command_id)
         self.assertEqual(commands[0]["action"], "pause")
 
+        # Commands remain pending until the device confirms successful execution.
+        self.assertTrue(db.device_command_ack(uid, "phone-1", command_id))
+        self.assertEqual(db.device_commands_get(uid, "phone-1", 0), [])
+        self.assertTrue(db.device_command_ack(uid, "phone-1", command_id))
+        self.assertFalse(db.device_command_ack(999, "phone-1", command_id))
+
+    def test_unacked_command_is_returned_even_when_cursor_has_passed_it(self):
+        uid = 123457
+        db.device_register(uid, "phone-2", "Test phone", "iOS")
+        first = db.device_command_add(uid, "phone-2", "pause", "{}")
+        second = db.device_command_add(uid, "phone-2", "volume", '{"volume": 0.5}')
+        self.assertTrue(db.device_command_ack(uid, "phone-2", second))
+        # A later acknowledged command must not hide an earlier pending one.
+        pending = db.device_commands_get(uid, "phone-2", second)
+        self.assertEqual([item["id"] for item in pending], [first])
+
     def test_device_commands_cannot_target_another_users_device(self):
         db.device_register(111, "owner-phone", "Owner", "iOS")
         self.assertIsNone(db.device_command_add(222, "owner-phone", "pause", "{}"))
