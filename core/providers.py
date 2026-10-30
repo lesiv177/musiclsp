@@ -23,6 +23,7 @@ import logging
 import datetime
 import threading
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor, wait
 
 import requests
 
@@ -35,19 +36,34 @@ from core.config import (
 
 logger = logging.getLogger(__name__)
 
-_session = requests.Session()
-_session.headers.update({"User-Agent": USER_AGENT})
+_thread_http = threading.local()
+_PROVIDER_EXECUTOR = ThreadPoolExecutor(max_workers=12, thread_name_prefix="music-provider")
+
+
+def _http_session():
+    """Окрема requests.Session на потік: Session не ділиться між паралельними jobs."""
+    session = getattr(_thread_http, "session", None)
+    if session is None:
+        session = requests.Session()
+        session.headers.update({"User-Agent": USER_AGENT})
+        _thread_http.session = session
+    return session
+
+
+def _safe_log_url(url):
+    parsed = urllib.parse.urlsplit(str(url or ""))
+    return (parsed.netloc + parsed.path)[:180]
 
 
 def _get(url, params=None, timeout=HTTP_TIMEOUT):
     try:
-        r = _session.get(url, params=params, timeout=timeout)
+        r = _http_session().get(url, params=params, timeout=timeout)
         if r.status_code != 200:
-            logger.warning("GET %s -> %s", url, r.status_code)
+            logger.warning("GET %s -> %s", _safe_log_url(url), r.status_code)
             return None
         return r.json()
     except Exception as e:
-        logger.warning("GET %s failed: %s", url, e)
+        logger.warning("GET %s failed: %s", _safe_log_url(url), type(e).__name__)
         return None
 
 
@@ -323,7 +339,7 @@ def _audius_fetch_pool():
 
 def _audius_alive(host, timeout=4):
     try:
-        r = _session.get(f"{host}/health_check", timeout=timeout)
+        r = _http_session().get(f"{host}/health_check", timeout=timeout)
         return r.status_code == 200
     except Exception:
         return False
@@ -471,7 +487,7 @@ def _url_playable(url, timeout=5):
     try:
         r = _session.head(url, timeout=timeout, allow_redirects=True)
         if r.status_code == 405:  # деякі ноди не вміють HEAD — пробуємо GET шматка
-            r = _session.get(url, timeout=timeout, headers={"Range": "bytes=0-1"},
+            r = _http_session().get(url, timeout=timeout, headers={"Range": "bytes=0-1"},
                               stream=True, allow_redirects=True)
             r.close()
         return r.status_code in (200, 206)
@@ -802,7 +818,7 @@ def ccmixter_search(query, limit=15):
         logger.warning("ccMixter JSON запит не вдався: %s", e)
     if not out:
         try:
-            r = _session.get(CCMIXTER_API, params={"query": query, "type": "any"},
+            r = _http_session().get(CCMIXTER_API, params={"query": query, "type": "any"},
                               timeout=HTTP_TIMEOUT)
             if r.status_code == 200 and r.text:
                 out = _ccm_from_xml(r.text, limit)
@@ -1024,7 +1040,7 @@ def _sc_token():
         if _SC_TOKEN["v"] and _SC_TOKEN["exp"] > time.time() + 60:
             return _SC_TOKEN["v"]
     try:
-        r = _session.post("https://secure.soundcloud.com/oauth/token", data={
+        r = _http_session().post("https://secure.soundcloud.com/oauth/token", data={
             "grant_type": "client_credentials",
             "client_id": SOUNDCLOUD_CLIENT_ID, "client_secret": SOUNDCLOUD_CLIENT_SECRET,
         }, headers={"Accept": "application/json; charset=utf-8"}, timeout=HTTP_TIMEOUT)
@@ -1081,7 +1097,7 @@ def soundcloud_search(query, limit=15):
     if not h:
         return []
     try:
-        r = _session.get(f"{_SC_API}/tracks", headers=h, timeout=HTTP_TIMEOUT,
+        r = _http_session().get(f"{_SC_API}/tracks", headers=h, timeout=HTTP_TIMEOUT,
                          params={"q": query, "access": "playable", "limit": limit, "linked_partitioning": "false"})
         if r.status_code != 200:
             logger.warning("SoundCloud search -> %s", r.status_code)
@@ -1101,7 +1117,7 @@ def soundcloud_stream_url(raw):
     if not h:
         return ""
     try:
-        r = _session.get(f"{_SC_API}/tracks/{raw}/streams", headers=h, timeout=HTTP_TIMEOUT)
+        r = _http_session().get(f"{_SC_API}/tracks/{raw}/streams", headers=h, timeout=HTTP_TIMEOUT)
         if r.status_code == 200:
             d = r.json()
             return d.get("http_mp3_128_url") or d.get("hls_mp3_128_url") or ""
@@ -1119,7 +1135,7 @@ def soundcloud_track(raw):
     if not h:
         return None
     try:
-        r = _session.get(f"{_SC_API}/tracks/{raw}", headers=h, timeout=HTTP_TIMEOUT)
+        r = _http_session().get(f"{_SC_API}/tracks/{raw}", headers=h, timeout=HTTP_TIMEOUT)
         return _sc_track(r.json()) if r.status_code == 200 else None
     except Exception:
         return None
@@ -1134,22 +1150,27 @@ def split_id(full_id):
 
 
 def _run_parallel(jobs, timeout=4):
-    """Виконує функції паралельно, склеює результати в порядку jobs.
-    Джерело, що не вклалось у timeout, пропускаємо — решта не чекає на нього."""
-    from concurrent.futures import ThreadPoolExecutor, wait
+    """Паралельний пошук із глобально обмеженою кількістю потоків.
+
+    Раніше кожен запит створював власний ThreadPoolExecutor і залишав
+    повільні мережеві потоки працювати після timeout. Часті пошуки могли
+    безконтрольно накопичувати десятки потоків. Тепер пул спільний і обмежений.
+    """
     if not jobs:
         return []
-    ex = ThreadPoolExecutor(max_workers=len(jobs))
-    futs = [ex.submit(j) for j in jobs]
-    wait(futs, timeout=timeout)
+    futs = [_PROVIDER_EXECUTOR.submit(job) for job in jobs]
+    done, pending = wait(futs, timeout=max(0.1, float(timeout)))
+    for future in pending:
+        future.cancel()  # скасовує задачі, які ще не почали виконуватись
     out = []
-    for f in futs:
-        if f.done():
+    for future in futs:  # зберігаємо стабільний порядок провайдерів
+        if future in done:
             try:
-                out += f.result() or []
-            except Exception as e:
-                logger.warning("Джерело впало: %s", e)
-    ex.shutdown(wait=False, cancel_futures=True)
+                result = future.result()
+                if isinstance(result, list):
+                    out.extend(result)
+            except Exception as exc:
+                logger.warning("Джерело впало: %s", type(exc).__name__)
     return out
 
 
