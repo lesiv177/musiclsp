@@ -915,7 +915,7 @@ body{background:radial-gradient(120% 45% at 50% -10%,color-mix(in srgb,var(--acc
     </div>
     <div class="spacer"></div>
     <div class="chip" id="planChip">Free</div>
-    <button class="chip" id="deviceChip" onclick="openDevices()" aria-label="Керування пристроями">ПК</button>
+    <button class="chip device-chip" id="deviceChip" onclick="openDevices()" aria-label="Керування пристроями"><span data-icon="devices"></span></button>
   </header>
 
   <!-- HOME -->
@@ -987,10 +987,10 @@ body{background:radial-gradient(120% 45% at 50% -10%,color-mix(in srgb,var(--acc
   <img class="art" id="barArt" alt="">
   <div class="meta" onclick="openSheet()">
     <div class="t" id="barTitle">—</div>
-    <div class="s" id="barArtist">—</div>
+    <div class="s" id="barArtist">—</div><div class="bar-output" id="barOutput"></div>
   </div>
   <button class="iconbtn like" id="barLike" onclick="toggleLike()" aria-label="Улюблене"><span data-icon="heart"></span></button>
-  <button class="iconbtn" id="barRemote" onclick="openDevices()" aria-label="Керувати ПК">ПК</button>
+  <button class="iconbtn" id="barRemote" onclick="openDevices()" aria-label="Керувати пристроями"><span data-icon="devices"></span></button>
   <button class="iconbtn" onclick="barPrev()"><span data-icon="prev"></span></button>
   <button class="iconbtn main" id="barPlay" onclick="barTogglePlay()"><span data-icon="play"></span></button>
   <button class="iconbtn" onclick="barNext()"><span data-icon="next"></span></button>
@@ -2547,8 +2547,8 @@ function applyAccountSession(session, initial=false){
     if(queue.length){S.queue=queue.slice(0,30);S.index=Math.max(0,Math.min(S.queue.length-1,Number(state.index)||0));}
     renderRemoteBar(state);
     const b=$("barRemote"), chip=$("deviceChip");
-    if(b){b.classList.add("on");b.textContent="Connect";}
-    if(chip){chip.classList.add("on");chip.textContent="Connect";}
+    if(b){b.classList.add("on");b.innerHTML=ICON("devices");}
+    if(chip){chip.classList.add("on");chip.innerHTML=ICON("devices");}
     return;
   }
   DEVICE_SYNC.remoteTarget="";
@@ -2607,7 +2607,7 @@ async function applyDeviceCommand(command){
   if(command.action==="volume" && Number.isFinite(Number(p.volume))){cur.volume=Math.max(0,Math.min(1,Number(p.volume)));publishDeviceState();}
 }
 async function openDevices(){
-  showModal('<div class="connect-title"><span>'+esc(t("pr_devices"))+'</span><small>MusicLSP Connect</small></div><div id="devicesList"><div class="skel"></div></div>');
+  showModal('<div class="spotify-connect-head"><span>Connect</span><button class="connect-close" onclick="closeModal()">×</button></div><div id="devicesList"><div class="skel"></div></div>');
   try{
     const [d,sessionData]=await Promise.all([get("/api/devices"),get("/api/player/session").catch(()=>({session:null}))]);
     const devices=(d.devices||[]).filter(x=>x.active);
@@ -2705,8 +2705,8 @@ function setRemoteTarget(targetId){
   DEVICE_SYNC.remoteTarget=targetId||"";
   try{if(DEVICE_SYNC.remoteTarget)localStorage.setItem("mlsp_remote_target",DEVICE_SYNC.remoteTarget);else localStorage.removeItem("mlsp_remote_target");}catch(e){}
   const button=$("barRemote");
-  if(button){button.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);button.textContent="Connect";}
-  const deviceChip=$("deviceChip");if(deviceChip){deviceChip.textContent="Connect";deviceChip.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);}
+  if(button){button.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);button.innerHTML=ICON("devices");}
+  const deviceChip=$("deviceChip");if(deviceChip){deviceChip.innerHTML=ICON("devices");deviceChip.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);}
   const state=DEVICE_SYNC.remoteStates[DEVICE_SYNC.remoteTarget];
   if(state)renderRemoteBar(state);
   else if(DEVICE_SYNC.remoteTarget)renderRemoteBar({playing:false,track:null});
@@ -2718,15 +2718,18 @@ function renderRemoteBar(state){
   if(hasTrack){
     $("barTitle").textContent=track.title;
     $("barArtist").textContent=track.artist||"";
+    $("barOutput").textContent="◉ "+(DEVICE_SYNC.remoteTarget?"Web Player":"Цей пристрій");
     $("npTitle").textContent=track.title;
     $("npArtist").textContent=track.artist||"";
     if(track.cover){$("barArt").src=track.cover;$("npArt").src=track.cover;$("ambientBg").src=track.cover;}
   }else if(DEVICE_SYNC.remoteTarget){
     $("barTitle").textContent="Очікує відтворення";
-    $("barArtist").textContent="ПК підключено";
+    $("barArtist").textContent="";
+    $("barOutput").textContent="◉ Web Player";
     $("npTitle").textContent="Очікує відтворення";
     $("npArtist").textContent="ПК підключено";
   }
+  $("barOutput").style.display=DEVICE_SYNC.remoteTarget?"block":"none";
   $("barPlay").innerHTML=ICON(state.playing?"pause":"play");
   $("npPlay").innerHTML=ICON(state.playing?"pause":"play");
 }
@@ -4115,4 +4118,22 @@ paintStaticIcons();
   #bar #barPlay{width:36px!important}
   #bar>button:nth-of-type(5){width:32px!important}
 }
+</style>
+
+<style>
+.device-chip{width:42px;height:38px;display:grid;place-items:center;padding:0}
+.device-chip [data-icon],#barRemote [data-icon]{width:24px;height:24px;display:block}
+.device-chip.on,#barRemote.on{color:#1ed760}
+#bar .bar-output{display:none;font-size:10px;line-height:1.25;color:#1ed760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+#bar .meta .s{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spotify-connect-head{display:flex;align-items:center;justify-content:space-between;margin:0 2px 18px;font-size:25px;font-weight:800}
+.connect-close{width:34px;height:34px;border-radius:50%;background:#303030;color:#aaa;font-size:24px}
+#devicesList .connect-device{border:0;border-radius:20px;background:#292929;padding:18px;margin:0 0 12px}
+#devicesList .connect-device.selected{background:#303030;box-shadow:none;border:1px solid rgba(30,215,96,.22)}
+#devicesList .device-platform{width:58px;height:58px;border-radius:14px;background:transparent;color:#1ed760;font-size:34px}
+#devicesList .device-name{font-size:19px;font-weight:750}
+#devicesList .device-status{font-size:13px;color:#1ed760;margin-top:8px}
+#devicesList .device-now{margin:12px 0 0 72px;background:transparent;padding:0}
+#devicesList .device-track{font-size:13px}
+#devicesList .device-artist{font-size:12px}
 </style>
