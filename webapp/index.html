@@ -2450,7 +2450,7 @@ async function createPlaylist(){
 
 
 /* ── синхронізація пристроїв MusicLSP ── */
-const DEVICE_SYNC = {id:"", started:false, cursor:0, polling:false, socket:null, processing:new Set(), reconnectTimer:null, pingTimer:null, reconnectDelay:1000, remoteStates:{}, remoteNames:{}, remoteTarget:"", session:null, sessionTimer:null, sessionPolling:false};
+const DEVICE_SYNC = {id:"", started:false, cursor:0, polling:false, socket:null, processing:new Set(), completedCommands:new Set(), reconnectTimer:null, pingTimer:null, reconnectDelay:1000, remoteStates:{}, remoteNames:{}, remoteTarget:"", session:null, sessionTimer:null, sessionPolling:false};
 function deviceId(){
   try{
     let id=localStorage.getItem("mlsp_device_id");
@@ -2585,12 +2585,13 @@ async function syncAccountSession(initial=false){
 }
 async function processDeviceCommand(command){
   const id=Number(command&&command.id)||0;
-  if(!id || id<=DEVICE_SYNC.cursor || DEVICE_SYNC.processing.has(id)) return;
+  if(!id || DEVICE_SYNC.completedCommands.has(id) || DEVICE_SYNC.processing.has(id)) return;
   DEVICE_SYNC.processing.add(id);
   try{
     const applied=await applyDeviceCommand(command);
     if(applied===false) throw new Error("command application failed");
     await post("/api/devices/command/ack",{device_id:DEVICE_SYNC.id,command_id:id,result:"ok"});
+    DEVICE_SYNC.completedCommands.add(id);
     DEVICE_SYNC.cursor=Math.max(DEVICE_SYNC.cursor,id);
     try{localStorage.setItem("mlsp_device_cursor",String(DEVICE_SYNC.cursor));}catch(e){}
   }catch(error){
