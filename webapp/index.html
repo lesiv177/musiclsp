@@ -2620,7 +2620,9 @@ async function openDevices(){
     }
     devices.forEach(x=>{DEVICE_SYNC.remoteStates[x.device_id]=x.state||{};});
     const own=devices.find(x=>x.device_id===DEVICE_SYNC.id);
-    const playingSource=devices.find(x=>x.device_id!==DEVICE_SYNC.id && x.state && x.state.track);
+    const playingSource=devices.find(x=>x.device_id!==DEVICE_SYNC.id && x.state && x.state.track)
+      || (session && session.owner_device_id!==DEVICE_SYNC.id && session.state && session.state.track
+          ? {device_id:session.owner_device_id,state:session.state,name:"Інший пристрій"} : null);
     const card=(x,isOwn)=>{
       const state=x.state||{}, track=state.track||{};
       const platform=String((x.platform||"")+" "+(x.name||"")).toLowerCase();
