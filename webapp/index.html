@@ -1941,7 +1941,10 @@ async function playById(id){
 }
 
 function streamUrl(t){
-  return `${API}/api/stream?id=${encodeURIComponent(t.id)}&initData=${encodeURIComponent(INIT)}`;
+  /* назва й артист — щоб сервер міг знайти запасне джерело, якщо основне не грає */
+  return `${API}/api/stream?id=${encodeURIComponent(t.id)}&initData=${encodeURIComponent(INIT)}`
+    + `&t=${encodeURIComponent((t.title||"").slice(0,120))}&a=${encodeURIComponent((t.artist||"").slice(0,120))}`
+    + (RETRY.n ? `&r=${RETRY.n}` : "");
 }
 
 /* «Тихий вечір»: 23:00–07:00 сам м'яко притишує гучність, щоб не будити
@@ -1953,7 +1956,7 @@ function nightCap(base){
 let fadeTimer = null;
 function play(t){
   if(!t) return;
-  RESUME.pending = null;
+  RESUME.pending = null; RETRY.n = 0;
   clearInterval(fadeTimer);
   if(S.crossfade > 0 && S.playing){ crossfadeTo(t); }
   else {
@@ -2100,8 +2103,9 @@ function toggleRepeat(){
   el.addEventListener("timeupdate", ()=>{ if(el===cur){ paintProgress(); resumeSave(false); } });
   el.addEventListener("pause", ()=>{ if(el===cur) resumeSave(true); });
   el.addEventListener("loadedmetadata", ()=>{ if(el===cur) renderBkmkTicks(current()); });
-  el.addEventListener("error", ()=>{ if(el===cur && S.playing) toast("Трек недоступний, гортаю далі"),
-    setTimeout(()=>nextTrack(true), 600); });
+  el.addEventListener("error", ()=>{ if(el===cur && S.playing) reconnect("error"); });
+  el.addEventListener("playing", ()=>{ if(el===cur){ RETRY.n = 0; RETRY.lastProg = Date.now(); } });
+  el.addEventListener("timeupdate", ()=>{ if(el===cur) RETRY.lastProg = Date.now(); });
 });
 
 /* ── моменти (закладки в треку) ── */
@@ -3061,6 +3065,42 @@ function startPending(){
 }
 document.addEventListener("visibilitychange", () => { if(document.visibilityState === "hidden") resumeSave(true); });
 window.addEventListener("pagehide", () => resumeSave(true));
+
+/* ════════ Автоматичне перепідключення ════════
+   Помилка або «завис» потоку → до двох спроб перепідключитись із того самого
+   місця (сервер при цьому сам перевіряє посилання й за потреби бере запасне
+   джерело). Лише після цього — наступний трек. Також реагуємо на повернення мережі. */
+const RETRY = {n:0, lastProg:Date.now(), busy:false};
+function reconnect(reason){
+  const t = current(); if(!t || RESUME.pending || RETRY.busy) return;
+  if(RETRY.n >= 2){
+    RETRY.n = 0; toast("Трек недоступний, гортаю далі");
+    return setTimeout(()=>nextTrack(true), 400);
+  }
+  RETRY.n++; RETRY.busy = true;
+  const pos = cur.currentTime || 0;
+  if(RETRY.n === 1) toast("Перепідключаюсь…");
+  setTimeout(()=>{
+    RETRY.busy = false;
+    if(current() !== t) return;
+    cur.pause(); cur.src = streamUrl(t); cur.playbackRate = S.speed;
+    if(pos > 2){
+      const seek = () => { try{ cur.currentTime = pos; }catch(e){} cur.removeEventListener("loadedmetadata", seek); };
+      cur.addEventListener("loadedmetadata", seek);
+    }
+    cur.play().catch(()=>{});
+    S.playing = true;
+  }, 700 * RETRY.n);
+}
+/* сторож: якщо має грати, а прогресу немає 12 с — перепідключаємось */
+setInterval(()=>{
+  if(S.playing && current() && !RESUME.pending && !cur.paused && Date.now() - RETRY.lastProg > 12000){
+    RETRY.lastProg = Date.now(); reconnect("stall");
+  }
+}, 4000);
+window.addEventListener("online", ()=>{
+  if(S.playing && current() && !RESUME.pending && (cur.paused || cur.error)) { RETRY.n = 0; reconnect("online"); }
+});
 
 paintStaticIcons();
 </script>
