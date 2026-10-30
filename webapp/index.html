@@ -2465,7 +2465,7 @@ function deviceLabel(){
   if(/Windows/i.test(ua)) return "Windows";
   return "Web player";
 }
-async async function startDeviceSync(){
+async function startDeviceSync(){
   if(DEVICE_SYNC.started || !S.me || !API) return;
   DEVICE_SYNC.started=true; DEVICE_SYNC.id=deviceId();
   try{ DEVICE_SYNC.cursor=Number(localStorage.getItem("mlsp_device_cursor")||0)||0; }catch(e){}
@@ -2560,8 +2560,8 @@ function applyAccountSession(session, initial=false){
     if(current()){paint(current());paintPlayState();}
   }
   const b=$("barRemote"), chip=$("deviceChip");
-  if(b){b.classList.remove("on");b.textContent="Connect";}
-  if(chip){chip.classList.remove("on");chip.textContent="Connect";}
+  if(b){b.classList.remove("on");b.innerHTML=ICON("devices");}
+  if(chip){chip.classList.remove("on");chip.innerHTML=ICON("devices");}
 }
 async function syncAccountSession(initial=false){
   if(!DEVICE_SYNC.id || !S.me || DEVICE_SYNC.sessionPolling || document.visibilityState==="hidden") return;
