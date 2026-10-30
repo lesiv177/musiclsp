@@ -768,6 +768,7 @@ body{background:radial-gradient(120% 45% at 50% -10%,color-mix(in srgb,var(--acc
     </div>
     <div class="spacer"></div>
     <div class="chip" id="planChip">Free</div>
+    <button class="chip" id="deviceChip" onclick="openDevices()" aria-label="Керування пристроями">ПК</button>
   </header>
 
   <!-- HOME -->
@@ -2317,6 +2318,7 @@ async function startDeviceSync(){
     DEVICE_SYNC.remoteTarget=localStorage.getItem("mlsp_remote_target")||"";
     const remoteButton=$("barRemote");
     if(remoteButton){remoteButton.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);remoteButton.textContent=DEVICE_SYNC.remoteTarget?"ПК ✓":"ПК";}
+    const deviceChip=$("deviceChip");if(deviceChip)deviceChip.textContent=DEVICE_SYNC.remoteTarget?"ПК ✓":"ПК";
   }catch(e){}
   try{
     await post("/api/devices/register",{device_id:DEVICE_SYNC.id,name:deviceLabel(),platform:navigator.platform||"web"});
@@ -2443,6 +2445,7 @@ function setRemoteTarget(targetId){
   try{if(DEVICE_SYNC.remoteTarget)localStorage.setItem("mlsp_remote_target",DEVICE_SYNC.remoteTarget);else localStorage.removeItem("mlsp_remote_target");}catch(e){}
   const button=$("barRemote");
   if(button){button.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);button.textContent=DEVICE_SYNC.remoteTarget?"ПК ✓":"ПК";}
+  const deviceChip=$("deviceChip");if(deviceChip)deviceChip.textContent=DEVICE_SYNC.remoteTarget?"ПК ✓":"ПК";
   const state=DEVICE_SYNC.remoteStates[DEVICE_SYNC.remoteTarget];
   if(state)renderRemoteBar(state);
   closeModal();
@@ -2454,9 +2457,12 @@ function renderRemoteBar(state){
     $("bar").classList.add("on");
     $("barTitle").textContent=track.title||"—";
     $("barArtist").textContent=track.artist||"";
-    if(track.cover)$("barArt").src=track.cover;
+    $("npTitle").textContent=track.title||"—";
+    $("npArtist").textContent=track.artist||"";
+    if(track.cover){$("barArt").src=track.cover;$("npArt").src=track.cover;$("ambientBg").src=track.cover;}
   }
   $("barPlay").innerHTML=ICON(state.playing?"pause":"play");
+  $("npPlay").innerHTML=ICON(state.playing?"pause":"play");
 }
 function barPrev(){if(DEVICE_SYNC.remoteTarget)return sendDeviceCommand(DEVICE_SYNC.remoteTarget,"previous");prevTrack();}
 function barNext(){if(DEVICE_SYNC.remoteTarget)return sendDeviceCommand(DEVICE_SYNC.remoteTarget,"next");nextTrack();}
@@ -2515,6 +2521,13 @@ function nightCap(base){
 let fadeTimer = null;
 function play(t){
   if(!t) return;
+  if(DEVICE_SYNC.remoteTarget && DEVICE_SYNC.remoteTarget!==DEVICE_SYNC.id){
+    const payload={track:t,queue:S.queue.slice(0,30),index:S.index,position:0};
+    post("/api/devices/command",{device_id:DEVICE_SYNC.remoteTarget,action:"handoff",payload})
+      .then(()=>toast("Відтворення передано на ПК"))
+      .catch(e=>toast(e.message));
+    return;
+  }
   RESUME.pending = null; RETRY.n = 0;
   clearInterval(fadeTimer);
   let start;
