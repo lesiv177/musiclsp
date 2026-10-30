@@ -207,6 +207,8 @@ async def h_device_register(request, u):
         body = await request.json()
     except (ValueError, web.HTTPException):
         return fail("Некоректний JSON")
+    if not isinstance(body, dict):
+        return fail("Очікувався JSON-об’єкт")
     device_id = str(body.get("device_id") or "")[:80]
     if not device_id or any(ch not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for ch in device_id):
         return fail("Некоректний ідентифікатор пристрою")
@@ -222,6 +224,8 @@ async def h_device_state(request, u):
         body = await request.json()
     except (ValueError, web.HTTPException):
         return fail("Некоректний JSON")
+    if not isinstance(body, dict):
+        return fail("Очікувався JSON-об’єкт")
     device_id = str(body.get("device_id") or "")[:80]
     state = body.get("state") or {}
     if not device_id or not isinstance(state, dict):
@@ -254,6 +258,8 @@ async def h_device_command(request, u):
         body = await request.json()
     except (ValueError, web.HTTPException):
         return fail("Некоректний JSON")
+    if not isinstance(body, dict):
+        return fail("Очікувався JSON-об’єкт")
     device_id = str(body.get("device_id") or "")[:80]
     action = str(body.get("action") or "")
     payload = body.get("payload") or {}
