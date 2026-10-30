@@ -380,8 +380,15 @@ async def h_player_session_claim(request, u):
             volume = 1
     except (TypeError, ValueError, OverflowError):
         volume = 1
+    try:
+        duration = float(raw.get("duration") or 0)
+        if not math.isfinite(duration):
+            duration = 0
+    except (TypeError, ValueError, OverflowError):
+        duration = 0
     safe = {"track": track, "queue": queue, "index": index,
             "position": int(max(0, min(86400, position))),
+            "duration": int(max(0, min(86400, duration))),
             "playing": raw.get("playing") is True,
             "volume": max(0.0, min(1.0, volume))}
     await to_thread(db.player_session_set, uid, device_id, json.dumps(safe, ensure_ascii=False))
