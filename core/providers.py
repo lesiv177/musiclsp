@@ -23,70 +23,30 @@ import logging
 import datetime
 import threading
 import urllib.parse
-import concurrent.futures
-import copy
 
 import requests
-from cachetools import TTLCache
-from rapidfuzz.fuzz import ratio as fuzzy_ratio
 
 from core.config import (
     JAMENDO_CLIENT_ID, JAMENDO_API,
-    AUDIUS_APP_NAME, AUDIUS_BOOTSTRAP, AUDIUS_API_KEY, AUDIUS_BEARER_TOKEN,
+    AUDIUS_APP_NAME, AUDIUS_BOOTSTRAP,
     ARCHIVE_ENABLED, HTTP_TIMEOUT, USER_AGENT,
-    PROVIDER_SEARCH_TIMEOUT, SEARCH_MAX_WORKERS,
 )
 
 logger = logging.getLogger(__name__)
 
 _session = requests.Session()
 _session.headers.update({"User-Agent": USER_AGENT})
-# Повторні GET-запити для тимчасових мережевих помилок/лімітів API.
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-_retry = Retry(total=2, connect=2, read=1, status=2, backoff_factor=0.35,
-               status_forcelist=(429, 500, 502, 503, 504),
-               allowed_methods=frozenset(["GET"]))
-_adapter = HTTPAdapter(max_retries=_retry, pool_connections=20, pool_maxsize=20)
-_session.mount("https://", _adapter)
-_session.mount("http://", _adapter)
-
-# Короткий кеш пошукових результатів: зменшує навантаження на API,
-# але не тримає потенційно застарілі URL довше 45 секунд.
-_SEARCH_CACHE = TTLCache(maxsize=256, ttl=45)
-_SEARCH_CACHE_LOCK = threading.Lock()
 
 
-def _get(url, params=None, timeout=HTTP_TIMEOUT, headers=None):
-    """Безпечний JSON-запит: збій одного провайдера не валить весь пошук."""
+def _get(url, params=None, timeout=HTTP_TIMEOUT):
     try:
-        r = _session.get(url, params=params, timeout=timeout, headers=headers)
+        r = _session.get(url, params=params, timeout=timeout)
         if r.status_code != 200:
             logger.warning("GET %s -> %s", url, r.status_code)
             return None
         return r.json()
-    except (ValueError, requests.RequestException) as e:
+    except Exception as e:
         logger.warning("GET %s failed: %s", url, e)
-        return None
-    except Exception as e:
-        logger.warning("GET %s unexpected error: %s", url, e)
-        return None
-
-
-def _persistent_cache_put(tracks):
-    """Кеш у БД не обов'язковий для пошуку, тому збій БД тут не критичний."""
-    try:
-        from core import db
-        db.track_cache_put_many(tracks)
-    except Exception as e:
-        logger.debug("Не вдалося зберегти track_cache: %s", e)
-
-
-def _persistent_cache_get(full_id):
-    try:
-        from core import db
-        return db.track_cache_get(full_id)
-    except Exception:
         return None
 
 
@@ -355,16 +315,6 @@ _audius_dead = {}  # host -> час, коли визнали непридатн�
 _audius_lock = threading.Lock()
 
 
-def _audius_get(host, path, params=None):
-    """Запит до Audius із підтримкою і старого app_name, і нових API-ключів."""
-    query = {"app_name": AUDIUS_APP_NAME}
-    if AUDIUS_API_KEY:
-        query["api_key"] = AUDIUS_API_KEY
-    query.update(params or {})
-    headers = {"Authorization": f"Bearer {AUDIUS_BEARER_TOKEN}"} if AUDIUS_BEARER_TOKEN else None
-    return _get(f"{host}{path}", query, headers=headers)
-
-
 def _audius_fetch_pool():
     data = _get(AUDIUS_BOOTSTRAP, timeout=8)
     return [h.rstrip("/") for h in ((data or {}).get("data") or []) if h]
@@ -409,24 +359,12 @@ def audius_host(force_new=False):
 
 
 def _aud_track(t):
-    """Нормалізує трек і одразу відсіює видалені/заборонені до стрімінгу.
-
-    Audius повертає такі записи в пошуку разом із робочими. Раніше бот показував
-    їх користувачу, а помилку 404 виявляв лише після натискання Play.
-    """
-    if not t or t.get("is_delete") or t.get("is_available") is False or t.get("is_streamable") is False:
-        return None
     tid = str(t.get("id") or "")
-    if not tid:
-        return None
     art = t.get("artwork") or {}
     cover = art.get("480x480") or art.get("150x150") or art.get("1000x1000") or ""
     user = t.get("user") or {}
     handle = user.get("handle") or ""
     perm = t.get("permalink") or ""
-    downloadable = t.get("is_downloadable")
-    if downloadable is None:
-        downloadable = t.get("downloadable")
     return {
         "id": f"aud:{tid}",
         "title": t.get("title") or "Без назви",
@@ -443,53 +381,43 @@ def _aud_track(t):
         "license": t.get("license") or "Ліцензія артиста (Audius)",
         "license_short": t.get("license") or "Artist licensed",
         "stream": "",  # резолвиться через /api/stream
-        "downloadable": bool(downloadable),
+        "downloadable": bool(t.get("downloadable")),
         "download_url": "",
     }
-
-
-def _aud_tracks(items, limit=None):
-    out = []
-    for raw in items or []:
-        try:
-            track = _aud_track(raw)
-        except (TypeError, ValueError, AttributeError):
-            track = None
-        if track:
-            out.append(track)
-            if limit and len(out) >= limit:
-                break
-    return out
 
 
 def audius_search_tracks(query, limit=25):
     host = audius_host()
     if not host:
         return []
-    data = _audius_get(host, "/v1/tracks/search", {"query": query, "limit": limit})
+    data = _get(f"{host}/v1/tracks/search", {
+        "query": query, "app_name": AUDIUS_APP_NAME, "limit": limit,
+    })
     if not data:
         return []
-    return _aud_tracks(data.get("data"), limit)
+    return [_aud_track(t) for t in (data.get("data") or [])][:limit]
 
 
 def audius_trending(genre=None, limit=25):
     host = audius_host()
     if not host:
         return []
-    params = {"limit": limit, "time": "week"}
+    params = {"app_name": AUDIUS_APP_NAME, "limit": limit, "time": "week"}
     if genre:
         params["genre"] = genre
-    data = _audius_get(host, "/v1/tracks/trending", params)
+    data = _get(f"{host}/v1/tracks/trending", params)
     if not data:
         return []
-    return _aud_tracks(data.get("data"), limit)
+    return [_aud_track(t) for t in (data.get("data") or [])][:limit]
 
 
 def audius_trending_playlists(limit=15):
     host = audius_host()
     if not host:
         return []
-    data = _audius_get(host, "/v1/playlists/trending", {"limit": limit})
+    data = _get(f"{host}/v1/playlists/trending", {
+        "app_name": AUDIUS_APP_NAME, "limit": limit,
+    })
     if not data:
         return []
     out = []
@@ -511,17 +439,19 @@ def audius_playlist_tracks(playlist_id, limit=60):
     host = audius_host()
     if not host:
         return []
-    data = _audius_get(host, f"/v1/playlists/{playlist_id}/tracks", {"limit": limit})
+    data = _get(f"{host}/v1/playlists/{playlist_id}/tracks", {
+        "app_name": AUDIUS_APP_NAME, "limit": limit,
+    })
     if not data:
         return []
-    return _aud_tracks(data.get("data"), limit)
+    return [_aud_track(t) for t in (data.get("data") or [])][:limit]
 
 
 def audius_track(track_id):
     host = audius_host()
     if not host:
         return None
-    data = _audius_get(host, f"/v1/tracks/{track_id}")
+    data = _get(f"{host}/v1/tracks/{track_id}", {"app_name": AUDIUS_APP_NAME})
     if not data or not data.get("data"):
         return None
     return _aud_track(data["data"])
@@ -531,44 +461,30 @@ def audius_stream_url(track_id, host=None):
     host = host or audius_host()
     if not host:
         return ""
-    params = {"app_name": AUDIUS_APP_NAME}
-    if AUDIUS_API_KEY:
-        params["api_key"] = AUDIUS_API_KEY
-    return f"{host}/v1/tracks/{urllib.parse.quote(str(track_id))}/stream?{urllib.parse.urlencode(params)}"
+    return f"{host}/v1/tracks/{track_id}/stream?app_name={urllib.parse.quote(AUDIUS_APP_NAME)}"
 
 
-def _url_playable(url, timeout=6):
-    """Перевіряє кілька перших байтів, а не лише HTTP-заголовок.
-
-    Частина вузлів не підтримує HEAD або відповідає на нього 404, хоча GET
-    працює. Тому для будь-якої невдалої HEAD-відповіді робимо малий Range-GET.
-    """
-    headers = {"Authorization": f"Bearer {AUDIUS_BEARER_TOKEN}"} if AUDIUS_BEARER_TOKEN else {}
+def _url_playable(url, timeout=5):
+    """Легка перевірка, що посилання реально віддає аудіо, а не 404/500 —
+    щоб клієнту ніколи не йшов мертвий стрім, який довелось би скіпати."""
     try:
-        r = _session.head(url, timeout=timeout, allow_redirects=True, headers=headers)
-        if r.status_code in (200, 206):
-            return True
-        r.close()
-    except requests.RequestException:
-        pass
-    try:
-        r = _session.get(url, timeout=timeout, headers={**headers, "Range": "bytes=0-1"},
-                         stream=True, allow_redirects=True)
-        playable = r.status_code in (200, 206)
-        r.close()
-        return playable
-    except requests.RequestException:
+        r = _session.head(url, timeout=timeout, allow_redirects=True)
+        if r.status_code == 405:  # деякі ноди не вміють HEAD — пробуємо GET шматка
+            r = _session.get(url, timeout=timeout, headers={"Range": "bytes=0-1"},
+                              stream=True, allow_redirects=True)
+            r.close()
+        return r.status_code in (200, 206)
+    except Exception:
         return False
 
 
-def audius_stream_url_verified(track_id, attempts=3, force_new=False):
-    """Перевіряє стрім і за потреби одразу перемикається на інший вузол."""
-    # Спершу переконуємось, що запис не видалений і стрімінг не заборонений.
-    if not audius_track(track_id):
-        return ""
+def audius_stream_url_verified(track_id, attempts=3):
+    """Як audius_stream_url, але перевіряє, що посилання справді грає, і
+    пробує інші discovery-ноди, якщо перша не відповіла — саме це раніше
+    ламало відразу купу треків, коли кешований хост тимчасово лежав."""
     tried = set()
     for i in range(attempts):
-        host = audius_host(force_new=(force_new or i > 0))
+        host = audius_host(force_new=(i > 0))
         if not host or host in tried:
             continue
         tried.add(host)
@@ -582,7 +498,9 @@ def audius_search_users(query, limit=15):
     host = audius_host()
     if not host:
         return []
-    data = _audius_get(host, "/v1/users/search", {"query": query, "limit": limit})
+    data = _get(f"{host}/v1/users/search", {
+        "query": query, "app_name": AUDIUS_APP_NAME, "limit": limit,
+    })
     if not data:
         return []
     out = []
@@ -603,10 +521,12 @@ def audius_user_tracks(user_id, limit=40):
     host = audius_host()
     if not host:
         return []
-    data = _audius_get(host, f"/v1/users/{user_id}/tracks", {"limit": limit})
+    data = _get(f"{host}/v1/users/{user_id}/tracks", {
+        "app_name": AUDIUS_APP_NAME, "limit": limit,
+    })
     if not data:
         return []
-    return _aud_tracks(data.get("data"), limit)
+    return [_aud_track(t) for t in (data.get("data") or [])]
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -645,44 +565,11 @@ _CC_LICENSE_LABELS = [
 def _archive_license(licenseurl):
     url = (licenseurl or "").lower()
     if not url:
-        return "", "Ліцензію перевірте на сторінці оригіналу"
+        return "https://creativecommons.org/publicdomain/mark/1.0/", "Public Domain"
     for needle, label in _CC_LICENSE_LABELS:
         if needle in url:
             return licenseurl, label
     return licenseurl, "Відкрита ліцензія (Internet Archive)"
-
-
-def _archive_doc_track(d):
-    creator = d.get("creator")
-    if isinstance(creator, list):
-        creator = creator[0] if creator else ""
-    ident = str(d.get("identifier") or "")
-    if not ident:
-        return None
-    license_url, license_short = _archive_license(d.get("licenseurl"))
-    return {
-        "id": f"arc:{ident}",
-        "title": d.get("title") or ident,
-        "artist": creator or "Невідомий виконавець",
-        "artist_id": "", "album": "", "album_id": "",
-        "cover": f"https://archive.org/services/img/{ident}",
-        "duration": 0, "duration_str": "",
-        "source": "archive", "source_label": "Internet Archive",
-        "source_url": f"https://archive.org/details/{ident}",
-        "license": license_url, "license_short": license_short,
-        "stream": "", "downloadable": True, "download_url": "",
-        "year": str(d.get("year") or ""),
-    }
-
-
-def archive_item(identifier):
-    """Отримує саме той запис за identifier, а не перший схожий пошуковий результат."""
-    meta = _get(f"https://archive.org/metadata/{urllib.parse.quote(str(identifier), safe='')}")
-    if not meta or meta.get("is_dark") or not (meta.get("files") or []):
-        return None
-    data = dict(meta.get("metadata") or {})
-    data["identifier"] = identifier
-    return _archive_doc_track(data)
 
 
 def archive_search(query, limit=20):
@@ -695,7 +582,34 @@ def archive_search(query, limit=20):
         "rows": limit, "page": 1, "output": "json", "sort[]": "downloads desc",
     })
     docs = ((data or {}).get("response") or {}).get("docs") or []
-    return [t for t in (_archive_doc_track(d) for d in docs) if t]
+    out = []
+    for d in docs:
+        creator = d.get("creator")
+        if isinstance(creator, list):
+            creator = creator[0] if creator else ""
+        ident = d.get("identifier") or ""
+        license_url, license_short = _archive_license(d.get("licenseurl"))
+        out.append({
+            "id": f"arc:{ident}",
+            "title": d.get("title") or ident,
+            "artist": creator or "Невідомий виконавець",
+            "artist_id": "",
+            "album": "",
+            "album_id": "",
+            "cover": f"https://archive.org/services/img/{ident}",
+            "duration": 0,
+            "duration_str": "",
+            "source": "archive",
+            "source_label": "Internet Archive",
+            "source_url": f"https://archive.org/details/{ident}",
+            "license": license_url,
+            "license_short": license_short,
+            "stream": "",
+            "downloadable": True,
+            "download_url": "",
+            "year": str(d.get("year") or ""),
+        })
+    return out
 
 
 def archive_collection_tracks(collection, limit=40, subject=None):
@@ -715,27 +629,41 @@ def archive_collection_tracks(collection, limit=40, subject=None):
         "rows": limit, "page": 1, "output": "json", "sort[]": "downloads desc",
     })
     docs = ((data or {}).get("response") or {}).get("docs") or []
-    return [t for t in (_archive_doc_track(d) for d in docs) if t]
+    out = []
+    for d in docs:
+        creator = d.get("creator")
+        if isinstance(creator, list):
+            creator = creator[0] if creator else ""
+        ident = d.get("identifier") or ""
+        license_url, license_short = _archive_license(d.get("licenseurl"))
+        out.append({
+            "id": f"arc:{ident}",
+            "title": d.get("title") or ident,
+            "artist": creator or "Невідомий виконавець",
+            "artist_id": "", "album": "", "album_id": "",
+            "cover": f"https://archive.org/services/img/{ident}",
+            "duration": 0, "duration_str": "",
+            "source": "archive", "source_label": "Internet Archive",
+            "source_url": f"https://archive.org/details/{ident}",
+            "license": license_url, "license_short": license_short,
+            "stream": "", "downloadable": True, "download_url": "",
+            "year": str(d.get("year") or ""),
+        })
+    return out
 
 
-def archive_stream_url(identifier, refresh=False):
-    """Обирає аудіофайл запису; повторна спроба бере альтернативний формат."""
-    meta = _get(f"https://archive.org/metadata/{urllib.parse.quote(str(identifier), safe='')}")
+def archive_stream_url(identifier):
+    """Шукає перший придатний аудіофайл у записі архіву."""
+    meta = _get(f"https://archive.org/metadata/{identifier}")
     if not meta:
         return ""
-    candidates = []
+    files = meta.get("files") or []
     for ext in (".mp3", ".ogg", ".m4a", ".flac"):
-        for f in meta.get("files") or []:
+        for f in files:
             name = f.get("name") or ""
-            if (name.lower().endswith(ext) and not name.startswith("_")
-                    and str(f.get("private", "")).lower() not in ("1", "true")):
-                candidates.append(
-                    f"https://archive.org/download/{urllib.parse.quote(str(identifier), safe='')}/"
-                    f"{urllib.parse.quote(name, safe='/')}"
-                )
-    if not candidates:
-        return ""
-    return candidates[1 % len(candidates)] if refresh else candidates[0]
+            if name.lower().endswith(ext):
+                return f"https://archive.org/download/{identifier}/{urllib.parse.quote(name)}"
+    return ""
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -881,28 +809,7 @@ def ccmixter_search(query, limit=15):
             logger.warning("ccMixter XML запит не вдався: %s", e)
     for t in out:
         _ccm_cache_put(t)
-    _persistent_cache_put(out[:limit])
     return out[:limit]
-
-
-def ccmixter_track(upload_id):
-    """Відновлює трек за id після перезапуску, коли memory-cache порожній."""
-    cached = _ccm_cache_get(upload_id)
-    if cached:
-        return cached
-    cached = _persistent_cache_get(f"ccm:{upload_id}")
-    if cached:
-        _ccm_cache_put(cached)
-        return cached
-    data = _get(CCMIXTER_API, {"ids": upload_id, "f": "json", "limit": 1})
-    entries = data if isinstance(data, list) else (data or {}).get("results", [])
-    for entry in entries[:1]:
-        track = _ccm_from_json(entry)
-        if track:
-            _ccm_cache_put(track)
-            _persistent_cache_put([track])
-            return track
-    return None
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -984,24 +891,7 @@ def openverse_search(query, limit=15):
         if t:
             out.append(t)
             _ov_cache_put(t)
-    _persistent_cache_put(out)
     return out
-
-
-def openverse_track(track_id):
-    cached = _ov_cache_get(track_id)
-    if cached:
-        return cached
-    cached = _persistent_cache_get(f"ov:{track_id}")
-    if cached:
-        _ov_cache_put(cached)
-        return cached
-    data = _get(f"{OPENVERSE_API}{urllib.parse.quote(str(track_id), safe='')}/")
-    track = _ov_track(data) if data else None
-    if track:
-        _ov_cache_put(track)
-        _persistent_cache_put([track])
-    return track
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -1106,30 +996,7 @@ def wikimedia_search(query, limit=15):
             _wm_cache_put(t)
         if len(out) >= limit:
             break
-    _persistent_cache_put(out)
     return out
-
-
-def wikimedia_track(page_id):
-    cached = _wm_cache_get(page_id)
-    if cached:
-        return cached
-    cached = _persistent_cache_get(f"wm:{page_id}")
-    if cached:
-        _wm_cache_put(cached)
-        return cached
-    data = _get(WIKIMEDIA_API, {
-        "action": "query", "format": "json", "pageids": page_id,
-        "prop": "imageinfo", "iiprop": "url|mime|extmetadata",
-    })
-    pages = ((data or {}).get("query") or {}).get("pages") or {}
-    for page in pages.values():
-        track = _wm_track(page)
-        if track:
-            _wm_cache_put(track)
-            _persistent_cache_put([track])
-            return track
-    return None
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -1144,91 +1011,40 @@ def split_id(full_id):
     return prefix, rest
 
 
-DEFAULT_SEARCH_SOURCES = ["jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia"]
-
-
 def search_tracks(query, limit=30, quality="mp32", sources=None, sort="relevance", genre=None):
-    """Паралельний пошук із рівномірним змішуванням джерел.
+    """Змішаний пошук по всіх легальних джерелах з дедуплікацією.
 
-    Один повільний API більше не блокує інші: відповідь чекаємо обмежений час,
-    а недоступне джерело просто пропускаємо. Результати чергуються за джерелом,
-    тому перші 8 кнопок у чаті більше не складаються лише з Jamendo.
-    """
-    query = (query or "").strip()
-    if not query or limit <= 0:
-        return []
-    sources = [s for s in (sources or DEFAULT_SEARCH_SOURCES) if s in DEFAULT_SEARCH_SOURCES]
-    if not sources:
-        return []
-    cache_key = (query.casefold(), int(limit), quality, tuple(sources), sort, genre)
-    with _SEARCH_CACHE_LOCK:
-        cached = _SEARCH_CACHE.get(cache_key)
-    if cached is not None:
-        return copy.deepcopy(cached)
+    Раніше типовим значенням тут було лише ["jamendo", "audius"] — а Internet
+    Archive (нетлейбли, укр/рос добірки), ccMixter і Openverse хоч і були
+    повністю реалізовані, фактично ніколи не викликались зі звичайного
+    пошуку, бо жоден виклик не передавав `sources` явно. Через це вся
+    робота з розширення бібліотеки була "мертвим кодом" з погляду юзера.
+    Тепер типово шукаємо по всіх шести джерелах відразу (додано Wikimedia
+    Commons напряму — Openverse і так частково тягне звідти, але напряму
+    дістаємо більше й точніше фільтруємо)."""
+    sources = sources or ["jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia"]
+    results = []
+    if "jamendo" in sources:
+        results += jamendo_search_tracks(query, limit=limit, audioformat=quality, sort=sort)
+    if "audius" in sources:
+        results += audius_search_tracks(query, limit=max(10, limit // 2))
+    if "archive" in sources:
+        results += archive_search(query, limit=12)
+    if "ccmixter" in sources:
+        results += ccmixter_search(query, limit=10)
+    if "openverse" in sources:
+        results += openverse_search(query, limit=10)
+    if "wikimedia" in sources:
+        results += wikimedia_search(query, limit=10)
 
-    jobs = {}
-    pools = {source: [] for source in sources}
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=min(SEARCH_MAX_WORKERS, len(sources)))
-    try:
-        for source in sources:
-            if source == "jamendo":
-                fn, args, kw = jamendo_search_tracks, (query,), {"limit": limit, "audioformat": quality, "sort": sort}
-            elif source == "audius":
-                fn, args, kw = audius_search_tracks, (query,), {"limit": max(10, limit // 2)}
-            elif source == "archive":
-                fn, args, kw = archive_search, (query,), {"limit": min(12, limit)}
-            elif source == "ccmixter":
-                fn, args, kw = ccmixter_search, (query,), {"limit": min(10, limit)}
-            elif source == "openverse":
-                fn, args, kw = openverse_search, (query,), {"limit": min(10, limit)}
-            else:
-                fn, args, kw = wikimedia_search, (query,), {"limit": min(10, limit)}
-            jobs[executor.submit(fn, *args, **kw)] = source
-
-        done, pending = concurrent.futures.wait(jobs, timeout=PROVIDER_SEARCH_TIMEOUT)
-        for future in done:
-            source = jobs[future]
-            try:
-                pools[source] = future.result() or []
-            except Exception as e:
-                logger.warning("Пошук у %s не вдався: %s", source, e)
-        for future in pending:
-            logger.warning("Пошук у %s перевищив %s с", jobs[future], PROVIDER_SEARCH_TIMEOUT)
-            future.cancel()
-    finally:
-        executor.shutdown(wait=False, cancel_futures=True)
-
-    positions = {source: 0 for source in sources}
-    seen, out, seen_text = set(), [], []
-    while len(out) < limit:
-        advanced = False
-        for source in sources:
-            pool = pools[source]
-            pos = positions[source]
-            if pos >= len(pool):
-                continue
-            advanced = True
-            positions[source] = pos + 1
-            t = pool[pos]
-            key = ((t.get("title") or "").strip().casefold(),
-                   (t.get("artist") or "").strip().casefold())
-            if not key[0] or key in seen:
-                continue
-            # Відсікаємо майже однакові записи з різних каталогів, але не
-            # склеюємо різні версії/ремікси через надто агресивний поріг.
-            fingerprint = (key[0] + " " + key[1]).strip()
-            if any(fuzzy_ratio(fingerprint, previous) >= 97 for previous in seen_text):
-                continue
-            seen.add(key)
-            seen_text.append(fingerprint)
-            out.append(t)
-            if len(out) >= limit:
-                break
-        if not advanced:
-            break
-    with _SEARCH_CACHE_LOCK:
-        _SEARCH_CACHE[cache_key] = copy.deepcopy(out)
-    return out
+    seen, out = set(), []
+    for t in results:
+        key = (t["title"].strip().lower(), t["artist"].strip().lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(t)
+    return out[:limit]
 
 
 def _normalize_query(text):
@@ -1273,29 +1089,19 @@ def jamendo_search_albums_smart(query, limit=20, sort="relevance"):
 
 
 def search_everything(query, limit=12):
-    """Об'єднаний пошук: треки, альбоми й артисти завантажуються паралельно."""
-    jobs = {
-        "tracks": lambda: search_tracks_smart(query, limit=limit, sources=DEFAULT_SEARCH_SOURCES),
-        "albums": lambda: jamendo_search_albums_smart(query, limit=limit),
-        "jam_artists": lambda: jamendo_search_artists(query, limit=limit),
-        "aud_artists": lambda: audius_search_users(query, limit=max(4, limit // 3)),
-    }
-    data = {key: [] for key in jobs}
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
-    futures = {executor.submit(fn): key for key, fn in jobs.items()}
-    done, pending = concurrent.futures.wait(futures, timeout=PROVIDER_SEARCH_TIMEOUT + 3)
-    for future in done:
-        try:
-            data[futures[future]] = future.result() or []
-        except Exception as e:
-            logger.warning("Об'єднаний пошук (%s): %s", futures[future], e)
-    for future in pending:
-        future.cancel()
-    executor.shutdown(wait=False, cancel_futures=True)
+    """Об'єднаний пошук: треки + альбоми + артисти одним запитом. Це саме
+    той пошук, який виконує вкладка "Усе" (типова при відкритті пошуку) —
+    тому треки тягнемо з усіх шести джерел, а не лише Jamendo/Audius."""
+    tracks = search_tracks_smart(query, limit=limit, sources=[
+        "jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia",
+    ])
+    albums = jamendo_search_albums_smart(query, limit=limit)
+    jam_artists = jamendo_search_artists(query, limit=limit)
+    aud_artists = audius_search_users(query, limit=max(4, limit // 3))
     return {
-        "tracks": data["tracks"],
-        "albums": data["albums"],
-        "artists": data["jam_artists"] + data["aud_artists"],
+        "tracks": tracks,
+        "albums": albums,
+        "artists": jam_artists + aud_artists,
     }
 
 
@@ -1488,29 +1294,36 @@ def get_track(full_id, quality="mp32"):
     if prefix == "aud":
         return audius_track(raw)
     if prefix == "arc":
-        return archive_item(raw)
+        res = archive_search(raw, limit=1)
+        return res[0] if res else None
     if prefix == "ccm":
-        return ccmixter_track(raw)
+        return _ccm_cache_get(raw)
     if prefix == "ov":
-        return openverse_track(raw)
+        return _ov_cache_get(raw)
     if prefix == "wm":
-        return wikimedia_track(raw)
+        return _wm_cache_get(raw)
     return None
 
 
-def resolve_stream(full_id, quality="mp32", refresh=False):
-    """Повертає прямий URL; refresh=true оминає невдалий кеш/вузол/формат."""
+def resolve_stream(full_id, quality="mp32"):
+    """Повертає прямий URL аудіо у легального джерела."""
     prefix, raw = split_id(full_id)
     if prefix == "jam":
         t = jamendo_track(raw, audioformat=quality)
         return t["stream"] if t else ""
     if prefix == "aud":
-        return audius_stream_url_verified(raw, force_new=refresh)
+        return audius_stream_url_verified(raw)
     if prefix == "arc":
-        return archive_stream_url(raw, refresh=refresh)
-    if prefix in ("ccm", "ov", "wm"):
-        t = get_track(full_id, quality)
-        return t.get("stream", "") if t else ""
+        return archive_stream_url(raw)
+    if prefix == "ccm":
+        t = _ccm_cache_get(raw)
+        return t["stream"] if t else ""
+    if prefix == "ov":
+        t = _ov_cache_get(raw)
+        return t["stream"] if t else ""
+    if prefix == "wm":
+        t = _wm_cache_get(raw)
+        return t["stream"] if t else ""
     return ""
 
 
@@ -1528,10 +1341,18 @@ def resolve_download(full_id):
             return audius_stream_url_verified(raw), t
         return "", t
     if prefix == "arc":
-        return archive_stream_url(raw), archive_item(raw)
-    if prefix in ("ccm", "ov", "wm"):
-        t = get_track(full_id)
-        return (t.get("download_url", ""), t) if t else ("", None)
+        url = archive_stream_url(raw)
+        res = archive_search(raw, limit=1)
+        return url, (res[0] if res else None)
+    if prefix == "ccm":
+        t = _ccm_cache_get(raw)
+        return (t["download_url"], t) if t else ("", None)
+    if prefix == "ov":
+        t = _ov_cache_get(raw)
+        return (t["download_url"], t) if t else ("", None)
+    if prefix == "wm":
+        t = _wm_cache_get(raw)
+        return (t["download_url"], t) if t else ("", None)
     return "", None
 
 
