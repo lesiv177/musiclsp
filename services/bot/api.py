@@ -10,6 +10,7 @@ HTTP API для Mini App.
 import io
 import hmac
 import json
+import math
 import time
 import zipfile
 import hashlib
@@ -77,6 +78,16 @@ def require_auth(handler):
 
 async def to_thread(fn, *a, **kw):
     return await asyncio.get_running_loop().run_in_executor(None, lambda: fn(*a, **kw))
+
+async def json_object(request):
+    """Читає JSON-об'єкт; некоректне тіло не повинно перетворюватися на 500."""
+    try:
+        body = await json_object(request)
+        if body is None:
+            return fail("Некоректний JSON або очікувався JSON-об’єкт")
+    except (ValueError, web.HTTPException, UnicodeDecodeError):
+        return None
+    return body if isinstance(body, dict) else None
 
 
 def bounded_int(value, default, minimum, maximum):
@@ -148,7 +159,9 @@ async def h_me(request, u):
 async def h_settings(request, u):
     uid = int(u["uid"])
     try:
-        body = await request.json()
+        body = await json_object(request)
+        if body is None:
+            return fail("Некоректний JSON або очікувався JSON-об’єкт")
     except (ValueError, web.HTTPException):
         return fail("Некоректний JSON")
     if not isinstance(body, dict):
@@ -194,6 +207,30 @@ async def h_settings(request, u):
 
 
 
+def valid_device_id(value):
+    value = str(value or "")
+    return bool(value and len(value) <= 80 and all(
+        ch in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for ch in value
+    ))
+
+
+def safe_device_track(track):
+    if not isinstance(track, dict) or not track.get("id"):
+        return None
+    fields = ("id", "title", "artist", "cover", "duration", "source",
+              "source_label", "license_short", "source_url")
+    safe = {}
+    for key in fields:
+        value = track.get(key)
+        if isinstance(value, str):
+            safe[key] = value[:2000 if key in ("cover", "source_url") else 240]
+        elif isinstance(value, (int, float)) and not isinstance(value, bool):
+            if math.isfinite(float(value)):
+                safe[key] = value
+    safe["id"] = str(safe["id"])[:160]
+    return safe if safe["id"] else None
+
+
 # ─── Пристрої та передавання відтворення між сесіями ──────────────────────────
 @require_auth
 async def h_devices_get(request, u):
@@ -204,13 +241,15 @@ async def h_devices_get(request, u):
 @require_auth
 async def h_device_register(request, u):
     try:
-        body = await request.json()
+        body = await json_object(request)
+        if body is None:
+            return fail("Некоректний JSON або очікувався JSON-об’єкт")
     except (ValueError, web.HTTPException):
         return fail("Некоректний JSON")
     if not isinstance(body, dict):
         return fail("Очікувався JSON-об’єкт")
-    device_id = str(body.get("device_id") or "")[:80]
-    if not device_id or any(ch not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for ch in device_id):
+    device_id = str(body.get("device_id") or "")
+    if not valid_device_id(device_id):
         return fail("Некоректний ідентифікатор пристрою")
     await to_thread(db.device_register, int(u["uid"]), device_id,
                     str(body.get("name") or "MusicLSP device"),
@@ -221,30 +260,35 @@ async def h_device_register(request, u):
 @require_auth
 async def h_device_state(request, u):
     try:
-        body = await request.json()
+        body = await json_object(request)
+        if body is None:
+            return fail("Некоректний JSON або очікувався JSON-об’єкт")
     except (ValueError, web.HTTPException):
         return fail("Некоректний JSON")
     if not isinstance(body, dict):
         return fail("Очікувався JSON-об’єкт")
-    device_id = str(body.get("device_id") or "")[:80]
+    device_id = str(body.get("device_id") or "")
     state = body.get("state") or {}
-    if not device_id or not isinstance(state, dict):
+    if not valid_device_id(device_id) or not isinstance(state, dict):
         return fail("Некоректний стан пристрою")
     try:
-        position = max(0, min(86400, int(float(state.get("position") or 0))))
-        volume = max(0, min(1, float(state.get("volume") or 0)))
-    except (TypeError, ValueError):
+        position_raw = float(state.get("position") or 0)
+        volume_raw = float(state.get("volume") or 0)
+        if not math.isfinite(position_raw) or not math.isfinite(volume_raw):
+            raise ValueError("non-finite playback state")
+        position = int(max(0, min(86400, position_raw)))
+        volume = max(0.0, min(1.0, volume_raw))
+    except (TypeError, ValueError, OverflowError):
         return fail("Некоректний стан відтворення")
-    safe = {"playing": bool(state.get("playing")), "position": position, "volume": volume}
-    track = state.get("track")
-    fields = ("id", "title", "artist", "cover", "duration", "source", "source_label", "license_short", "source_url")
-    if isinstance(track, dict) and track.get("id"):
-        safe["track"] = {k: track[k] for k in fields if k in track and isinstance(track[k], (str, int, float))}
+    safe = {"playing": state.get("playing") is True, "position": position, "volume": volume}
+    track = safe_device_track(state.get("track"))
+    if track:
+        safe["track"] = track
     queue = state.get("queue")
     if isinstance(queue, list):
-        safe["queue"] = [{k: item[k] for k in fields if k in item and isinstance(item[k], (str, int, float))}
-                         for item in queue[:30] if isinstance(item, dict) and item.get("id")]
-        safe["index"] = max(0, min(len(safe["queue"])-1, int(state.get("index") or 0))) if safe["queue"] else -1
+        safe["queue"] = [item for raw in queue[:30] if (item := safe_device_track(raw))]
+        index = bounded_int(state.get("index"), 0, 0, max(0, len(safe["queue"]) - 1))
+        safe["index"] = index if safe["queue"] else -1
     updated = await to_thread(db.device_state_update, int(u["uid"]), device_id,
                               json.dumps(safe, ensure_ascii=False))
     if not updated:
@@ -255,17 +299,19 @@ async def h_device_state(request, u):
 @require_auth
 async def h_device_command(request, u):
     try:
-        body = await request.json()
+        body = await json_object(request)
+        if body is None:
+            return fail("Некоректний JSON або очікувався JSON-об’єкт")
     except (ValueError, web.HTTPException):
         return fail("Некоректний JSON")
     if not isinstance(body, dict):
         return fail("Очікувався JSON-об’єкт")
-    device_id = str(body.get("device_id") or "")[:80]
+    device_id = str(body.get("device_id") or "")
     action = str(body.get("action") or "")
     payload = body.get("payload") or {}
     if action not in {"handoff", "play", "pause", "next", "previous", "seek", "volume"}:
         return fail("Невідома команда")
-    if not device_id or not isinstance(payload, dict):
+    if not valid_device_id(device_id) or not isinstance(payload, dict):
         return fail("Некоректна команда")
     encoded = json.dumps(payload, ensure_ascii=False)
     if len(encoded) > 30000:
@@ -278,9 +324,9 @@ async def h_device_command(request, u):
 
 @require_auth
 async def h_device_commands(request, u):
-    device_id = str(request.query.get("device_id") or "")[:80]
+    device_id = str(request.query.get("device_id") or "")
     after = bounded_int(request.query.get("after"), 0, 0, 2147483647)
-    if not device_id or after is None:
+    if not valid_device_id(device_id) or after is None:
         return fail("Некоректний запит")
     commands = await to_thread(db.device_commands_get, int(u["uid"]), device_id, after)
     return ok({"ok": True, "commands": commands})
@@ -377,7 +423,9 @@ async def h_blindtest_pool(request, u):
 @require_auth
 async def h_blindtest_submit(request, u):
     uid = int(u["uid"])
-    body = await request.json()
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
     streak = max(0, int(body.get("streak", 0)))
     name = u.get("first_name") or u.get("username") or "Гравець"
     best = await to_thread(db.blindtest_submit, uid, name, streak)
@@ -575,7 +623,9 @@ async def h_library_get(request, u):
 @require_auth
 async def h_library_post(request, u):
     uid = int(u["uid"])
-    body = await request.json()
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
     action = body.get("action", "add")
     if action == "remove":
         await to_thread(db.lib_remove, uid, body.get("id", ""))
@@ -608,7 +658,9 @@ async def h_playlist_get(request, u):
 @require_auth
 async def h_playlists_post(request, u):
     uid = int(u["uid"])
-    body = await request.json()
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
     action = body.get("action", "")
 
     if action == "create":
@@ -645,7 +697,9 @@ async def h_shared(request, u):
 
 @require_auth
 async def h_history_post(request, u):
-    body = await request.json()
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
     track = body.get("track") or {}
     if track.get("id"):
         await to_thread(db.history_add, int(u["uid"]), track, int(body.get("seconds") or 0))
@@ -660,7 +714,9 @@ async def h_history_get(request, u):
 @require_auth
 async def h_report_post(request, u):
     """Скарга на трек (невірна ліцензія/автор, мертве посилання тощо)."""
-    body = await request.json()
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
     track = body.get("track") or {}
     if not track.get("id"):
         return fail("Не вказано трек")
@@ -678,7 +734,9 @@ async def h_stats(request, u):
 
 @require_auth
 async def h_promo(request, u):
-    body = await request.json()
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
     done, days = await to_thread(db.promo_redeem, int(u["uid"]), body.get("code", ""))
     if not done:
         return fail("Код недійсний або вичерпаний")
@@ -722,7 +780,9 @@ async def h_referral_get(request, u):
 @require_auth
 async def h_referral_post(request, u):
     uid = int(u["uid"])
-    body = await request.json()
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
     done, who = await to_thread(db.apply_referral, uid, body.get("code", ""))
     if not done:
         msg = "Ви вже використали реферальний код" if who == "already" else "Код недійсний"
@@ -744,7 +804,9 @@ async def h_eq_post(request, u):
     uid = int(u["uid"])
     if not db.is_premium(uid):
         return fail("Пресети еквалайзера доступні у Premium", 403)
-    body = await request.json()
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
     action = body.get("action")
     if action == "save":
         limit = db.limits_for(uid)["eq_presets"]
@@ -765,6 +827,33 @@ def _safe_filename(name):
     return "".join(c for c in (name or "track") if c not in '\\/:*?"<>|')[:80] or "track"
 
 
+def _download_bounded(url, max_bytes):
+    """Завантажує аудіо потоково з жорстким лімітом пам'яті."""
+    if max_bytes <= 0:
+        return None
+    response = None
+    try:
+        response = requests.get(url, timeout=(5, 25), stream=True)
+        response.raise_for_status()
+        declared = response.headers.get("Content-Length")
+        if declared and int(declared) > max_bytes:
+            return None
+        chunks, total = [], 0
+        for chunk in response.iter_content(65536):
+            if not chunk:
+                continue
+            total += len(chunk)
+            if total > max_bytes:
+                return None
+            chunks.append(chunk)
+        return b"".join(chunks) if total else None
+    except (requests.RequestException, ValueError, TypeError):
+        return None
+    finally:
+        if response is not None:
+            response.close()
+
+
 def _build_offline_zip(pl, max_tracks=15, max_total_mb=60):
     buf = io.BytesIO()
     added, total_mb = 0, 0.0
@@ -781,17 +870,14 @@ def _build_offline_zip(pl, max_tracks=15, max_total_mb=60):
                 url, full = "", None
             if not url:
                 continue
-            try:
-                r = requests.get(url, timeout=25)
-                r.raise_for_status()
-            except Exception:
+            remaining_bytes = int(max_total_mb * 1024 * 1024 - total_mb * 1024 * 1024)
+            data = _download_bounded(url, remaining_bytes)
+            if not data:
                 continue
-            size_mb = len(r.content) / (1024 * 1024)
-            if total_mb + size_mb > max_total_mb:
-                break
+            size_mb = len(data) / (1024 * 1024)
             info = full or t
             fname = _safe_filename(f"{info.get('artist','')} - {info.get('title','')}") + ".mp3"
-            zf.writestr(fname, r.content)
+            zf.writestr(fname, data)
             readme.append(
                 f"- {info.get('artist','')} — {info.get('title','')} · "
                 f"{info.get('license_short','')} · {info.get('source_url','')}"
@@ -862,7 +948,9 @@ async def h_admin_login(request, u):
     n, last = _ADMIN_FAILS.get(uid, (0, 0))
     if n >= 5 and time.time() - last < 300:
         return fail("Забагато спроб. Зачекайте 5 хвилин.", 429)
-    body = await request.json()
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
     pw = str(body.get("password", ""))
     if hmac.compare_digest(pw.encode(), ADMIN_CMD_PASSWORD.encode()):
         _ADMIN_UNLOCKED[uid] = time.time() + ADMIN_UNLOCK_TTL
@@ -910,7 +998,9 @@ async def h_admin_users(request, u):
 
 @require_admin
 async def h_admin_user_action(request, u):
-    body = await request.json()
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
     try:
         target = int(body.get("uid"))
     except (TypeError, ValueError):
@@ -944,7 +1034,9 @@ async def h_admin_reports(request, u):
 
 @require_admin
 async def h_admin_report_resolve(request, u):
-    body = await request.json()
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
     await to_thread(db.report_resolve, int(body.get("id") or 0))
     await to_thread(db.audit, int(u["uid"]), "web_admin_report_resolve", str(body.get("id")), "")
     return ok({"ok": True})
@@ -953,7 +1045,9 @@ async def h_admin_report_resolve(request, u):
 @require_admin
 async def h_admin_promos(request, u):
     if request.method == "POST":
-        body = await request.json()
+        body = await json_object(request)
+        if body is None:
+            return fail("Некоректний JSON або очікувався JSON-об’єкт")
         action = body.get("action")
         if action == "create":
             import random, string
@@ -992,7 +1086,9 @@ async def h_admin_user_info(request, u):
 
 @require_admin
 async def h_admin_dm(request, u):
-    body = await request.json()
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
     text = (body.get("text") or "").strip()
     try:
         target = int(body.get("uid"))
@@ -1059,7 +1155,9 @@ async def h_admin_broadcast(request, u):
     st = _BROADCAST_STATE
     if request.method == "GET":
         return ok({"ok": True, **{k: st[k] for k in ("running", "total", "sent", "blocked", "failed", "done")}})
-    body = await request.json()
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
     text = (body.get("text") or "").strip()
     if not text:
         return fail("Порожній текст")
