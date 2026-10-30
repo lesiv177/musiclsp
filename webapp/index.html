@@ -2616,6 +2616,7 @@ async function applyDeviceCommand(command){
         return;
       }
       if(target>0) await seekLocalPosition(target);
+      if(Number.isFinite(Number(p.volume)))cur.volume=Math.max(0,Math.min(1,Number(p.volume)));
       const state={track:current(),queue:S.queue.slice(0,30),index:S.index,
         position:Math.floor(cur.currentTime||target),duration:Math.floor(cur.duration||0),
         playing:!cur.paused,volume:cur.volume||1};
@@ -2690,12 +2691,12 @@ async function getTransferSnapshot(){
     const queue=Array.isArray(state.queue)&&state.queue.length?state.queue:(state.track?[state.track]:[]);
     const index=Math.max(0,Math.min(Math.max(0,queue.length-1),Number(state.index)||0));
     const track=queue[index]||state.track;
-    if(track)return {track,queue:queue.length?queue:[track],index,position:Math.max(0,Number(state.position)||0)};
+    if(track)return {track,queue:queue.length?queue:[track],index,position:Math.max(0,Number(state.position)||0),volume:Math.max(0,Math.min(1,Number(state.volume)||1))};
   }
   const queue=S.queue.slice(0,30), index=Math.max(0,Math.min(Math.max(0,queue.length-1),S.index));
   const track=queue[index]||current();
   if(!track)return null;
-  return {track,queue:queue.length?queue:[track],index,position:Math.floor(cur.currentTime||0)};
+  return {track,queue:queue.length?queue:[track],index,position:Math.floor(cur.currentTime||0),volume:Math.max(0,Math.min(1,cur.volume||1))};
 }
 async function selectPlaybackDevice(targetId, devices){
   if(targetId===DEVICE_SYNC.id){
@@ -2707,6 +2708,7 @@ async function selectPlaybackDevice(targetId, devices){
       const started=await play(current());
       if(!started){toast("Дозволь відтворення на цьому пристрої");return;}
       if(snapshot.position>0)await seekLocalPosition(snapshot.position);
+      cur.volume=snapshot.volume;
       const state={track:current(),queue:S.queue.slice(0,30),index:S.index,
         position:Math.floor(cur.currentTime||snapshot.position),duration:Math.floor(cur.duration||0),
         playing:!cur.paused,volume:cur.volume||1};
