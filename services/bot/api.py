@@ -441,8 +441,15 @@ async def h_device_command(request, u):
                 raise ValueError()
         except (TypeError, ValueError, OverflowError):
             position = 0
+        try:
+            volume = float(payload.get("volume", 1))
+            if not math.isfinite(volume):
+                volume = 1
+        except (TypeError, ValueError, OverflowError):
+            volume = 1
         payload = {"track": track, "queue": queue, "index": index,
-                   "position": int(max(0, min(86400, position)))}
+                   "position": int(max(0, min(86400, position))),
+                   "volume": max(0.0, min(1.0, volume))}
     encoded = json.dumps(payload, ensure_ascii=False)
     if len(encoded) > 30000:
         return fail("Завелика команда")
