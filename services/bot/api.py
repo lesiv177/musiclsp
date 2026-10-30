@@ -497,6 +497,23 @@ async def h_device_commands(request, u):
     return ok({"ok": True, "commands": commands})
 
 
+
+@require_auth
+async def h_device_command_ack(request, u):
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
+    device_id = str(body.get("device_id") or "")
+    command_id = bounded_int(body.get("command_id"), None, 1, 2147483647)
+    result = str(body.get("result") or "ok")[:300]
+    if not valid_device_id(device_id) or command_id is None:
+        return fail("Некоректне підтвердження")
+    acked = await to_thread(db.device_command_ack, int(u["uid"]), device_id, command_id, result)
+    if not acked:
+        return fail("Команда не знайдена", 404)
+    return ok({"ok": True, "acknowledged": command_id})
+
+
 async def h_devices_ws(request):
     """Authenticated low-latency event channel for this user's devices."""
     user = auth_user(request)
@@ -1479,6 +1496,7 @@ def build_app():
     r.add_post("/api/devices/state", h_device_state)
     r.add_post("/api/devices/command", h_device_command)
     r.add_get("/api/devices/commands", h_device_commands)
+    r.add_post("/api/devices/command/ack", h_device_command_ack)
     r.add_get("/api/devices/ws", h_devices_ws)
     r.add_get("/api/search", h_search)
     r.add_get("/api/home", h_home)
