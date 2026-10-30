@@ -751,7 +751,7 @@ const S = {
   queue:[], index:-1, playing:false, shuffle:false, repeat:"off",
   liked:new Set(), playlists:[], eq:null, eqNodes:null, ctx:null,
   crossfade:0, sleepAt:0, sleepTimer:null, kind:"tracks", libView:"liked",
-  sort:"relevance", sources:["jamendo","audius","archive","ccmixter","openverse"],
+  sort:"relevance", sources:["jamendo","audius","archive","ccmixter","openverse","wikimedia","soundcloud"],
   speed:1, nightQuiet:false,
 };
 
@@ -1940,7 +1940,15 @@ async function playById(id){
   catch(e){ toast(e.message); }
 }
 
+const URLCACHE = {};      // id -> готове пряме посилання (з /api/resolve)
 function streamUrl(t){
+  /* Швидкий шлях: пряме посилання, яке вже є у видачі або передзавантажене —
+     трек стартує без жодного запиту до нашого сервера. Після збою (RETRY.n>0)
+     йдемо через сервер: він перевіряє посилання й шукає запасне джерело. */
+  if(!RETRY.n){
+    if(URLCACHE[t.id]) return URLCACHE[t.id];
+    if((t.stream||"").startsWith("https://")) return t.stream;
+  }
   /* назва й артист — щоб сервер міг знайти запасне джерело, якщо основне не грає */
   return `${API}/api/stream?id=${encodeURIComponent(t.id)}&initData=${encodeURIComponent(INIT)}`
     + `&t=${encodeURIComponent((t.title||"").slice(0,120))}&a=${encodeURIComponent((t.artist||"").slice(0,120))}`
@@ -2104,7 +2112,7 @@ function toggleRepeat(){
   el.addEventListener("pause", ()=>{ if(el===cur) resumeSave(true); });
   el.addEventListener("loadedmetadata", ()=>{ if(el===cur) renderBkmkTicks(current()); });
   el.addEventListener("error", ()=>{ if(el===cur && S.playing) reconnect("error"); });
-  el.addEventListener("playing", ()=>{ if(el===cur){ RETRY.n = 0; RETRY.lastProg = Date.now(); } });
+  el.addEventListener("playing", ()=>{ if(el===cur){ RETRY.n = 0; RETRY.lastProg = Date.now(); prefetchNext(); } });
   el.addEventListener("timeupdate", ()=>{ if(el===cur) RETRY.lastProg = Date.now(); });
 });
 
@@ -3101,6 +3109,31 @@ setInterval(()=>{
 window.addEventListener("online", ()=>{
   if(S.playing && current() && !RESUME.pending && (cur.paused || cur.error)) { RETRY.n = 0; reconnect("online"); }
 });
+
+/* ════════ Передзавантаження наступних треків ════════
+   Поки грає поточний, готуємо посилання на два наступних (якщо їх ще немає)
+   і прогріваємо буфер наступного — перемикання стає майже миттєвим. */
+const PRE = new Audio(); PRE.preload = "auto"; PRE.muted = true;
+let preBusy = false;
+async function prefetchNext(){
+  if(preBusy || S.shuffle || !S.queue.length) return;
+  preBusy = true;
+  try{
+    for(let k=1; k<=2; k++){
+      const t = S.queue[S.index+k]; if(!t) break;
+      if(!URLCACHE[t.id] && !(t.stream||"").startsWith("https://")){
+        try{
+          const r = await get(`/api/resolve?id=${encodeURIComponent(t.id)}&t=${encodeURIComponent((t.title||"").slice(0,120))}&a=${encodeURIComponent((t.artist||"").slice(0,120))}`);
+          if(r.url) URLCACHE[t.id] = r.url;
+        }catch(e){ /* не вдалось — при ▶ піде звичайним шляхом через сервер */ }
+      }
+      if(k===1){
+        const u = URLCACHE[t.id] || ((t.stream||"").startsWith("https://") ? t.stream : "");
+        if(u && PRE.src !== u){ try{ PRE.src = u; PRE.load(); }catch(e){} }
+      }
+    }
+  } finally { preBusy = false; }
+}
 
 paintStaticIcons();
 </script>
