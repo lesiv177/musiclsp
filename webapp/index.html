@@ -4069,3 +4069,39 @@ paintStaticIcons();
 </script>
 </body>
 </html>
+
+
+<style>
+/* Mini-player: lock every control to the same grid row on narrow WebViews.
+   Keep the five action buttons in fixed columns so Next can never wrap. */
+#bar.bar.on{
+  display:grid!important;
+  grid-auto-flow:row!important;
+  grid-template-rows:minmax(0,1fr)!important;
+  grid-template-columns:40px minmax(0,1fr) 26px 54px 26px 32px 26px!important;
+  width:auto!important;
+  left:12px!important;
+  right:12px!important;
+  max-width:602px!important;
+  margin:0 auto!important;
+  box-sizing:border-box!important;
+  align-items:center!important;
+  overflow:hidden!important;
+}
+#bar #barArt{grid-column:1;grid-row:1;min-width:0!important}
+#bar .meta{grid-column:2;grid-row:1;min-width:0!important}
+#bar #barLike{grid-column:3;grid-row:1}
+#bar #barRemote{grid-column:4;grid-row:1;width:54px!important}
+#bar>button:nth-of-type(3){grid-column:5;grid-row:1}
+#bar #barPlay{grid-column:6;grid-row:1}
+#bar>button:nth-of-type(5){grid-column:7;grid-row:1}
+#bar .barline{position:absolute!important;left:0!important;bottom:-1px!important;grid-column:1/-1;pointer-events:none}
+@media(min-width:521px){
+  #bar.bar.on{grid-template-columns:46px minmax(0,1fr) 32px 58px 32px 36px 32px!important}
+  #bar #barArt{width:46px!important;height:46px!important}
+  #bar #barRemote{width:58px!important}
+  #bar>button:nth-of-type(3){width:32px!important}
+  #bar #barPlay{width:36px!important}
+  #bar>button:nth-of-type(5){width:32px!important}
+}
+</style>
