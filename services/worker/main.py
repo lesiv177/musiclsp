@@ -39,6 +39,17 @@ async def notify(uid, text):
         log.debug("Не доставлено %s: %s", uid, e)
 
 
+def normalize_expiry_timestamp(value):
+    """Повертає timestamp як naive UTC для однакового порівняння в обох БД."""
+    if isinstance(value, str):
+        value = datetime.datetime.fromisoformat(value.replace("Z", "+00:00").strip())
+    if not isinstance(value, datetime.datetime):
+        raise TypeError("premium_until must be a datetime")
+    if value.tzinfo is not None:
+        value = value.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+    return value
+
+
 async def expire_premium():
     """Знімає Premium, у якого вийшов термін."""
     now = datetime.datetime.utcnow()
@@ -50,15 +61,10 @@ async def expire_premium():
             until = r.get("premium_until")
             if not until:
                 continue
-            if isinstance(until, str):
-                try:
-                    until = datetime.datetime.fromisoformat(until.replace("Z", "").strip())
-                except ValueError:
-                    continue
-            # PostgreSQL може повернути timestamp із часовим поясом,
-            # тоді як now() тут naive UTC. Нормалізуємо обидва до naive UTC.
-            if getattr(until, "tzinfo", None) is not None:
-                until = until.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+            try:
+                until = normalize_expiry_timestamp(until)
+            except (TypeError, ValueError, OverflowError):
+                continue
             if until < now:
                 expired.append(int(r["uid"]))
 
