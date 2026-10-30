@@ -2322,7 +2322,7 @@ async function startDeviceSync(){
     await post("/api/devices/register",{device_id:DEVICE_SYNC.id,name:deviceLabel(),platform:navigator.platform||"web"});
     publishDeviceState();
     setInterval(publishDeviceState,7000);
-    setInterval(pollDeviceCommands,2500);
+    setInterval(pollDeviceCommands,8000);
     connectDeviceSocket();
   }catch(e){ DEVICE_SYNC.started=false; }
 }
@@ -2380,7 +2380,7 @@ function publishDeviceState(){
   }}).catch(()=>{});
 }
 async function pollDeviceCommands(){
-  if(!DEVICE_SYNC.id || DEVICE_SYNC.polling || document.visibilityState==="hidden" || DEVICE_SYNC.socket?.readyState===WebSocket.OPEN) return;
+  if(!DEVICE_SYNC.id || DEVICE_SYNC.polling || document.visibilityState==="hidden") return;
   DEVICE_SYNC.polling=true;
   try{
     const d=await get("/api/devices/commands?device_id="+encodeURIComponent(DEVICE_SYNC.id)+"&after="+DEVICE_SYNC.cursor);
