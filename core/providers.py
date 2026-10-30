@@ -1243,7 +1243,7 @@ def search_everything(query, limit=12):
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=4) as ex:
         f_tr = ex.submit(search_tracks_smart, query, limit=limit, sources=[
-            "jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia", "soundcloud"])
+            "soundcloud", "jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia"])
         f_al = ex.submit(jamendo_search_albums_smart, query, limit=limit)
         f_ja = ex.submit(jamendo_search_artists, query, limit=limit)
         f_au = ex.submit(audius_search_users, query, limit=max(4, limit // 3))
