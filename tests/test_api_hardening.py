@@ -83,7 +83,7 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
              patch.object(api, "to_thread", new=AsyncMock(return_value=True)) as run_thread:
             response = await api.h_device_state(request)
         self.assertEqual(response.status, 200)
-        encoded = run_thread.await_args.args[3]
+        encoded = run_thread.await_args.args[2]
         saved = json.loads(encoded)
         self.assertFalse(saved["playing"])
         self.assertEqual(saved["position"], 86400)
