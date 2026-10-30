@@ -240,6 +240,10 @@ SCHEMA_PG = [
         state_json TEXT DEFAULT '{}', last_seen TIMESTAMP DEFAULT NOW(),
         PRIMARY KEY(uid, device_id)
     )""",
+    """CREATE TABLE IF NOT EXISTS account_playback (
+        uid BIGINT PRIMARY KEY, owner_device_id TEXT DEFAULT '',
+        state_json TEXT DEFAULT '{}', updated_at TIMESTAMP DEFAULT NOW()
+    )""",
     """CREATE TABLE IF NOT EXISTS playback_commands (
         id SERIAL PRIMARY KEY, uid BIGINT, device_id TEXT, action TEXT,
         payload TEXT DEFAULT '{}', created_at TIMESTAMP DEFAULT NOW()
@@ -848,6 +852,33 @@ def device_list(uid):
                     "platform": item.get("platform") or "", "active": active,
                     "last_seen": str(raw or ""), "state": state if active else {}})
     return out
+
+
+def player_session_get(uid):
+    """Повертає єдиний стан програвача для всього Telegram-акаунта."""
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT owner_device_id, state_json, updated_at FROM account_playback WHERE uid=%s"), (int(uid),))
+        row = one(cur)
+    if not row:
+        return None
+    try:
+        state = json.loads(row.get("state_json") or "{}")
+    except Exception:
+        state = {}
+    return {"owner_device_id": row.get("owner_device_id") or "",
+            "state": state if isinstance(state, dict) else {},
+            "updated_at": str(row.get("updated_at") or "")}
+
+
+def player_session_set(uid, owner_device_id, state_json):
+    """Оновлює спільний стан після перевірки власника або активного пристрою."""
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("""INSERT INTO account_playback(uid, owner_device_id, state_json, updated_at)
+            VALUES (%s,%s,%s,%s) ON CONFLICT(uid) DO UPDATE SET
+            owner_device_id=excluded.owner_device_id, state_json=excluded.state_json,
+            updated_at=excluded.updated_at"""),
+            (int(uid), str(owner_device_id or "")[:80], state_json, now_str()))
+    return True
 
 
 def device_command_add(uid, device_id, action, payload):
