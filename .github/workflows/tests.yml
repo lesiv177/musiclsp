@@ -23,7 +23,7 @@ jobs:
           import re
           from pathlib import Path
           html = Path("webapp/index.html").read_text(encoding="utf-8")
-          scripts = re.findall(r"<script(?:\\s[^>]*)?>([\\s\\S]*?)</script>", html, re.I)
+          scripts = re.findall(r"<script(?:\s[^>]*)?>([\s\S]*?)</script>", html, re.I)
           inline = [item for item in scripts if item.strip()]
           if not inline:
               raise SystemExit("No inline Mini App script found")
