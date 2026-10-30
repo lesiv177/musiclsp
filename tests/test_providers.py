@@ -1,4 +1,5 @@
 import unittest
+from contextlib import ExitStack
 from unittest.mock import patch
 
 from core import providers as P
@@ -24,28 +25,28 @@ class SoundCloudPriorityTests(unittest.TestCase):
 
     def test_soundcloud_is_excluded_from_default_search(self):
         jamendo = {"id": "jam:2", "title": "Track Jam", "artist": "Artist"}
-        patches = [
-            patch.object(P, "_run_parallel", side_effect=run_jobs_inline),
-            patch.object(P, "soundcloud_enabled", return_value=True),
-            patch.object(P, "soundcloud_search") as soundcloud_search,
-            patch.object(P, "jamendo_search_tracks", return_value=[jamendo]),
-            *self._empty_provider_patches(),
-        ]
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8]:
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(P, "_run_parallel", side_effect=run_jobs_inline))
+            stack.enter_context(patch.object(P, "soundcloud_enabled", return_value=True))
+            soundcloud_search = stack.enter_context(patch.object(P, "soundcloud_search"))
+            stack.enter_context(patch.object(P, "jamendo_search_tracks", return_value=[jamendo]))
+            for provider in ("audius_search_tracks", "archive_search", "ccmixter_search",
+                             "openverse_search", "wikimedia_search"):
+                stack.enter_context(patch.object(P, provider, return_value=[]))
             results = P.search_tracks("Artist", limit=10)
         soundcloud_search.assert_not_called()
         self.assertEqual([track["id"] for track in results], ["jam:2"])
 
     def test_soundcloud_does_not_override_playable_default_sources(self):
         jamendo = {"id": "jam:2", "title": "Same Track", "artist": "Same Artist"}
-        patches = [
-            patch.object(P, "_run_parallel", side_effect=run_jobs_inline),
-            patch.object(P, "soundcloud_enabled", return_value=True),
-            patch.object(P, "soundcloud_search") as soundcloud_search,
-            patch.object(P, "jamendo_search_tracks", return_value=[jamendo]),
-            *self._empty_provider_patches(),
-        ]
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8]:
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(P, "_run_parallel", side_effect=run_jobs_inline))
+            stack.enter_context(patch.object(P, "soundcloud_enabled", return_value=True))
+            soundcloud_search = stack.enter_context(patch.object(P, "soundcloud_search"))
+            stack.enter_context(patch.object(P, "jamendo_search_tracks", return_value=[jamendo]))
+            for provider in ("audius_search_tracks", "archive_search", "ccmixter_search",
+                             "openverse_search", "wikimedia_search"):
+                stack.enter_context(patch.object(P, provider, return_value=[]))
             results = P.search_tracks("Same Track", limit=10)
         soundcloud_search.assert_not_called()
         self.assertEqual([track["id"] for track in results], ["jam:2"])
