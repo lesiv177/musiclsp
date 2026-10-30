@@ -217,3 +217,14 @@ body{position:relative;left:auto;right:auto}
   .nav{left:8px!important;right:8px!important;bottom:var(--safe-bottom)!important;min-height:68px}
   .screen{padding-bottom:calc(170px + var(--safe-bottom))}
 }
+
+
+/* Artist profiles */
+.artist-link{display:inline;padding:0;border:0;background:transparent;color:var(--accent-2);font:inherit;text-align:left;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:3px;cursor:pointer}
+.artist-link:active,.artist-link:focus-visible{text-decoration-color:currentColor}
+.artist-profile-head{position:relative;display:grid;gap:8px;margin-bottom:18px;padding:8px 0 16px}
+.artist-profile-head h3{font-size:clamp(24px,5vw,34px);line-height:1.08;margin:0;letter-spacing:-.8px}
+.artist-profile-head p{margin:0;color:var(--muted);font-size:13px}
+.artist-profile-cover{width:100%;max-height:190px;aspect-ratio:16/7;object-fit:cover;border-radius:17px;margin-bottom:8px}
+#artistTracks{max-height:48dvh;overflow:auto;padding-right:2px}
+@media(max-width:520px){.artist-profile-head{padding-top:2px}.artist-profile-cover{max-height:150px}}
