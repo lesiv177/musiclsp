@@ -2590,14 +2590,19 @@ async function applyDeviceCommand(command){
   if(command.action==="handoff" || command.action==="play"){
     setRemoteTarget("");
     const queue=Array.isArray(p.queue)&&p.queue.length?p.queue:(p.track?[p.track]:[]);
-    if(!queue.length) return;
-    S.queue=queue.slice(0,30); S.index=Math.max(0,Math.min(S.queue.length-1,Number(p.index)||0));
-    const target=Number(p.position)||0;
-    const track=current();
-    play(track);
-    if(target>1){
-      const seek=()=>{try{cur.currentTime=target;}catch(e){}cur.removeEventListener("loadedmetadata",seek);};
-      cur.addEventListener("loadedmetadata",seek);
+    if(queue.length){
+      S.queue=queue.slice(0,30); S.index=Math.max(0,Math.min(S.queue.length-1,Number(p.index)||0));
+      const target=Math.max(0,Number(p.position)||0);
+      const started=await play(current());
+      if(started && target>0){
+        const seek=()=>{try{cur.currentTime=Math.min(target,Number.isFinite(cur.duration)?cur.duration:target);}catch(e){}};
+        if(cur.readyState>=1)seek();else cur.addEventListener("loadedmetadata",seek,{once:true});
+      }
+      return;
+    }
+    if(current()){
+      if(!cur.src){await play(current());}
+      else {try{await cur.play();S.playing=true;paintPlayState();publishDeviceState();}catch(e){toast("Натисніть відтворення на цьому пристрої");}}
     }
     return;
   }
@@ -2646,6 +2651,7 @@ async function openDevices(){
     $("devicesList").querySelectorAll("[data-device-select]").forEach(b=>b.onclick=()=>selectPlaybackDevice(b.dataset.deviceSelect,devices));
     $("devicesList").querySelectorAll("[data-device-cmd]").forEach(b=>b.onclick=()=>sendDeviceCommand(b.dataset.id,b.dataset.deviceCmd));
     $("devicesList").querySelectorAll("[data-device-volume]").forEach(el=>el.onchange=()=>sendDeviceCommand(el.dataset.deviceVolume,"volume",{volume:Number(el.value)/100}));
+    $("devicesList").querySelectorAll("[data-device-seek]").forEach(el=>el.onchange=()=>sendDeviceCommand(el.dataset.deviceSeek,"seek",{position:Number(el.value)}));
   }catch(e){ $("devicesList").innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
 }
 async function selectPlaybackDevice(targetId, devices){
@@ -2713,6 +2719,7 @@ function setRemoteTarget(targetId){
   else if(DEVICE_SYNC.remoteTarget)renderRemoteBar({playing:false,track:null});
   closeModal();
 }
+function formatDeviceTime(seconds){seconds=Math.max(0,Math.floor(Number(seconds)||0));return Math.floor(seconds/60)+":"+String(seconds%60).padStart(2,"0");}
 function renderRemoteBar(state){
   const track=state.track||{}, hasTrack=!!track.title;
   $("bar").classList.toggle("on",hasTrack);
