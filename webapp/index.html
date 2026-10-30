@@ -1724,7 +1724,7 @@ async function refreshMe(){
   }catch(e){ /* тихо: наступна спроба підхопить */ }
 }
 document.addEventListener("visibilitychange", () => {
-  if(document.visibilityState === "visible"){ refreshMe(); publishDeviceState(); pollDeviceCommands(); }
+  if(document.visibilityState === "visible"){ refreshMe(); syncAccountSession(true); publishDeviceState(); pollDeviceCommands(); }
 });
 window.addEventListener("focus", refreshMe);
 tg?.onEvent?.("activated", refreshMe);
@@ -2464,7 +2464,7 @@ function deviceLabel(){
   if(/Windows/i.test(ua)) return "Windows";
   return "Web player";
 }
-async function startDeviceSync(){
+async async function startDeviceSync(){
   if(DEVICE_SYNC.started || !S.me || !API) return;
   DEVICE_SYNC.started=true; DEVICE_SYNC.id=deviceId();
   try{ DEVICE_SYNC.cursor=Number(localStorage.getItem("mlsp_device_cursor")||0)||0; }catch(e){}
@@ -2693,6 +2693,14 @@ async function selectPlaybackDevice(targetId, devices){
     toast("На цьому пристрої ще немає треку для відтворення");
   }
 }
+async function resumeOnThisDevice(){
+  if(!DEVICE_SYNC.id) return;
+  try{
+    const d=await get("/api/devices");
+    const devices=(d.devices||[]).filter(x=>x.active);
+    await selectPlaybackDevice(DEVICE_SYNC.id,devices);
+  }catch(e){toast(e.message||"Не вдалося продовжити на цьому пристрої");}
+}
 function setRemoteTarget(targetId){
   DEVICE_SYNC.remoteTarget=targetId||"";
   try{if(DEVICE_SYNC.remoteTarget)localStorage.setItem("mlsp_remote_target",DEVICE_SYNC.remoteTarget);else localStorage.removeItem("mlsp_remote_target");}catch(e){}
@@ -2727,7 +2735,9 @@ function barNext(){if(DEVICE_SYNC.remoteTarget)return sendDeviceCommand(DEVICE_S
 function barTogglePlay(){
   if(DEVICE_SYNC.remoteTarget){
     const state=DEVICE_SYNC.remoteStates[DEVICE_SYNC.remoteTarget]||{};
-    return sendDeviceCommand(DEVICE_SYNC.remoteTarget,state.playing?"pause":"play");
+    return state.playing
+      ? sendDeviceCommand(DEVICE_SYNC.remoteTarget,"pause")
+      : resumeOnThisDevice();
   }
   if(current() && !cur.src && DEVICE_SYNC.session && DEVICE_SYNC.session.state){
     const pos=Number(DEVICE_SYNC.session.state.position)||0;
@@ -2859,7 +2869,8 @@ function togglePlay(){
   tap();
   if(DEVICE_SYNC.remoteTarget){
     const state=DEVICE_SYNC.remoteStates[DEVICE_SYNC.remoteTarget]||{};
-    sendDeviceCommand(DEVICE_SYNC.remoteTarget,state.playing?"pause":"play");
+    if(state.playing) sendDeviceCommand(DEVICE_SYNC.remoteTarget,"pause");
+    else resumeOnThisDevice();
     return;
   }
   if(!current()) return;
