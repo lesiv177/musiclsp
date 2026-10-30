@@ -2312,7 +2312,12 @@ function deviceLabel(){
 async function startDeviceSync(){
   if(DEVICE_SYNC.started || !S.me || !API) return;
   DEVICE_SYNC.started=true; DEVICE_SYNC.id=deviceId();
-  try{ DEVICE_SYNC.cursor=Number(localStorage.getItem("mlsp_device_cursor")||0)||0; DEVICE_SYNC.remoteTarget=localStorage.getItem("mlsp_remote_target")||""; }catch(e){}
+  try{
+    DEVICE_SYNC.cursor=Number(localStorage.getItem("mlsp_device_cursor")||0)||0;
+    DEVICE_SYNC.remoteTarget=localStorage.getItem("mlsp_remote_target")||"";
+    const remoteButton=$("barRemote");
+    if(remoteButton){remoteButton.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);remoteButton.textContent=DEVICE_SYNC.remoteTarget?"ПК ✓":"ПК";}
+  }catch(e){}
   try{
     await post("/api/devices/register",{device_id:DEVICE_SYNC.id,name:deviceLabel(),platform:navigator.platform||"web"});
     publishDeviceState();
@@ -2401,11 +2406,11 @@ async function applyDeviceCommand(command){
     }
     return;
   }
-  if(command.action==="pause"){ cur.pause(); S.playing=false; paintPlayState(); }
+  if(command.action==="pause"){ cur.pause(); S.playing=false; paintPlayState(); publishDeviceState(); }
   if(command.action==="next") nextTrack(false);
   if(command.action==="previous") prevTrack();
-  if(command.action==="seek" && Number.isFinite(Number(p.position))) cur.currentTime=Math.max(0,Number(p.position));
-  if(command.action==="volume" && Number.isFinite(Number(p.volume))) cur.volume=Math.max(0,Math.min(1,Number(p.volume)));
+  if(command.action==="seek" && Number.isFinite(Number(p.position))){cur.currentTime=Math.max(0,Number(p.position));publishDeviceState();}
+  if(command.action==="volume" && Number.isFinite(Number(p.volume))){cur.volume=Math.max(0,Math.min(1,Number(p.volume)));publishDeviceState();}
 }
 async function openDevices(){
   showModal('<h3>'+esc(t("pr_devices"))+'</h3><div id="devicesList"><div class="skel"></div></div>');
@@ -2464,14 +2469,7 @@ function barTogglePlay(){
 }
 async function sendDeviceCommand(targetId, action, payload={}){
   try{
-    const device=(await get("/api/devices")).devices?.find(x=>x.device_id===targetId);
-    if(!device?.active) throw new Error("Пристрій зараз не в мережі");
-    if(action==="play"){
-      const state=device.state||{};
-      const queue=Array.isArray(state.queue)&&state.queue.length?state.queue:(state.track?[state.track]:[]);
-      if(!queue.length) throw new Error("На пристрої немає треку для відновлення");
-      payload={queue,index:Number(state.index)||0,position:Number(state.position)||0};
-    }
+    // Один POST: сервер перевіряє online-стан і формує play payload зі свого стану.
     await post("/api/devices/command",{device_id:targetId,action,payload});
     toast("Команду надіслано");
   }catch(e){toast(e.message);}
