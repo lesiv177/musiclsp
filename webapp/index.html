@@ -2542,6 +2542,11 @@ function applyAccountSession(session, initial=false){
   const owner=session.owner_device_id, state=session.state||{};
   const queue=Array.isArray(state.queue)&&state.queue.length?state.queue:(state.track?[state.track]:[]);
   if(owner!==DEVICE_SYNC.id){
+    // Make-before-break: the old output stops only after the new device has
+    // actually started and claimed the shared session.
+    if(cur && !cur.paused && !cur.ended){
+      cur.pause();S.playing=false;paintPlayState();
+    }
     DEVICE_SYNC.remoteTarget=owner;
     DEVICE_SYNC.remoteStates[owner]=state;
     try{localStorage.removeItem("mlsp_remote_target");}catch(e){}
@@ -2563,6 +2568,7 @@ function applyAccountSession(session, initial=false){
   if(b){b.classList.remove("on");b.innerHTML=ICON("devices");}
   if(chip){chip.classList.remove("on");chip.innerHTML=ICON("devices");}
 }
+
 async function syncAccountSession(initial=false){
   if(!DEVICE_SYNC.id || !S.me || DEVICE_SYNC.sessionPolling || document.visibilityState==="hidden") return;
   DEVICE_SYNC.sessionPolling=true;
@@ -2585,33 +2591,52 @@ async function pollDeviceCommands(){
     }
   }catch(e){}finally{ DEVICE_SYNC.polling=false; }
 }
+async function seekLocalPosition(position){
+  const target=Math.max(0,Number(position)||0);
+  if(cur.readyState>=1){try{cur.currentTime=Math.min(target,Number.isFinite(cur.duration)?cur.duration:target);}catch(e){}return;}
+  await new Promise(resolve=>{
+    const done=()=>{cur.removeEventListener("loadedmetadata",done);resolve();};
+    cur.addEventListener("loadedmetadata",done,{once:true});
+    setTimeout(done,4000);
+  });
+  try{cur.currentTime=Math.min(target,Number.isFinite(cur.duration)?cur.duration:target);}catch(e){}
+}
 async function applyDeviceCommand(command){
   const p=command.payload||{};
   if(command.action==="handoff" || command.action==="play"){
     setRemoteTarget("");
     const queue=Array.isArray(p.queue)&&p.queue.length?p.queue:(p.track?[p.track]:[]);
     if(queue.length){
-      S.queue=queue.slice(0,30); S.index=Math.max(0,Math.min(S.queue.length-1,Number(p.index)||0));
+      S.queue=queue.slice(0,30);
+      S.index=Math.max(0,Math.min(S.queue.length-1,Number(p.index)||0));
       const target=Math.max(0,Number(p.position)||0);
       const started=await play(current());
-      if(started && target>0){
-        const seek=()=>{try{cur.currentTime=Math.min(target,Number.isFinite(cur.duration)?cur.duration:target);}catch(e){}};
-        if(cur.readyState>=1)seek();else cur.addEventListener("loadedmetadata",seek,{once:true});
+      if(!started){
+        toast("Дозволь відтворення на цьому пристрої — попередній пристрій продовжить грати");
+        return;
       }
+      if(target>0) await seekLocalPosition(target);
+      const state={track:current(),queue:S.queue.slice(0,30),index:S.index,
+        position:Math.floor(cur.currentTime||target),duration:Math.floor(cur.duration||0),
+        playing:!cur.paused,volume:cur.volume||1};
+      await post("/api/player/session",{device_id:DEVICE_SYNC.id,state});
+      DEVICE_SYNC.session={owner_device_id:DEVICE_SYNC.id,state,updated_at:new Date().toISOString()};
+      publishDeviceState();
       return;
     }
     if(current()){
-      if(!cur.src){await play(current());}
-      else {try{await cur.play();S.playing=true;paintPlayState();publishDeviceState();}catch(e){toast("Натисніть відтворення на цьому пристрої");}}
+      if(!cur.src){const started=await play(current());if(started)await post("/api/player/session",{device_id:DEVICE_SYNC.id,state:{track:current(),queue:S.queue.slice(0,30),index:S.index,position:0,playing:true,volume:cur.volume||1}});}
+      else {try{await cur.play();S.playing=true;paintPlayState();publishDeviceState();}catch(e){toast("Натисни відтворення на цьому пристрої");}}
     }
     return;
   }
-  if(command.action==="pause"){ cur.pause(); S.playing=false; paintPlayState(); publishDeviceState(); }
+  if(command.action==="pause"){cur.pause();S.playing=false;paintPlayState();publishDeviceState();}
   if(command.action==="next") nextTrack(false);
   if(command.action==="previous") prevTrack();
   if(command.action==="seek" && Number.isFinite(Number(p.position))){cur.currentTime=Math.max(0,Number(p.position));publishDeviceState();}
   if(command.action==="volume" && Number.isFinite(Number(p.volume))){cur.volume=Math.max(0,Math.min(1,Number(p.volume)));publishDeviceState();}
 }
+
 async function openDevices(){
   showModal('<div class="spotify-connect-head"><span>Пристрої</span><button class="connect-close" onclick="closeModal()">×</button></div><div id="devicesList"><div class="skel"></div></div>');
   try{
@@ -2656,28 +2681,38 @@ async function openDevices(){
     $("devicesList").querySelectorAll("[data-device-seek]").forEach(el=>el.onchange=()=>sendDeviceCommand(el.dataset.deviceSeek,"seek",{position:Number(el.value)}));
   }catch(e){ $("devicesList").innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
 }
+async function getTransferSnapshot(){
+  const latest=await get("/api/player/session").catch(()=>({session:DEVICE_SYNC.session||null}));
+  const session=latest.session||DEVICE_SYNC.session||null;
+  const owner=session&&session.owner_device_id;
+  if(owner && owner!==DEVICE_SYNC.id && session.state){
+    const state=session.state;
+    const queue=Array.isArray(state.queue)&&state.queue.length?state.queue:(state.track?[state.track]:[]);
+    const index=Math.max(0,Math.min(Math.max(0,queue.length-1),Number(state.index)||0));
+    const track=queue[index]||state.track;
+    if(track)return {track,queue:queue.length?queue:[track],index,position:Math.max(0,Number(state.position)||0)};
+  }
+  const queue=S.queue.slice(0,30), index=Math.max(0,Math.min(Math.max(0,queue.length-1),S.index));
+  const track=queue[index]||current();
+  if(!track)return null;
+  return {track,queue:queue.length?queue:[track],index,position:Math.floor(cur.currentTime||0)};
+}
 async function selectPlaybackDevice(targetId, devices){
   if(targetId===DEVICE_SYNC.id){
     try{
-      const latest=await get("/api/player/session");
-      const session=latest.session||DEVICE_SYNC.session||{};
-      const sourceId=session.owner_device_id||DEVICE_SYNC.remoteTarget;
-      const source=devices.find(x=>x.device_id===sourceId);
-      const state=session.state||(source&&source.state)||{};
-      const queue=Array.isArray(state.queue)&&state.queue.length?state.queue:(state.track?[state.track]:[]);
-      if(!queue.length){setRemoteTarget("");return;}
-      const index=Math.max(0,Math.min(queue.length-1,Number(state.index)||0));
-      const position=Math.max(0,Number(state.position)||0);
+      const snapshot=await getTransferSnapshot();
+      if(!snapshot){setRemoteTarget("");return;}
       DEVICE_SYNC.remoteTarget="";
-      S.queue=queue.slice(0,30);S.index=Math.min(index,S.queue.length-1);
+      S.queue=snapshot.queue.slice(0,30);S.index=Math.min(snapshot.index,S.queue.length-1);
       const started=await play(current());
-      if(!started)return;
-      if(position>0){
-        const seek=()=>{try{cur.currentTime=position;}catch(e){}cur.removeEventListener("loadedmetadata",seek);};
-        if(cur.readyState>=1)seek();else cur.addEventListener("loadedmetadata",seek,{once:true});
-      }
-      await post("/api/player/session",{device_id:DEVICE_SYNC.id,state:{track:current(),queue:S.queue.slice(0,30),index:S.index,position,playing:true,volume:cur.volume||1}});
-      if(sourceId && sourceId!==DEVICE_SYNC.id) await post("/api/devices/command",{device_id:sourceId,action:"pause",payload:{}});
+      if(!started){toast("Дозволь відтворення на цьому пристрої");return;}
+      if(snapshot.position>0)await seekLocalPosition(snapshot.position);
+      const state={track:current(),queue:S.queue.slice(0,30),index:S.index,
+        position:Math.floor(cur.currentTime||snapshot.position),duration:Math.floor(cur.duration||0),
+        playing:!cur.paused,volume:cur.volume||1};
+      await post("/api/player/session",{device_id:DEVICE_SYNC.id,state});
+      DEVICE_SYNC.session={owner_device_id:DEVICE_SYNC.id,state,updated_at:new Date().toISOString()};
+      publishDeviceState();
       await syncAccountSession(false);
       toast("Тепер слухаєш на цьому пристрої");
       closeModal();
@@ -2686,22 +2721,20 @@ async function selectPlaybackDevice(targetId, devices){
   }
   const target=devices.find(x=>x.device_id===targetId);
   if(!target)return;
-  if(current()){
-    try{
-      const payload={track:current(),queue:S.queue.slice(0,30),index:S.index,position:Math.floor(cur.currentTime||0)};
-      await post("/api/devices/command",{device_id:targetId,action:"handoff",payload});
-      cur.pause();S.playing=false;paintPlayState();
-      setRemoteTarget(targetId);
-      toast("Відтворення передано: "+(target.name||"пристрій"));
-    }catch(e){toast(e.message);}
-  }else if(target.state&&target.state.track){
-    setRemoteTarget(targetId);
-    await sendDeviceCommand(targetId,"play");
+  try{
+    const snapshot=await getTransferSnapshot();
+    if(!snapshot)return toast(t("ui_queue_empty"));
+    await post("/api/devices/command",{device_id:targetId,action:"handoff",payload:snapshot});
     closeModal();
-  }else{
-    toast("На цьому пристрої ще немає треку для відтворення");
-  }
+    toast("Запит на перемикання: "+(target.name||"пристрій"));
+    // Keep the current speaker playing until the target confirms successful start.
+  }catch(e){toast(e.message||"Не вдалося перемкнути пристрій");}
 }
+async function handoffToDevice(targetId){
+  const devices=(await get("/api/devices")).devices||[];
+  await selectPlaybackDevice(targetId,devices);
+}
+
 async function resumeOnThisDevice(){
   if(!DEVICE_SYNC.id) return;
   try{
@@ -2880,8 +2913,7 @@ function togglePlay(){
   tap();
   if(DEVICE_SYNC.remoteTarget){
     const state=DEVICE_SYNC.remoteStates[DEVICE_SYNC.remoteTarget]||{};
-    if(state.playing) sendDeviceCommand(DEVICE_SYNC.remoteTarget,"pause");
-    else resumeOnThisDevice();
+    sendDeviceCommand(DEVICE_SYNC.remoteTarget,state.playing?"pause":"play");
     return;
   }
   if(!current()) return;
