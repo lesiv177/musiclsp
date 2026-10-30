@@ -31,5 +31,17 @@ class StreamValidationTests(unittest.TestCase):
             self.assertEqual(smart._resolve_checked("sc:regression-test-unique", "mp32"), url)
 
 
+    def test_force_refresh_bypasses_cached_stream_url(self):
+        track_id = "sc:force-refresh-regression-unique"
+        quality = "mp32"
+        fresh_url = "https://cf-media.sndcdn.com/fresh-force-refresh-regression"
+        smart.cache_put(("stream", track_id, quality), "https://old.example.test/stale", 300)
+        with patch.object(smart.P, "resolve_stream", return_value=fresh_url):
+            result = smart.resolve_stream_robust(
+                track_id, quality, "Regression title", "Regression artist", force=True
+            )
+        self.assertEqual(result, (fresh_url, track_id))
+
+
 if __name__ == "__main__":
     unittest.main()
