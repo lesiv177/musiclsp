@@ -665,6 +665,12 @@ body.data-saver .rows .row,body.data-saver .reel .card{animation:none!important}
 @media(max-width:380px){.home-hero{min-height:226px;padding:20px 17px 16px}.home-hero h1{font-size:27px}.hero-disc{width:145px;height:145px;right:-28px;top:43px}.hero-copy{max-width:78%}}
 @media(prefers-reduced-motion:no-preference){.hero-disc{animation:heroSpin 24s linear infinite}@keyframes heroSpin{to{transform:rotate(342deg)}}}
 
+
+/* Device picker + smart autoplay controls */
+#devicesList .row{border-bottom:1px solid var(--line);gap:12px}
+#devicesList .pill{white-space:nowrap;font-size:11px}
+#devicesList .meta .t{font-weight:650}
+#devicesList .meta .s{font-size:11px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -868,7 +874,7 @@ const S = {
   liked:new Set(), playlists:[], eq:null, eqNodes:null, ctx:null,
   crossfade:0, sleepAt:0, sleepTimer:null, kind:"tracks", libView:"liked",
   sort:"relevance", sources:["soundcloud","jamendo","audius","archive","ccmixter","openverse","wikimedia"],
-  speed:1, nightQuiet:false, dataSaver:false,
+  speed:1, nightQuiet:false, dataSaver:false, autoplay:true,
 };
 
 /* ── локальні комфорт-налаштування (швидкість, тихий вечір, моменти) ──
@@ -876,6 +882,7 @@ const S = {
 try{ S.speed = parseFloat(localStorage.getItem("mlsp_speed")) || 1; }catch(e){}
 try{ S.nightQuiet = localStorage.getItem("mlsp_nightquiet") === "1"; }catch(e){}
 try{ S.dataSaver = localStorage.getItem("mlsp_data_saver") === "1"; }catch(e){}
+try{ S.autoplay = localStorage.getItem("mlsp_autoplay") !== "0"; }catch(e){}
 if(S.dataSaver) document.body.classList.add("data-saver");
 function isNightHours(){
   const h = new Date().getHours();
@@ -1221,12 +1228,52 @@ const DATA_SAVER_LABELS = {
   tr:["Veri tasarrufu","Daha az arka plan yüklemesi ve ses ön yüklemesi"]
 };
 
+const I18N_EXTRA = {
+  uk:{pr_devices:"Мої пристрої",pr_devices_hint:"Передавай музику між відкритими MusicLSP на своїх пристроях",devices_manage:"Керувати пристроями",devices_this:"Цей пристрій",devices_online:"У мережі",devices_offline:"Не в мережі",devices_handoff:"Передати сюди",devices_empty:"Інших активних пристроїв поки немає",devices_sent:"Передаю відтворення…",pr_autoplay:"Розумне автопродовження",pr_autoplay_hint:"Коли черга закінчиться, підбере схожі треки",autoplay_added:"Додав схожі треки до черги",ui_empty:"Порожньо",ui_empty_body:"Тут поки нічого немає.",ui_create:"Створити",ui_cancel:"Скасувати",ui_close:"Закрити",ui_search:"Пошук",ui_queue:"Черга",ui_queue_empty:"Черга порожня",ui_next:"Поставити наступним",ui_save:"Зберегти",ui_add_playlist:"Додати в плейлист",ui_new_playlist:"Створити новий",ui_no_playlists:"Плейлистів немає",ui_no_history:"Історія порожня",ui_no_results:"Нічого не знайдено",ui_loading:"Завантаження…",ui_play:"Відтворити",ui_pause:"Пауза",ui_share:"Поділитися",ui_delete:"Видалити",ui_clear:"Очистити",ui_sleep:"Таймер сну",ui_off:"Вимкнено",ui_settings:"Налаштування",ui_listen:"Слухати",ui_saved:"Збережено",ui_remove:"Прибрано",ui_premium:"Доступно у Premium"},
+  ru:{pr_devices:"Мои устройства",pr_devices_hint:"Передавайте музыку между открытыми MusicLSP на своих устройствах",devices_manage:"Управление устройствами",devices_this:"Это устройство",devices_online:"В сети",devices_offline:"Не в сети",devices_handoff:"Передать сюда",devices_empty:"Других активных устройств пока нет",devices_sent:"Передаю воспроизведение…",pr_autoplay:"Умное автопродолжение",pr_autoplay_hint:"Когда очередь закончится, подберёт похожие треки",autoplay_added:"Добавил похожие треки в очередь",ui_empty:"Пусто",ui_empty_body:"Здесь пока ничего нет.",ui_create:"Создать",ui_cancel:"Отмена",ui_close:"Закрыть",ui_search:"Поиск",ui_queue:"Очередь",ui_queue_empty:"Очередь пуста",ui_next:"Включить следующим",ui_save:"Сохранить",ui_add_playlist:"Добавить в плейлист",ui_new_playlist:"Создать новый",ui_no_playlists:"Плейлистов нет",ui_no_history:"История пуста",ui_no_results:"Ничего не найдено",ui_loading:"Загрузка…",ui_play:"Воспроизвести",ui_pause:"Пауза",ui_share:"Поделиться",ui_delete:"Удалить",ui_clear:"Очистить",ui_sleep:"Таймер сна",ui_off:"Выключено",ui_settings:"Настройки",ui_listen:"Слушать",ui_saved:"Сохранено",ui_remove:"Убрано",ui_premium:"Доступно в Premium"},
+  en:{pr_devices:"My devices",pr_devices_hint:"Move music between MusicLSP sessions on your devices",devices_manage:"Manage devices",devices_this:"This device",devices_online:"Online",devices_offline:"Offline",devices_handoff:"Play here",devices_empty:"No other active devices yet",devices_sent:"Transferring playback…",pr_autoplay:"Smart autoplay",pr_autoplay_hint:"When the queue ends, find similar tracks",autoplay_added:"Added similar tracks to your queue",ui_empty:"Empty",ui_empty_body:"Nothing here yet.",ui_create:"Create",ui_cancel:"Cancel",ui_close:"Close",ui_search:"Search",ui_queue:"Queue",ui_queue_empty:"Queue is empty",ui_next:"Play next",ui_save:"Save",ui_add_playlist:"Add to playlist",ui_new_playlist:"Create new",ui_no_playlists:"No playlists",ui_no_history:"History is empty",ui_no_results:"No results found",ui_loading:"Loading…",ui_play:"Play",ui_pause:"Pause",ui_share:"Share",ui_delete:"Delete",ui_clear:"Clear",ui_sleep:"Sleep timer",ui_off:"Off",ui_settings:"Settings",ui_listen:"Listen",ui_saved:"Saved",ui_remove:"Removed",ui_premium:"Available in Premium"},
+  pl:{pr_devices:"Moje urządzenia",pr_devices_hint:"Przenoś odtwarzanie między sesjami MusicLSP na swoich urządzeniach",devices_manage:"Zarządzaj urządzeniami",devices_this:"To urządzenie",devices_online:"Online",devices_offline:"Offline",devices_handoff:"Odtwarzaj tutaj",devices_empty:"Brak innych aktywnych urządzeń",devices_sent:"Przenoszenie odtwarzania…",pr_autoplay:"Inteligentne autoodtwarzanie",pr_autoplay_hint:"Po zakończeniu kolejki dobierze podobne utwory",autoplay_added:"Dodano podobne utwory do kolejki",ui_empty:"Pusto",ui_empty_body:"Na razie nic tu nie ma.",ui_create:"Utwórz",ui_cancel:"Anuluj",ui_close:"Zamknij",ui_search:"Szukaj",ui_queue:"Kolejka",ui_queue_empty:"Kolejka jest pusta",ui_next:"Odtwórz jako następny",ui_save:"Zapisz",ui_add_playlist:"Dodaj do playlisty",ui_new_playlist:"Utwórz nową",ui_no_playlists:"Brak playlist",ui_no_history:"Historia jest pusta",ui_no_results:"Nie znaleziono",ui_loading:"Ładowanie…",ui_play:"Odtwórz",ui_pause:"Pauza",ui_share:"Udostępnij",ui_delete:"Usuń",ui_clear:"Wyczyść",ui_sleep:"Wyłącznik czasowy",ui_off:"Wyłączone",ui_settings:"Ustawienia",ui_listen:"Słuchaj",ui_saved:"Zapisano",ui_remove:"Usunięto",ui_premium:"Dostępne w Premium"},
+  de:{pr_devices:"Meine Geräte",pr_devices_hint:"Musik zwischen MusicLSP-Sitzungen auf deinen Geräten übertragen",devices_manage:"Geräte verwalten",devices_this:"Dieses Gerät",devices_online:"Online",devices_offline:"Offline",devices_handoff:"Hier abspielen",devices_empty:"Noch keine weiteren aktiven Geräte",devices_sent:"Wiedergabe wird übertragen…",pr_autoplay:"Intelligente Wiedergabe",pr_autoplay_hint:"Findet ähnliche Titel, wenn die Warteschlange endet",autoplay_added:"Ähnliche Titel zur Warteschlange hinzugefügt",ui_empty:"Leer",ui_empty_body:"Hier ist noch nichts.",ui_create:"Erstellen",ui_cancel:"Abbrechen",ui_close:"Schließen",ui_search:"Suchen",ui_queue:"Warteschlange",ui_queue_empty:"Warteschlange ist leer",ui_next:"Als Nächstes abspielen",ui_save:"Speichern",ui_add_playlist:"Zur Playlist hinzufügen",ui_new_playlist:"Neu erstellen",ui_no_playlists:"Keine Playlists",ui_no_history:"Verlauf ist leer",ui_no_results:"Keine Ergebnisse",ui_loading:"Wird geladen…",ui_play:"Abspielen",ui_pause:"Pause",ui_share:"Teilen",ui_delete:"Löschen",ui_clear:"Leeren",ui_sleep:"Sleeptimer",ui_off:"Aus",ui_settings:"Einstellungen",ui_listen:"Anhören",ui_saved:"Gespeichert",ui_remove:"Entfernt",ui_premium:"In Premium verfügbar"},
+  es:{pr_devices:"Mis dispositivos",pr_devices_hint:"Pasa la música entre sesiones de MusicLSP en tus dispositivos",devices_manage:"Gestionar dispositivos",devices_this:"Este dispositivo",devices_online:"En línea",devices_offline:"Desconectado",devices_handoff:"Reproducir aquí",devices_empty:"Aún no hay otros dispositivos activos",devices_sent:"Transfiriendo reproducción…",pr_autoplay:"Reproducción automática inteligente",pr_autoplay_hint:"Busca temas similares cuando termine la cola",autoplay_added:"Se añadieron temas similares a la cola",ui_empty:"Vacío",ui_empty_body:"Todavía no hay nada aquí.",ui_create:"Crear",ui_cancel:"Cancelar",ui_close:"Cerrar",ui_search:"Buscar",ui_queue:"Cola",ui_queue_empty:"La cola está vacía",ui_next:"Reproducir a continuación",ui_save:"Guardar",ui_add_playlist:"Añadir a la playlist",ui_new_playlist:"Crear nueva",ui_no_playlists:"No hay playlists",ui_no_history:"El historial está vacío",ui_no_results:"No se encontraron resultados",ui_loading:"Cargando…",ui_play:"Reproducir",ui_pause:"Pausa",ui_share:"Compartir",ui_delete:"Eliminar",ui_clear:"Vaciar",ui_sleep:"Temporizador",ui_off:"Desactivado",ui_settings:"Ajustes",ui_listen:"Escuchar",ui_saved:"Guardado",ui_remove:"Eliminado",ui_premium:"Disponible en Premium"},
+  fr:{pr_devices:"Mes appareils",pr_devices_hint:"Transférez la musique entre les sessions MusicLSP de vos appareils",devices_manage:"Gérer les appareils",devices_this:"Cet appareil",devices_online:"En ligne",devices_offline:"Hors ligne",devices_handoff:"Lire ici",devices_empty:"Aucun autre appareil actif pour le moment",devices_sent:"Transfert de la lecture…",pr_autoplay:"Lecture automatique intelligente",pr_autoplay_hint:"Trouve des titres similaires à la fin de la file",autoplay_added:"Titres similaires ajoutés à la file",ui_empty:"Vide",ui_empty_body:"Il n’y a encore rien ici.",ui_create:"Créer",ui_cancel:"Annuler",ui_close:"Fermer",ui_search:"Rechercher",ui_queue:"File d’attente",ui_queue_empty:"La file est vide",ui_next:"Lire ensuite",ui_save:"Enregistrer",ui_add_playlist:"Ajouter à la playlist",ui_new_playlist:"Créer",ui_no_playlists:"Aucune playlist",ui_no_history:"Historique vide",ui_no_results:"Aucun résultat",ui_loading:"Chargement…",ui_play:"Lire",ui_pause:"Pause",ui_share:"Partager",ui_delete:"Supprimer",ui_clear:"Effacer",ui_sleep:"Minuteur",ui_off:"Désactivé",ui_settings:"Paramètres",ui_listen:"Écouter",ui_saved:"Enregistré",ui_remove:"Retiré",ui_premium:"Disponible avec Premium"},
+  tr:{pr_devices:"Cihazlarım",pr_devices_hint:"Cihazlarındaki MusicLSP oturumları arasında müziği aktar",devices_manage:"Cihazları yönet",devices_this:"Bu cihaz",devices_online:"Çevrimiçi",devices_offline:"Çevrimdışı",devices_handoff:"Burada çal",devices_empty:"Henüz başka etkin cihaz yok",devices_sent:"Çalma aktarılıyor…",pr_autoplay:"Akıllı otomatik çalma",pr_autoplay_hint:"Sıra bitince benzer parçalar bulur",autoplay_added:"Sıraya benzer parçalar eklendi",ui_empty:"Boş",ui_empty_body:"Burada henüz bir şey yok.",ui_create:"Oluştur",ui_cancel:"İptal",ui_close:"Kapat",ui_search:"Ara",ui_queue:"Sıra",ui_queue_empty:"Sıra boş",ui_next:"Sonraki çal",ui_save:"Kaydet",ui_add_playlist:"Çalma listesine ekle",ui_new_playlist:"Yeni oluştur",ui_no_playlists:"Çalma listesi yok",ui_no_history:"Geçmiş boş",ui_no_results:"Sonuç bulunamadı",ui_loading:"Yükleniyor…",ui_play:"Çal",ui_pause:"Duraklat",ui_share:"Paylaş",ui_delete:"Sil",ui_clear:"Temizle",ui_sleep:"Uyku zamanlayıcısı",ui_off:"Kapalı",ui_settings:"Ayarlar",ui_listen:"Dinle",ui_saved:"Kaydedildi",ui_remove:"Kaldırıldı",ui_premium:"Premium'da mevcut"}
+};
+const UI_TEXT_KEYS = {
+  "Порожньо":"ui_empty","Тут поки нічого немає.":"ui_empty_body","Створити":"ui_create","Скасувати":"ui_cancel",
+  "Закрити":"ui_close","Пошук":"ui_search","Черга":"ui_queue","Черга порожня":"ui_queue_empty",
+  "Поставити наступним":"ui_next","Зберегти":"ui_save","Додати в плейлист":"ui_add_playlist",
+  "Створити новий":"ui_new_playlist","Плейлистів немає":"ui_no_playlists","Історія порожня":"ui_no_history",
+  "Нічого не знайдено":"ui_no_results","Завантаження…":"ui_loading","Відтворити":"ui_play","Пауза":"ui_pause",
+  "Поділитися":"ui_share","Видалити":"ui_delete","Очистити":"ui_clear","Таймер сну":"ui_sleep",
+  "Вимкнено":"ui_off","Налаштування":"ui_settings","Слухати":"ui_listen","Збережено":"ui_saved",
+  "Прибрано":"ui_remove","Доступно у Premium":"ui_premium"
+};
+
 function t(key){
   const lang = (S.me && S.me.lang) || "uk";
-  return (I18N[lang] && I18N[lang][key]) || I18N.uk[key] || key;
+  return (I18N_EXTRA[lang] && I18N_EXTRA[lang][key]) || (I18N[lang] && I18N[lang][key]) || I18N_EXTRA.uk[key] || I18N.uk[key] || key;
 }
 
+const UI_TEXT_ORIGINALS = new WeakMap();
+function translateUiText(root){
+  const walker = document.createTreeWalker(root || document.body, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while(walker.nextNode()) nodes.push(walker.currentNode);
+  for(const node of nodes){
+    const parent = node.parentElement;
+    if(!parent || parent.closest("script,style,textarea,input,.row,.card,.track-title,.track-artist,.meta,.art,.s")) continue;
+    const original = UI_TEXT_ORIGINALS.get(node) ?? node.nodeValue;
+    UI_TEXT_ORIGINALS.set(node, original);
+    const trimmed = original.trim();
+    const key = UI_TEXT_KEYS[trimmed];
+    if(!key) continue;
+    const lead = original.match(/^\\s*/)?.[0] || "";
+    const tail = original.match(/\\s*$/)?.[0] || "";
+    node.nodeValue = lead + t(key) + tail;
+  }
+}
 function applyI18n(){
+  document.documentElement.lang = S.me?.lang || "uk";
   document.querySelectorAll(".nav button").forEach(b=>{
     const key = {Home:"nav_home", Search:"nav_search", Lib:"nav_lib", Me:"nav_me"}[b.dataset.go];
     if(!key) return;
@@ -1236,7 +1283,8 @@ function applyI18n(){
   document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
   document.querySelectorAll("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
   if($("planChip")) $("planChip").textContent = S.me?.premium ? "Premium" : t("premium_free");
-  if(S.me) $("topSub").textContent = S.me.premium ? t("sub_premium") : t("sub_free");
+  if(S.me && $("topSub")) $("topSub").textContent = S.me.premium ? t("sub_premium") : t("sub_free");
+  translateUiText(document.body);
 }
 
 /* ════════ Іконки (замість емодзі) ════════ */
@@ -1400,6 +1448,7 @@ function revealApp(){
     return;
   }
   await dataReady;
+  startDeviceSync();
   handleStartParam();
   await resumeRestore();
   revealApp();
@@ -1418,7 +1467,7 @@ async function refreshMe(){
   }catch(e){ /* тихо: наступна спроба підхопить */ }
 }
 document.addEventListener("visibilitychange", () => {
-  if(document.visibilityState === "visible") refreshMe();
+  if(document.visibilityState === "visible"){ refreshMe(); publishDeviceState(); pollDeviceCommands(); }
 });
 window.addEventListener("focus", refreshMe);
 tg?.onEvent?.("activated", refreshMe);
@@ -2111,6 +2160,96 @@ async function createPlaylist(){
   }catch(e){ toast(e.message); }
 }
 
+
+/* ── синхронізація пристроїв MusicLSP ── */
+const DEVICE_SYNC = {id:"", started:false, cursor:0, polling:false};
+function deviceId(){
+  try{
+    let id=localStorage.getItem("mlsp_device_id");
+    if(!id){ id=(crypto?.randomUUID?.() || ("mlsp-"+Date.now()+"-"+Math.random().toString(36).slice(2))); localStorage.setItem("mlsp_device_id",id); }
+    return id;
+  }catch(e){ return "mlsp-"+Date.now()+"-"+Math.random().toString(36).slice(2); }
+}
+function deviceLabel(){
+  const ua=navigator.userAgent||"";
+  if(/iPhone|iPad|iPod/i.test(ua)) return "iPhone / iPad";
+  if(/Android/i.test(ua)) return "Android";
+  if(/Macintosh|Mac OS/i.test(ua)) return "Mac";
+  if(/Windows/i.test(ua)) return "Windows";
+  return "Web player";
+}
+async function startDeviceSync(){
+  if(DEVICE_SYNC.started || !S.me || !API) return;
+  DEVICE_SYNC.started=true; DEVICE_SYNC.id=deviceId();
+  try{
+    await post("/api/devices/register",{device_id:DEVICE_SYNC.id,name:deviceLabel(),platform:navigator.platform||"web"});
+    publishDeviceState();
+    setInterval(publishDeviceState,7000);
+    setInterval(pollDeviceCommands,2200);
+  }catch(e){ DEVICE_SYNC.started=false; }
+}
+function publishDeviceState(){
+  if(!DEVICE_SYNC.id || !S.me) return;
+  const q=S.queue.slice(0,30);
+  post("/api/devices/state",{device_id:DEVICE_SYNC.id,state:{
+    playing:!!(S.playing && !cur.paused),position:Math.floor(cur.currentTime||0),volume:cur.volume||0,
+    track:current(),queue:q,index:S.index
+  }}).catch(()=>{});
+}
+async function pollDeviceCommands(){
+  if(!DEVICE_SYNC.id || DEVICE_SYNC.polling || document.visibilityState==="hidden") return;
+  DEVICE_SYNC.polling=true;
+  try{
+    const d=await get("/api/devices/commands?device_id="+encodeURIComponent(DEVICE_SYNC.id)+"&after="+DEVICE_SYNC.cursor);
+    for(const command of (d.commands||[])){
+      DEVICE_SYNC.cursor=Math.max(DEVICE_SYNC.cursor,command.id||0);
+      await applyDeviceCommand(command);
+    }
+  }catch(e){}finally{ DEVICE_SYNC.polling=false; }
+}
+async function applyDeviceCommand(command){
+  const p=command.payload||{};
+  if(command.action==="handoff" || command.action==="play"){
+    const queue=Array.isArray(p.queue)&&p.queue.length?p.queue:(p.track?[p.track]:[]);
+    if(!queue.length) return;
+    S.queue=queue.slice(0,30); S.index=Math.max(0,Math.min(S.queue.length-1,Number(p.index)||0));
+    const target=Number(p.position)||0;
+    const track=current();
+    play(track);
+    if(target>1){
+      const seek=()=>{try{cur.currentTime=target;}catch(e){}cur.removeEventListener("loadedmetadata",seek);};
+      cur.addEventListener("loadedmetadata",seek);
+    }
+    return;
+  }
+  if(command.action==="pause"){ cur.pause(); S.playing=false; paintPlayState(); }
+  if(command.action==="next") nextTrack(false);
+  if(command.action==="previous") prevTrack();
+  if(command.action==="seek" && Number.isFinite(Number(p.position))) cur.currentTime=Math.max(0,Number(p.position));
+  if(command.action==="volume" && Number.isFinite(Number(p.volume))) cur.volume=Math.max(0,Math.min(1,Number(p.volume)));
+}
+async function openDevices(){
+  showModal('<h3>'+esc(t("pr_devices"))+'</h3><div id="devicesList"><div class="skel"></div></div>');
+  try{
+    const d=await get("/api/devices");
+    const devices=d.devices||[];
+    const other=devices.filter(x=>x.device_id!==DEVICE_SYNC.id && x.active);
+    const own=devices.find(x=>x.device_id===DEVICE_SYNC.id);
+    const card=(x,isOwn)=>'<div class="row" style="padding:12px 0;cursor:default"><div class="meta"><div class="t">'+esc(x.name||"Device")+(isOwn?' · '+esc(t("devices_this")):'')+'</div><div class="s">'+esc(x.platform||"Web")+' · '+esc(x.active?t("devices_online"):t("devices_offline"))+'</div></div>'+(isOwn?'<span class="pill">●</span>': '<button class="pill" data-device-target="'+esc(x.device_id)+'">'+esc(t("devices_handoff"))+'</button>')+'</div>';
+    $("devicesList").innerHTML=(own?card(own,true):"")+(other.length?other.map(x=>card(x,false)).join(""):'<div class="empty">'+esc(t("devices_empty"))+'</div>');
+    $("devicesList").querySelectorAll("[data-device-target]").forEach(b=>b.onclick=()=>handoffToDevice(b.dataset.deviceTarget));
+  }catch(e){ $("devicesList").innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
+}
+async function handoffToDevice(targetId){
+  const track=current();
+  if(!track) return toast(t("ui_queue_empty"));
+  const payload={track,queue:S.queue.slice(0,30),index:S.index,position:Math.floor(cur.currentTime||0)};
+  try{
+    await post("/api/devices/command",{device_id:targetId,action:"handoff",payload});
+    cur.pause(); S.playing=false; paintPlayState(); closeModal(); toast(t("devices_sent"));
+  }catch(e){ toast(e.message); }
+}
+
 /* ════════ Черга і відтворення ════════ */
 function current(){ return S.index >= 0 ? S.queue[S.index] : null; }
 
@@ -2158,6 +2297,7 @@ function play(t){
   S.playing = true;
   paint(t);
   reportPlay(t);
+  publishDeviceState();
   Promise.resolve(start).then(()=>{
     S.playing = true; paintPlayState();
   }).catch(()=>{
@@ -2210,6 +2350,20 @@ function togglePlay(){
   }else{ cur.pause(); S.playing = false; paintPlayState(); }
 }
 
+async function continueWithRadio(){
+  const seed = current()?.id;
+  if(!seed){ S.playing=false; paintPlayState(); return; }
+  try{
+    const d = await get("/api/radio?seed="+encodeURIComponent(seed));
+    const additions = (d.tracks||[]).filter(t=>t.id && t.id!==seed).slice(0,12);
+    if(!additions.length){ S.playing=false; paintPlayState(); return; }
+    S.queue.push(...additions);
+    S.index = S.queue.length - additions.length;
+    play(current());
+    toast(t("autoplay_added"));
+  }catch(e){ S.playing=false; paintPlayState(); }
+}
+
 function nextTrack(auto){
   if(!S.queue.length) return;
   if(S.repeat === "one" && auto){ cur.currentTime = 0; cur.play(); return; }
@@ -2218,6 +2372,7 @@ function nextTrack(auto){
   else i = S.index + 1;
   if(i >= S.queue.length){
     if(S.repeat === "all") i = 0;
+    else if(auto && S.autoplay){ continueWithRadio(); return; }
     else { S.playing = false; paintPlayState(); return; }
   }
   S.index = i; play(current());
@@ -2606,6 +2761,11 @@ function renderProfile(){
       <div class="refcard" id="refCard"><div class="skel"></div></div>
     </div>
 
+    <div class="sect"><h2 data-i18n="pr_devices">Мої пристрої</h2>
+      <div style="font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:10px" data-i18n="pr_devices_hint">Передавай музику між відкритими MusicLSP на своїх пристроях</div>
+      <button class="btn ghost" id="devicesBtn" data-i18n="devices_manage">Керувати пристроями</button>
+    </div>
+
     <div class="sect"><h2 data-i18n="pr_sound">Звук</h2>
       <div class="opt"><div class="lbl"><b data-i18n="pr_eq">Еквалайзер</b>
         <span data-i18n="${p?"pr_eq_on":"pr_eq_off"}">${p?"10 смуг із пресетами":"Доступно у Premium"}</span></div>
@@ -2631,6 +2791,10 @@ function renderProfile(){
       <div class="opt"><div class="lbl"><b id="dataSaverTitle">Економія трафіку</b>
         <span id="dataSaverHint">Менше фонових завантажень і передзавантаження аудіо</span></div>
         <div class="sw ${S.dataSaver?"on":""}" id="swDataSaver" role="switch" aria-checked="${S.dataSaver?"true":"false"}"></div></div>
+      <div class="opt"><div class="lbl"><b data-i18n="pr_autoplay">Розумне автопродовження</b>
+        <span data-i18n="pr_autoplay_hint">Коли черга закінчиться, підбере схожі треки</span></div>
+        <div class="sw ${S.autoplay?"on":""}" id="swAutoplay" role="switch" aria-checked="${S.autoplay?"true":"false"}"></div></div>
+
     </div>
 
     <div class="sect"><h2 data-i18n="pr_theme">Тема</h2>
@@ -2747,6 +2911,15 @@ function bindProfile(){
   };
 
   $("swNight").onclick = () => { tap(); toggleNightQuiet(); };
+  if($("swAutoplay")) $("swAutoplay").onclick = () => {
+    S.autoplay = !S.autoplay;
+    try{ localStorage.setItem("mlsp_autoplay", S.autoplay ? "1" : "0"); }catch(e){}
+    $("swAutoplay").classList.toggle("on", S.autoplay);
+    $("swAutoplay").setAttribute("aria-checked", S.autoplay ? "true" : "false");
+    toast(S.autoplay ? t("pr_autoplay") + ": ON" : t("pr_autoplay") + ": OFF");
+    tap();
+  };
+  if($("devicesBtn")) $("devicesBtn").onclick = openDevices;
   const dsLabels = DATA_SAVER_LABELS[S.me?.lang||"uk"] || DATA_SAVER_LABELS.uk;
   $("dataSaverTitle").textContent = dsLabels[0];
   $("dataSaverHint").textContent = dsLabels[1];
@@ -2784,7 +2957,7 @@ function bindProfile(){
     if((S.me.lang||"uk") === lang) return;
     try{
       await saveSettings({lang});
-      S.me.lang = lang; applyI18n(lang); renderProfile(); tap();
+      S.me.lang = lang; applyI18n(); renderProfile(); applyI18n(); tap();
     }catch(e){ toast(e.message); }
   });
 }
