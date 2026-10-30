@@ -399,9 +399,16 @@ async def h_player_session_claim(request, u):
             "duration": int(max(0, min(86400, duration))),
             "playing": raw.get("playing") is True,
             "volume": max(0.0, min(1.0, volume))}
-    await to_thread(db.player_session_set, uid, device_id, json.dumps(safe, ensure_ascii=False))
-    await broadcast_device_event(uid, {"type": "session", "owner_device_id": device_id, "state": safe})
-    return ok({"ok": True, "session": {"owner_device_id": device_id, "state": safe}})
+    expected_owner = str(body.get("expected_owner_id") or "")[:80]
+    claimed = await to_thread(db.player_session_claim, uid, device_id,
+                              json.dumps(safe, ensure_ascii=False), expected_owner)
+    if not claimed:
+        current = await to_thread(db.player_session_get, uid)
+        return ok({"ok": False, "error": "Сесію вже забрав інший пристрій",
+                   "session": current}, status=409)
+    session = {"owner_device_id": device_id, "state": safe}
+    await broadcast_device_event(uid, {"type": "session", **session})
+    return ok({"ok": True, "session": session})
 
 
 @require_auth
