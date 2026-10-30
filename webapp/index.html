@@ -256,6 +256,7 @@ function bookmarksSave(list){
    цього місяця") — це серверні дані, а не інтерфейс, і залишаються як є. */
 const I18N = {
   uk: {
+    artist_label:"Артист", artist_tracks:"Треки артиста", artist_open_error:"Не вдалося відкрити сторінку артиста",
     hero_kicker:"MUSICLSP · ВІДКРИВАЙ",
     hero_title_a:"Твій звук.",
     hero_title_b:"Твій момент.",
@@ -302,6 +303,7 @@ const I18N = {
     bookmark_added:"Позначено {time}",
   },
   ru: {
+    artist_label:"Артист", artist_tracks:"Треки артиста", artist_open_error:"Не удалось открыть страницу артиста",
     hero_kicker:"MUSICLSP · ОТКРЫВАЙ",
     hero_title_a:"Твой звук.",
     hero_title_b:"Твой момент.",
@@ -348,6 +350,7 @@ const I18N = {
     bookmark_added:"Отмечено {time}",
   },
   en: {
+    artist_label:"Artist", artist_tracks:"Artist tracks", artist_open_error:"Could not open artist page",
     hero_kicker:"MUSICLSP · DISCOVER",
     hero_title_a:"Your sound.",
     hero_title_b:"Your moment.",
@@ -394,6 +397,7 @@ const I18N = {
     bookmark_added:"Marked {time}",
   },
   pl: {
+    artist_label:"Artysta", artist_tracks:"Utwory artysty", artist_open_error:"Nie udało się otworzyć strony artysty",
     hero_kicker:"MUSICLSP · ODKRYWAJ",
     hero_title_a:"Twój dźwięk.",
     hero_title_b:"Twój moment.",
@@ -440,6 +444,7 @@ const I18N = {
     bookmark_added:"Zaznaczono {time}",
   },
   de: {
+    artist_label:"Künstler", artist_tracks:"Titel des Künstlers", artist_open_error:"Künstlerseite konnte nicht geöffnet werden",
     hero_kicker:"MUSICLSP · ENTDECKEN",
     hero_title_a:"Dein Sound.",
     hero_title_b:"Dein Moment.",
@@ -486,6 +491,7 @@ const I18N = {
     bookmark_added:"Markiert bei {time}",
   },
   es: {
+    artist_label:"Artista", artist_tracks:"Canciones del artista", artist_open_error:"No se pudo abrir la página del artista",
     hero_kicker:"MUSICLSP · DESCUBRE",
     hero_title_a:"Tu sonido.",
     hero_title_b:"Tu momento.",
@@ -532,6 +538,7 @@ const I18N = {
     bookmark_added:"Marcado en {time}",
   },
   fr: {
+    artist_label:"Artiste", artist_tracks:"Titres de l’artiste", artist_open_error:"Impossible d’ouvrir la page de l’artiste",
     hero_kicker:"MUSICLSP · DÉCOUVRIR",
     hero_title_a:"Ton son.",
     hero_title_b:"Ton moment.",
@@ -578,6 +585,7 @@ const I18N = {
     bookmark_added:"Marqué à {time}",
   },
   tr: {
+    artist_label:"Sanatçı", artist_tracks:"Sanatçının parçaları", artist_open_error:"Sanatçı sayfası açılamadı",
     hero_kicker:"MUSICLSP · KEŞFET",
     hero_title_a:"Senin sesin.",
     hero_title_b:"Senin anın.",
@@ -956,7 +964,7 @@ function rowsHtml(list, ctxKey){
            onerror="this.style.visibility='hidden'">
       <div class="meta">
         <div class="t">${esc(t.title)}</div>
-        <div class="s">${esc(t.artist)}${t.duration_str?" · "+esc(t.duration_str):""}</div>
+        <div class="s">${t.artist_id?`<button class="artist-link" type="button" data-artist-id="${esc(t.artist_id)}" data-artist-name="${esc(t.artist)}">${esc(t.artist)}</button>`:esc(t.artist)}${t.duration_str?" · "+esc(t.duration_str):""}</div>
       </div>
       <button class="act" data-menu="${i}">${ICON("kebab")}</button>
     </div>`).join("") + `</div>`;
@@ -970,12 +978,26 @@ function mountRows(el, list, ctxKey){
   el.querySelectorAll(".row").forEach(r=>{
     r.onclick = ev => {
       const i = +r.dataset.i;
-      if(ev.target.dataset.menu !== undefined){ openTrackMenu(CTX[ctxKey][i]); return; }
+      const artistButton = ev.target.closest("[data-artist-id]");
+      if(artistButton){ ev.stopPropagation(); openArtistProfile(artistButton.dataset.artistId, artistButton.dataset.artistName); return; }
+      if(ev.target.closest("[data-menu]")){ openTrackMenu(CTX[ctxKey][i]); return; }
       setQueue(CTX[ctxKey], i); tap();
     };
   });
 }
 
+async function openArtistProfile(artistId, artistName){
+  if(!artistId) return;
+  tap();
+  showModal('<div class="artist-profile-head"><div class="tag">'+esc(t("artist_label"))+'</div><h3>'+esc(artistName||t("artist_label"))+'</h3><p>'+esc(t("artist_tracks"))+'</p></div><div class="skel"></div>');
+  try{
+    const d=await get("/api/artist/"+encodeURIComponent(artistId));
+    const artist=d.artist||{}, tracks=Array.isArray(d.tracks)?d.tracks:[];
+    $("modalBox").innerHTML='<div class="artist-profile-head">'+(artist.cover?'<img class="artist-profile-cover" src="'+esc(artist.cover)+'" alt="" onerror="this.style.display=\'none\'">':'')+'<div class="tag">'+esc(t("artist_label"))+'</div><h3>'+esc(artist.name||artistName||t("artist_label"))+'</h3><p>'+tracks.length+' · '+esc(t("artist_tracks"))+'</p><button class="btn" id="artistPlayAll">'+esc(t("hero_cta"))+' · ▶</button></div><div id="artistTracks" class="rows"></div>';
+    mountRows($("artistTracks"),tracks,"artist:"+artistId);
+    $("artistPlayAll").onclick=()=>{if(tracks.length){closeModal();setQueue(tracks,0);}};
+  }catch(e){ $("modalBox").innerHTML='<div class="empty"><b>'+esc(t("artist_open_error"))+'</b>'+esc(e.message)+'</div>'; }
+}
 function cardsHtml(list, ctxKey, isArtist){
   CTX[ctxKey] = list;
   return `<div class="reel">` + list.map((t,i)=>`
