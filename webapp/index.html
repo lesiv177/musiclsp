@@ -2449,7 +2449,7 @@ async function createPlaylist(){
 
 
 /* ── синхронізація пристроїв MusicLSP ── */
-const DEVICE_SYNC = {id:"", started:false, cursor:0, polling:false, socket:null, reconnectTimer:null, pingTimer:null, reconnectDelay:1000, remoteStates:{}, remoteTarget:"", session:null, sessionTimer:null, sessionPolling:false};
+const DEVICE_SYNC = {id:"", started:false, cursor:0, polling:false, socket:null, reconnectTimer:null, pingTimer:null, reconnectDelay:1000, remoteStates:{}, remoteNames:{}, remoteTarget:"", session:null, sessionTimer:null, sessionPolling:false};
 function deviceId(){
   try{
     let id=localStorage.getItem("mlsp_device_id");
@@ -2531,7 +2531,7 @@ function publishDeviceState(){
   const q=S.queue.slice(0,30), track=current();
   const actuallyPlaying=!!(track && cur && !cur.paused && !cur.ended);
   post("/api/devices/state",{device_id:DEVICE_SYNC.id,state:{
-    playing:actuallyPlaying,position:Math.floor(cur.currentTime||0),volume:cur.volume||0,
+    playing:actuallyPlaying,position:Math.floor(cur.currentTime||0),duration:Math.floor(cur.duration||0),volume:cur.volume||0,
     track:track||null,queue:q,index:S.index
   }}).catch(()=>{});
 }
@@ -2608,7 +2608,7 @@ async function applyDeviceCommand(command){
   if(command.action==="volume" && Number.isFinite(Number(p.volume))){cur.volume=Math.max(0,Math.min(1,Number(p.volume)));publishDeviceState();}
 }
 async function openDevices(){
-  showModal('<div class="spotify-connect-head"><span>Connect</span><button class="connect-close" onclick="closeModal()">×</button></div><div id="devicesList"><div class="skel"></div></div>');
+  showModal('<div class="spotify-connect-head"><span>Пристрої</span><button class="connect-close" onclick="closeModal()">×</button></div><div id="devicesList"><div class="skel"></div></div>');
   try{
     const [d,sessionData]=await Promise.all([get("/api/devices"),get("/api/player/session").catch(()=>({session:null}))]);
     const devices=(d.devices||[]).filter(x=>x.active);
@@ -2619,7 +2619,7 @@ async function openDevices(){
       if(owner) owner.state=session.state||{};
       if(session.owner_device_id!==DEVICE_SYNC.id) applyAccountSession(session,false);
     }
-    devices.forEach(x=>{DEVICE_SYNC.remoteStates[x.device_id]=x.state||{};});
+    devices.forEach(x=>{DEVICE_SYNC.remoteStates[x.device_id]=x.state||{};DEVICE_SYNC.remoteNames[x.device_id]=x.name||"Пристрій";});
     const own=devices.find(x=>x.device_id===DEVICE_SYNC.id);
     const playingSource=devices.find(x=>x.device_id!==DEVICE_SYNC.id && x.state && x.state.track)
       || (session && session.owner_device_id!==DEVICE_SYNC.id && session.state && session.state.track
@@ -2719,14 +2719,14 @@ function renderRemoteBar(state){
   if(hasTrack){
     $("barTitle").textContent=track.title;
     $("barArtist").textContent=track.artist||"";
-    $("barOutput").textContent="◉ "+(DEVICE_SYNC.remoteTarget?"Web Player":"Цей пристрій");
+    $("barOutput").textContent="◉ "+(DEVICE_SYNC.remoteTarget?(DEVICE_SYNC.remoteNames[DEVICE_SYNC.remoteTarget]||"Інший пристрій"):"Цей пристрій");
     $("npTitle").textContent=track.title;
     $("npArtist").textContent=track.artist||"";
     if(track.cover){$("barArt").src=track.cover;$("npArt").src=track.cover;$("ambientBg").src=track.cover;}
   }else if(DEVICE_SYNC.remoteTarget){
     $("barTitle").textContent="Очікує відтворення";
     $("barArtist").textContent="";
-    $("barOutput").textContent="◉ Web Player";
+    $("barOutput").textContent="◉ "+(DEVICE_SYNC.remoteNames[DEVICE_SYNC.remoteTarget]||"Інший пристрій");
     $("npTitle").textContent="Очікує відтворення";
     $("npArtist").textContent="ПК підключено";
   }
@@ -2739,9 +2739,7 @@ function barNext(){if(DEVICE_SYNC.remoteTarget)return sendDeviceCommand(DEVICE_S
 function barTogglePlay(){
   if(DEVICE_SYNC.remoteTarget){
     const state=DEVICE_SYNC.remoteStates[DEVICE_SYNC.remoteTarget]||{};
-    return state.playing
-      ? sendDeviceCommand(DEVICE_SYNC.remoteTarget,"pause")
-      : resumeOnThisDevice();
+    return sendDeviceCommand(DEVICE_SYNC.remoteTarget,state.playing?"pause":"play");
   }
   if(current() && !cur.src && DEVICE_SYNC.session && DEVICE_SYNC.session.state){
     const pos=Number(DEVICE_SYNC.session.state.position)||0;
