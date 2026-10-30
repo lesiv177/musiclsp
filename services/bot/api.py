@@ -313,12 +313,71 @@ async def h_device_state(request, u):
         safe["queue"] = [item for raw in queue[:30] if (item := safe_device_track(raw))]
         index = bounded_int(state.get("index"), 0, 0, max(0, len(safe["queue"]) - 1))
         safe["index"] = index if safe["queue"] else -1
-    updated = await to_thread(db.device_state_update, int(u["uid"]), device_id,
+    uid = int(u["uid"])
+    updated = await to_thread(db.device_state_update, uid, device_id,
                               json.dumps(safe, ensure_ascii=False))
     if not updated:
         return fail("Пристрій не зареєстрований", 404)
-    await broadcast_device_event(int(u["uid"]), {"type": "state", "device_id": device_id, "state": safe})
+    session = await to_thread(db.player_session_get, uid)
+    if (isinstance(session, dict) and session.get("owner_device_id") == device_id) or (not session and safe.get("track")):
+        await to_thread(db.player_session_set, uid, device_id, json.dumps(safe, ensure_ascii=False))
+        await broadcast_device_event(uid, {"type": "session", "owner_device_id": device_id, "state": safe})
+    await broadcast_device_event(uid, {"type": "state", "device_id": device_id, "state": safe})
     return ok({"ok": True})
+
+
+@require_auth
+async def h_player_session_get(request, u):
+    session = await to_thread(db.player_session_get, int(u["uid"]))
+    return ok({"ok": True, "session": session})
+
+
+@require_auth
+async def h_player_session_claim(request, u):
+    try:
+        body = await json_object(request)
+        if body is None:
+            return fail("Некоректний JSON або очікувався JSON-об’єкт")
+    except (ValueError, web.HTTPException):
+        return fail("Некоректний JSON")
+    if not isinstance(body, dict):
+        return fail("Очікувався JSON-об’єкт")
+    device_id = str(body.get("device_id") or "")
+    if not valid_device_id(device_id):
+        return fail("Некоректний ідентифікатор пристрою")
+    uid = int(u["uid"])
+    devices = await to_thread(db.device_list, uid)
+    target = next((item for item in devices if item.get("device_id") == device_id and item.get("active")), None)
+    if not target:
+        return fail("Цей пристрій не в мережі", 404)
+    raw = body.get("state") if isinstance(body.get("state"), dict) else {}
+    track = safe_device_track(raw.get("track"))
+    if not track:
+        return fail("Немає треку для передачі", 409)
+    queue_raw = raw.get("queue") if isinstance(raw.get("queue"), list) else [track]
+    queue = [item for raw_item in queue_raw[:30] if (item := safe_device_track(raw_item))]
+    if not queue:
+        queue = [track]
+    index = bounded_int(raw.get("index"), 0, 0, max(0, len(queue) - 1))
+    try:
+        position = float(raw.get("position") or 0)
+        if not math.isfinite(position):
+            raise ValueError()
+    except (TypeError, ValueError, OverflowError):
+        position = 0
+    try:
+        volume = float(raw.get("volume", 1))
+        if not math.isfinite(volume):
+            volume = 1
+    except (TypeError, ValueError, OverflowError):
+        volume = 1
+    safe = {"track": track, "queue": queue, "index": index,
+            "position": int(max(0, min(86400, position))),
+            "playing": raw.get("playing") is True,
+            "volume": max(0.0, min(1.0, volume))}
+    await to_thread(db.player_session_set, uid, device_id, json.dumps(safe, ensure_ascii=False))
+    await broadcast_device_event(uid, {"type": "session", "owner_device_id": device_id, "state": safe})
+    return ok({"ok": True, "session": {"owner_device_id": device_id, "state": safe}})
 
 
 @require_auth
@@ -354,6 +413,23 @@ async def h_device_command(request, u):
     encoded = json.dumps(payload, ensure_ascii=False)
     if len(encoded) > 30000:
         return fail("Завелика команда")
+    if action == "handoff":
+        track = safe_device_track(payload.get("track"))
+        queue_raw = payload.get("queue") if isinstance(payload.get("queue"), list) else [track]
+        queue = [item for raw in queue_raw[:30] if (item := safe_device_track(raw))]
+        if track and queue:
+            index = bounded_int(payload.get("index"), 0, 0, max(0, len(queue) - 1))
+            try:
+                position = float(payload.get("position") or 0)
+                if not math.isfinite(position):
+                    raise ValueError()
+            except (TypeError, ValueError, OverflowError):
+                position = 0
+            shared = {"track": track, "queue": queue, "index": index,
+                      "position": int(max(0, min(86400, position))),
+                      "playing": True, "volume": 1}
+            await to_thread(db.player_session_set, uid, device_id, json.dumps(shared, ensure_ascii=False))
+            await broadcast_device_event(uid, {"type": "session", "owner_device_id": device_id, "state": shared})
     command_id = await to_thread(db.device_command_add, uid, device_id, action, encoded)
     if command_id is None:
         return fail("Пристрій не знайдено або вже не в мережі", 404)
@@ -1347,6 +1423,8 @@ def build_app():
     r.add_get("/api/resolve", h_resolve)
     r.add_post("/api/settings", h_settings)
     r.add_get("/api/devices", h_devices_get)
+    r.add_get("/api/player/session", h_player_session_get)
+    r.add_post("/api/player/session", h_player_session_claim)
     r.add_post("/api/devices/register", h_device_register)
     r.add_post("/api/devices/state", h_device_state)
     r.add_post("/api/devices/command", h_device_command)
