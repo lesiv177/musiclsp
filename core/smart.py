@@ -223,7 +223,7 @@ def _resolve_checked(track_id, quality):
         return ""
     url = P.resolve_stream(track_id, quality)
     # audius перевіряє посилання сам, SoundCloud віддає підписані URL (HEAD їх може відхиляти)
-    if url and (P.split_id(track_id)[0] in ("aud", "sc") or check_url(url)):
+    if url and (P.split_id(track_id)[0] == "aud" or check_url(url)):
         cache_put(key, url, STREAM_TTL)
         return url
     return ""
