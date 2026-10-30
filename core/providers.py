@@ -1189,7 +1189,8 @@ def search_tracks(query, limit=30, quality="mp32", sources=None, sort="relevance
     # Джерела опитуємо ПАРАЛЕЛЬНО (раніше — по черзі, і найповільніше гальмувало всіх).
     # Порядок результатів лишається детермінованим: jamendo, audius, archive, …
     jobs = []
-    # SoundCloud вимкнено: пошук працює лише з джерелами, які підтримуємо.    if "jamendo" in sources:
+    # SoundCloud вимкнено: пошук працює лише з джерелами, які підтримуємо.
+    if "jamendo" in sources:
         jobs.append(lambda: jamendo_search_tracks(query, limit=limit, audioformat=quality, sort=sort))
     if "audius" in sources:
         jobs.append(lambda: audius_search_tracks(query, limit=max(10, limit // 2)))
