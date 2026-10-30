@@ -181,3 +181,39 @@ img{max-width:100%}
  .nav button{font-size:8px}
  #bar .t{font-size:12px}
 }
+
+
+/* GLOBAL HOTFIX — Telegram iOS viewport and fixed controls */
+html,body,#appRoot{width:100%;max-width:100%;min-width:0;overflow-x:clip}
+body{position:relative;left:auto;right:auto}
+#appRoot{inset:0;width:100%;max-width:100%;transform:none}
+.screen,.screen.on{min-width:0;max-width:100%;overscroll-behavior-x:none}
+.screen>*{min-width:0;max-width:100%}
+#bar{
+  left:max(12px,env(safe-area-inset-left))!important;
+  right:max(12px,env(safe-area-inset-right))!important;
+  width:auto!important;max-width:720px;margin-inline:auto;
+  transform:none!important;
+}
+.nav{
+  left:max(8px,env(safe-area-inset-left))!important;
+  right:max(8px,env(safe-area-inset-right))!important;
+  width:auto!important;max-width:720px;margin-inline:auto;
+  transform:none!important;
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  padding-left:8px;padding-right:8px;
+}
+#bar{grid-template-columns:42px minmax(0,1fr) 38px 42px!important}
+#bar>*{min-width:0}
+#bar .meta{overflow:hidden}
+.nav button{min-width:0;max-width:100%;overflow:hidden}
+.nav button span,.nav button .label{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(min-width:760px){
+  #bar{left:auto!important;right:28px!important;width:min(480px,calc(100% - 56px))!important;margin:0}
+  .nav{left:28px!important;right:auto!important;width:auto!important;margin:0;grid-template-columns:repeat(5,66px)!important}
+}
+@media(max-width:520px){
+  #bar{left:10px!important;right:10px!important;bottom:calc(76px + var(--safe-bottom))!important}
+  .nav{left:8px!important;right:8px!important;bottom:var(--safe-bottom)!important;min-height:68px}
+  .screen{padding-bottom:calc(170px + var(--safe-bottom))}
+}
