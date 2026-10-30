@@ -2659,7 +2659,11 @@ async function claimLocalPlayback(){
     position:Math.floor(cur.currentTime||0),duration:Math.floor(cur.duration||0),
     playing:true,volume:Math.max(0,Math.min(1,Number(cur.volume)||0))};
   try{
-    const result=await post("/api/player/session",{device_id:DEVICE_SYNC.id,state});
+    const expectedOwner=DEVICE_SYNC.session&&DEVICE_SYNC.session.owner_device_id
+      ? DEVICE_SYNC.session.owner_device_id : "";
+    const result=await post("/api/player/session",{
+      device_id:DEVICE_SYNC.id,expected_owner_id:expectedOwner,state
+    });
     DEVICE_SYNC.session=result.session||{owner_device_id:DEVICE_SYNC.id,state,updated_at:new Date().toISOString()};
     return true;
   }catch(e){
