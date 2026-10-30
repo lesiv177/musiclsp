@@ -22,34 +22,33 @@ class SoundCloudPriorityTests(unittest.TestCase):
             patch.object(P, "wikimedia_search", return_value=[]),
         ]
 
-    def test_soundcloud_results_come_first_in_default_search(self):
-        soundcloud = {"id": "sc:1", "title": "Track SC", "artist": "Artist"}
+    def test_soundcloud_is_excluded_from_default_search(self):
         jamendo = {"id": "jam:2", "title": "Track Jam", "artist": "Artist"}
         patches = [
             patch.object(P, "_run_parallel", side_effect=run_jobs_inline),
             patch.object(P, "soundcloud_enabled", return_value=True),
-            patch.object(P, "soundcloud_search", return_value=[soundcloud]),
+            patch.object(P, "soundcloud_search") as soundcloud_search,
             patch.object(P, "jamendo_search_tracks", return_value=[jamendo]),
             *self._empty_provider_patches(),
         ]
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8]:
             results = P.search_tracks("Artist", limit=10)
-        self.assertEqual([track["id"] for track in results], ["sc:1", "jam:2"])
+        soundcloud_search.assert_not_called()
+        self.assertEqual([track["id"] for track in results], ["jam:2"])
 
-    def test_soundcloud_wins_duplicate_track(self):
-        soundcloud = {"id": "sc:1", "title": "Same Track", "artist": "Same Artist"}
+    def test_soundcloud_does_not_override_playable_default_sources(self):
         jamendo = {"id": "jam:2", "title": "Same Track", "artist": "Same Artist"}
         patches = [
             patch.object(P, "_run_parallel", side_effect=run_jobs_inline),
             patch.object(P, "soundcloud_enabled", return_value=True),
-            patch.object(P, "soundcloud_search", return_value=[soundcloud]),
+            patch.object(P, "soundcloud_search") as soundcloud_search,
             patch.object(P, "jamendo_search_tracks", return_value=[jamendo]),
             *self._empty_provider_patches(),
         ]
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8]:
             results = P.search_tracks("Same Track", limit=10)
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]["id"], "sc:1")
+        soundcloud_search.assert_not_called()
+        self.assertEqual([track["id"] for track in results], ["jam:2"])
 
     def test_explicit_provider_filter_is_respected(self):
         jamendo = {"id": "jam:2", "title": "Track Jam", "artist": "Artist"}
