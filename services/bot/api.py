@@ -79,6 +79,15 @@ async def to_thread(fn, *a, **kw):
     return await asyncio.get_running_loop().run_in_executor(None, lambda: fn(*a, **kw))
 
 
+def bounded_int(value, default, minimum, maximum):
+    """Безпечно читає ціле число з межами; None означає некоректний ввід."""
+    try:
+        parsed = int(default if value in (None, "") else value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return max(minimum, min(maximum, parsed))
+
+
 def quality_for(uid):
     return db.limits_for(uid)["quality"]
 
@@ -138,7 +147,12 @@ async def h_me(request, u):
 @require_auth
 async def h_settings(request, u):
     uid = int(u["uid"])
-    body = await request.json()
+    try:
+        body = await request.json()
+    except (ValueError, web.HTTPException):
+        return fail("Некоректний JSON")
+    if not isinstance(body, dict):
+        return fail("Очікувався JSON-об'єкт")
     premium = db.is_premium(uid)
     fields = {}
     if "theme" in body:
@@ -150,13 +164,20 @@ async def h_settings(request, u):
     if "accent" in body and premium:
         fields["accent"] = str(body["accent"])[:16]
     if "crossfade" in body:
-        if not premium and int(body["crossfade"] or 0) > 0:
+        crossfade = bounded_int(body["crossfade"], 0, 0, 12)
+        if crossfade is None:
+            return fail("Некоректне значення кросфейду")
+        if not premium and crossfade > 0:
             return fail("Кросфейд доступний у Premium")
-        fields["crossfade"] = max(0, min(12, int(body["crossfade"] or 0)))
+        fields["crossfade"] = crossfade
     if "eq" in body:
         if not premium:
             return fail("Еквалайзер доступний у Premium")
-        fields["eq_settings"] = json.dumps(body["eq"])[:2000]
+        eq = body["eq"]
+        if (not isinstance(eq, list) or len(eq) != 10
+                or any(not isinstance(v, (int, float)) or not -12 <= float(v) <= 12 for v in eq)):
+            return fail("Некоректні налаштування еквалайзера")
+        fields["eq_settings"] = json.dumps([int(round(float(v))) for v in eq])
     if "ambient_style" in body:
         style = str(body["ambient_style"])
         allowed = PREMIUM_LIMITS["ambient_styles"] if premium else FREE_LIMITS["ambient_styles"]
@@ -182,7 +203,9 @@ async def h_search(request, u):
         return fail("Введіть щонайменше 2 символи")
     kind = request.query.get("type", "tracks")
     max_allowed = db.limits_for(uid)["search_results_max"]
-    limit = max(1, min(max_allowed, int(request.query.get("limit", 30))))
+    limit = bounded_int(request.query.get("limit"), 30, 1, max(1, int(max_allowed)))
+    if limit is None:
+        return fail("Некоректний ліміт результатів")
 
     sort = request.query.get("sort", "relevance")
     if sort not in ("relevance", "popularity", "newest"):
@@ -974,9 +997,11 @@ async def error_middleware(request, handler):
         return fail(e.reason or "Помилка", e.status)
     except asyncio.CancelledError:
         raise
-    except Exception as e:
+    except Exception:
+        # Повна помилка лишається в серверному журналі; клієнту не віддаємо
+        # токени, SQL, шляхи файлів або інші внутрішні деталі.
         logger.exception("Необроблена помилка API %s", request.path)
-        return fail("Помилка сервера: " + str(e)[:120], 500)
+        return fail("Внутрішня помилка сервера. Спробуйте ще раз.", 500)
 
 
 def build_app():

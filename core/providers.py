@@ -1164,10 +1164,13 @@ def search_tracks(query, limit=30, quality="mp32", sources=None, sort="relevance
     Тепер типово шукаємо по всіх шести джерелах відразу (додано Wikimedia
     Commons напряму — Openverse і так частково тягне звідти, але напряму
     дістаємо більше й точніше фільтруємо)."""
-    sources = sources or ["jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia", "soundcloud"]
+    sources = sources or ["soundcloud", "jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia"]
     # Джерела опитуємо ПАРАЛЕЛЬНО (раніше — по черзі, і найповільніше гальмувало всіх).
     # Порядок результатів лишається детермінованим: jamendo, audius, archive, …
     jobs = []
+    # SoundCloud — основне джерело; інші провайдери лишаються fallback-каталогом.
+    if "soundcloud" in sources and soundcloud_enabled():
+        jobs.append(lambda: soundcloud_search(query, limit=12))
     if "jamendo" in sources:
         jobs.append(lambda: jamendo_search_tracks(query, limit=limit, audioformat=quality, sort=sort))
     if "audius" in sources:
@@ -1180,8 +1183,6 @@ def search_tracks(query, limit=30, quality="mp32", sources=None, sort="relevance
         jobs.append(lambda: openverse_search(query, limit=10))
     if "wikimedia" in sources:
         jobs.append(lambda: wikimedia_search(query, limit=10))
-    if "soundcloud" in sources and soundcloud_enabled():
-        jobs.append(lambda: soundcloud_search(query, limit=12))
     results = _run_parallel(jobs, timeout=4)
 
     seen, out = set(), []
@@ -1242,7 +1243,7 @@ def search_everything(query, limit=12):
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=4) as ex:
         f_tr = ex.submit(search_tracks_smart, query, limit=limit, sources=[
-            "jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia", "soundcloud"])
+            "soundcloud", "jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia"])
         f_al = ex.submit(jamendo_search_albums_smart, query, limit=limit)
         f_ja = ex.submit(jamendo_search_artists, query, limit=limit)
         f_au = ex.submit(audius_search_users, query, limit=max(4, limit // 3))

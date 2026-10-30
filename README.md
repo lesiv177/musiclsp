@@ -1,13 +1,23 @@
 [README.md](https://github.com/user-attachments/files/32473011/README.md)
-# MusicLSP 5.0
+# MusicLSP 6.0
 
 Один репозиторій, чотири сервіси на Railway, спільне ядро.
+
+## Оновлення 6.0
+- Оновлений Mini App: новий анімований splash-фон і відшліфовані елементи інтерфейсу.
+- Пошук пам'ятає останні запити на пристрої та захищений від застарілих паралельних відповідей.
+- Тайм-аут запитів до API, стабільніша обробка помилок відтворення та кросфейду.
+- Поширення поточного треку з посиланням на оригінал.
+- Режим економії трафіку вимикає передзавантаження наступних треків.
+- API перевіряє числові параметри й не розкриває внутрішні помилки клієнтам.
+- GitHub Actions перевіряє Python, тести провайдерів/API та синтаксис JavaScript Mini App.
+
 
 ```
 core/                спільний код — база, джерела музики, автентифікація
 ├── config.py        усі змінні середовища в одному місці
 ├── db.py            схема і запити (PostgreSQL або SQLite)
-├── providers.py     Jamendo, Audius, Internet Archive
+├── providers.py     SoundCloud, Jamendo, Audius та інші джерела
 └── auth.py          підпис Telegram, сесії панелі
 
 services/
@@ -45,6 +55,7 @@ git clone --mirror https://github.com/ВАШ_НІК/старий-репо.git ba
 | `BOT_TOKEN` | @BotFather → новий бот |
 | `AUTH_BOT_TOKEN` | @BotFather → ще один бот, окремий |
 | `JAMENDO_CLIENT_ID` | devportal.jamendo.com, безкоштовно |
+| `SOUNDCLOUD_CLIENT_ID` + `SOUNDCLOUD_CLIENT_SECRET` | необов'язкові ключі SoundCloud API; вмикають основний пошук |
 | `PANEL_SECRET` | `python -c "import secrets;print(secrets.token_hex(32))"` |
 | `ADMIN_IDS` | ваш Telegram ID (@userinfobot) |
 
@@ -96,10 +107,13 @@ python -m services.migrate.main
 Скопійований рядок застаріє, щойно Railway оновить пароль бази.
 
 Спільні для всіх чотирьох: `DATABASE_URL`, `ADMIN_IDS`, `JAMENDO_CLIENT_ID`, `ENV=production`.
+Для основного пошуку через SoundCloud додайте `SOUNDCLOUD_CLIENT_ID` і
+`SOUNDCLOUD_CLIENT_SECRET` у змінні сервісу `bot`. Без них бот автоматично
+продовжить пошук через інші джерела.
 
 | Сервіс | Додатково |
 |---|---|
-| bot | `BOT_TOKEN`, `WEB_APP_URL`, `API_URL` |
+| bot | `BOT_TOKEN`, `WEB_APP_URL`, `API_URL`, `SOUNDCLOUD_CLIENT_ID`, `SOUNDCLOUD_CLIENT_SECRET` (необов'язково) |
 | auth | `AUTH_BOT_TOKEN`, `BOT_TOKEN`, `PANEL_URL` |
 | panel | `PANEL_SECRET`, `PANEL_SESSION_HOURS=12` |
 | worker | `BOT_TOKEN`, `WORKER_INTERVAL=600` |

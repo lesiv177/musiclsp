@@ -1,0 +1,36 @@
+name: tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Compile Python
+        run: python -m compileall -q core services tests
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Check Mini App JavaScript syntax
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path("webapp/index.html").read_text(encoding="utf-8")
+          scripts = re.findall(r"<script\b[^>]*>(.*?)</script\s*>", html, flags=re.I | re.S)
+          if not scripts or not scripts[-1].strip():
+              raise SystemExit("Inline Mini App script was not found")
+          Path("/tmp/musiclsp-webapp.js").write_text(scripts[-1], encoding="utf-8")
+          PY
+          node --check /tmp/musiclsp-webapp.js
