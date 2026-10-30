@@ -48,9 +48,17 @@ a{color:var(--accent)}
 
 /* фонове зображення на весь екран заставки — той самий логотип, сильно
    розмитий і напівпрозорий, щоб фон не був просто градієнтом "нізвідки" */
-#splash .splashBg{position:absolute;inset:-20%;z-index:0;pointer-events:none;
-  background-repeat:no-repeat;background-position:50% 42%;background-size:70% auto;
-  filter:blur(70px) saturate(170%);opacity:.38;transform:scale(1.3)}
+#splash .splashBg{position:absolute;inset:-18%;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(42% 38% at 22% 24%,rgba(198,161,255,.30),transparent 72%),
+    radial-gradient(38% 42% at 78% 28%,rgba(255,111,176,.20),transparent 72%),
+    radial-gradient(48% 42% at 52% 82%,rgba(91,227,198,.16),transparent 74%);
+  filter:blur(26px);opacity:.9;transform:translate3d(0,0,0);
+  animation:splashDrift 12s ease-in-out infinite alternate}
+#splash::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:linear-gradient(145deg,rgba(255,255,255,.035),transparent 42%,rgba(0,0,0,.24))}
+@keyframes splashDrift{from{transform:translate3d(-2%,-1%,0) scale(.98)}
+  to{transform:translate3d(2%,2%,0) scale(1.06)}}
 #splash>.vinylWrap,#splash>.swordmark,#splash>.seq,#splash>.stext{position:relative;z-index:1}
 
 /* вінілова платівка, що крутиться, + тонарм, що опускається */
@@ -550,6 +558,37 @@ body.is-playing .bar .art{animation:barArtPulse 2.4s ease-in-out infinite}
 .admBody h3{margin:6px 0 10px;font-size:15px}
 .admMini{padding:7px 12px;border-radius:9px;background:var(--panel-2);font-size:12.5px;font-weight:500}
 .admMini.danger{color:#ff7a8a}
+
+/* MusicLSP 5.2 — visual refresh + lightweight search history */
+.search-recent{display:none;padding:2px 0 12px}
+.search-recent.on{display:block}
+.search-recent-head{display:flex;align-items:center;justify-content:space-between;
+  padding:4px 2px 9px;color:var(--muted);font-size:11px;font-weight:700;
+  letter-spacing:.09em;text-transform:uppercase}
+.search-recent-list{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:0 1px 4px}
+.search-recent-list::-webkit-scrollbar{display:none}
+.search-recent-chip{flex:none;max-width:210px;display:flex;align-items:center;gap:7px;
+  padding:9px 12px;border:1px solid var(--line);border-radius:999px;
+  background:linear-gradient(135deg,var(--panel-2),var(--panel));
+  color:var(--ink);font-size:12px;white-space:nowrap}
+.search-recent-chip span{overflow:hidden;text-overflow:ellipsis}
+.search-recent-chip:active{transform:scale(.96)}
+.search-recent-clear{font-size:11px;color:var(--accent);padding:5px}
+#splash{isolation:isolate}
+#splash .vinylWrap{filter:drop-shadow(0 24px 38px rgba(0,0,0,.32))}
+#splash .stext{letter-spacing:.02em}
+.top{backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.searchbar{box-shadow:inset 0 1px 0 rgba(255,255,255,.035),0 8px 24px rgba(0,0,0,.10)}
+.tab,.fchip,.pill,.chip{transition:background .18s ease,border-color .18s ease,transform .18s ease}
+.row{contain:layout style;content-visibility:auto;contain-intrinsic-size:72px}
+.card{content-visibility:auto;contain-intrinsic-size:190px}
+img[loading="lazy"]{background:var(--panel-2)}
+@media (prefers-reduced-motion:reduce){
+  #splash .splashBg,.vinyl.spin,.screen.on,.rows .row,.reel .card,.genres .genre,
+  .bar.on,.sheet.on .coverWrap{animation:none!important}
+  *,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important}
+}
+
 </style>
 </head>
 <body>
@@ -616,6 +655,7 @@ body.is-playing .bar .art{animation:barArtPulse 2.4s ease-in-out infinite}
         <button class="fchip" data-sort="newest" data-i18n="sort_newest">Новинки</button>
       </div>
     </div>
+    <div id="searchRecent" class="search-recent" aria-live="polite"></div>
     <div id="qBody">
       <div class="empty"><b data-i18n="search_empty_title">Що поставити?</b><span data-i18n="search_empty_body">Каталог — незалежні артисти під Creative Commons.
         Спробуйте жанр: lofi, jazz, synthwave, folk.</span></div>
@@ -751,7 +791,7 @@ const S = {
   queue:[], index:-1, playing:false, shuffle:false, repeat:"off",
   liked:new Set(), playlists:[], eq:null, eqNodes:null, ctx:null,
   crossfade:0, sleepAt:0, sleepTimer:null, kind:"tracks", libView:"liked",
-  sort:"relevance", sources:["jamendo","audius","archive","ccmixter","openverse","wikimedia","soundcloud"],
+  sort:"relevance", sources:["soundcloud","jamendo","audius","archive","ccmixter","openverse","wikimedia"],
   speed:1, nightQuiet:false,
 };
 
@@ -1197,9 +1237,9 @@ const post = (p,body) => req(p,{method:"POST",body:JSON.stringify(body||{})});
    напівпрозорий через CSS (.splashBg), просто щоб екран не був голим
    градієнтом. */
 (function initSplashBg(){
-  const src = document.querySelector(".vlabel img")?.getAttribute("src");
+  // CSS-only backdrop avoids decoding and blurring the logo twice.
   const bg = $("splashBg");
-  if(src && bg) bg.style.backgroundImage = `url("${src}")`;
+  if(bg) bg.style.backgroundImage = "none";
 })();
 let _splashCycleTimer = null, _splashPhraseIdx = 0;
 function startSplashShow(lang){
@@ -1540,10 +1580,45 @@ async function loadGenresGrid(){
 }
 
 /* ════════ Пошук ════════ */
+const SEARCH_HISTORY_KEY = "mlsp_search_history_v1";
+function searchHistoryRead(){
+  try{
+    const v = JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || "[]");
+    return Array.isArray(v) ? v.filter(x=>typeof x==="string").slice(0,8) : [];
+  }catch(e){ return []; }
+}
+function searchHistorySave(query){
+  const q = String(query||"").trim().slice(0,80);
+  if(q.length < 2) return;
+  const next = [q,...searchHistoryRead().filter(x=>x.toLocaleLowerCase()!==q.toLocaleLowerCase())].slice(0,8);
+  try{ localStorage.setItem(SEARCH_HISTORY_KEY,JSON.stringify(next)); }catch(e){}
+  renderSearchHistory();
+}
+function renderSearchHistory(){
+  const el = $("searchRecent"); if(!el) return;
+  const q = $("qInput").value.trim();
+  const items = searchHistoryRead();
+  if(q || !items.length){ el.classList.remove("on"); el.innerHTML=""; return; }
+  el.classList.add("on");
+  el.innerHTML = '<div class="search-recent-head"><span>Нещодавні пошуки</span><button class="search-recent-clear" type="button" id="searchHistoryClear">Очистити</button></div>' +
+    '<div class="search-recent-list">' + items.map((v,i)=>'<button class="search-recent-chip" type="button" data-recent="'+i+'">'+ICON("history")+'<span>'+esc(v)+'</span></button>').join("") + '</div>';
+  el.querySelectorAll("[data-recent]").forEach(b=>b.onclick=()=>{
+    const value=searchHistoryRead()[+b.dataset.recent]; if(!value) return;
+    $("qInput").value=value; renderSearchHistory(); runSearch();
+  });
+  $("searchHistoryClear")?.addEventListener("click",()=>{
+    try{localStorage.removeItem(SEARCH_HISTORY_KEY);}catch(e){}
+    renderSearchHistory();
+  });
+}
 let searchT;
-$("qInput").oninput = () => { clearTimeout(searchT); searchT = setTimeout(runSearch, 450); };
+$("qInput").oninput = () => {
+  renderSearchHistory();
+  clearTimeout(searchT); searchT = setTimeout(runSearch, 450);
+};
 $("qInput").onkeydown = e => { if(e.key==="Enter"){ clearTimeout(searchT); runSearch(); e.target.blur(); } };
-$("qClear").onclick = () => { $("qInput").value=""; $("qBody").innerHTML=""; };
+$("qClear").onclick = () => { $("qInput").value=""; $("qBody").innerHTML=""; renderSearchHistory(); };
+renderSearchHistory();
 
 /* ════════ Гра "Вгадай трек" — прибрано з головного екрана на прохання,
    функції лишились нижче невикористаними на випадок, якщо гру захочуть
@@ -1664,6 +1739,7 @@ async function runSearch(){
   if(S.kind === "genres") return;
   const q = $("qInput").value.trim();
   if(q.length < 2) return;
+  searchHistorySave(q);
   $("qBody").innerHTML = `<div class="skel"></div><div class="skel"></div><div class="skel"></div>`;
   try{
     if(S.kind === "all"){
