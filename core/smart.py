@@ -222,8 +222,10 @@ def _resolve_checked(track_id, quality):
     if is_dead(track_id):
         return ""
     url = P.resolve_stream(track_id, quality)
-    # audius перевіряє посилання сам, SoundCloud віддає підписані URL (HEAD їх може відхиляти)
-    if url and (P.split_id(track_id)[0] == "aud" or check_url(url)):
+    # Audius validates its own stream node. SoundCloud URLs are short-lived
+    # signed CDN/HLS URLs and commonly reject HEAD despite being playable.
+    prefix = P.split_id(track_id)[0]
+    if url and (prefix in ("aud", "sc") or check_url(url)):
         cache_put(key, url, STREAM_TTL)
         return url
     return ""
@@ -249,7 +251,8 @@ def _alternative(track_id, title, artist, quality):
     cands.sort(key=lambda x: -x[0])
     for _, t in cands[:3]:
         url = t.get("stream") or P.resolve_stream(t["id"], quality)
-        if url and check_url(url):
+        candidate_prefix = P.split_id(t["id"])[0]
+        if url and (candidate_prefix in ("aud", "sc") or check_url(url)):
             logger.info("Запасне джерело: %s → %s", track_id, t["id"])
             return url, t["id"]
         mark_dead(t["id"])
