@@ -766,7 +766,7 @@ body{background:radial-gradient(120% 45% at 50% -10%,color-mix(in srgb,var(--acc
 <style>
 /* MusicLSP polish pass: compact, aligned player and clearer library */
 .nav{grid-template-columns:repeat(5,minmax(0,1fr))!important}
-.bar{display:none;grid-template-columns:46px minmax(0,1fr) 32px 32px 36px 32px;align-items:center;gap:7px;padding:8px 9px;min-height:64px}
+.bar{display:none;grid-template-columns:46px minmax(0,1fr) 32px 32px 32px 36px 32px;align-items:center;gap:7px;padding:8px 9px;min-height:64px}
 .bar.on{display:grid}
 .bar .art{width:46px;height:46px;min-width:46px;object-fit:cover;display:block;align-self:center}
 .bar .meta{min-width:0;align-self:center;display:flex;flex-direction:column;justify-content:center;gap:2px;line-height:1.2}
@@ -802,6 +802,34 @@ body{background:radial-gradient(120% 45% at 50% -10%,color-mix(in srgb,var(--acc
 #splash::after{width:110vw;height:110vw;max-width:760px;max-height:760px;border:1px solid rgba(91,227,198,.08);animation:splashOrbit 28s linear infinite reverse}
 @keyframes splashOrbit{to{transform:rotate(360deg)}}
 </style>
+
+<style>
+/* MusicLSP Connect + compact player layout fix */
+.bar{grid-template-columns:46px minmax(0,1fr) 32px 32px 32px 36px 32px!important}
+@media(max-width:520px){.bar{grid-template-columns:42px minmax(0,1fr) 28px 30px 28px 34px 28px!important;gap:5px!important}}
+.connect-title{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:14px}
+.connect-title>span{font-size:20px;font-weight:750}
+.connect-title small{font-size:10px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
+.connect-device{padding:13px;border:1px solid var(--line);border-radius:17px;background:color-mix(in srgb,var(--panel) 82%,transparent);margin:9px 0}
+.connect-device.selected{border-color:var(--accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent)}
+.connect-device-head{display:flex;align-items:center;gap:10px;min-width:0}
+.device-platform{width:38px;height:38px;flex:0 0 38px;border-radius:12px;display:grid;place-items:center;background:var(--panel-2);font-size:20px}
+.device-info{min-width:0;flex:1}
+.device-name{font-size:13px;font-weight:750;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.device-status{font-size:10px;color:var(--muted);margin-top:4px;display:flex;align-items:center;gap:5px}
+.device-status i{width:6px;height:6px;border-radius:50%;background:#54d6a5}
+.device-connect{padding:9px 11px;border-radius:11px;background:var(--accent);color:var(--accent-ink);font-size:11px;font-weight:750;white-space:nowrap}
+.device-connect:disabled{opacity:.55;cursor:default}
+.device-now{display:flex;align-items:center;gap:7px;min-width:0;margin:11px 0 0 48px;font-size:11px}
+.device-live{width:7px;height:7px;border-radius:50%;background:var(--muted);flex:0 0 7px}
+.device-live.is-playing{background:#54d6a5;box-shadow:0 0 0 4px rgba(84,214,165,.12)}
+.device-track{font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.device-artist{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.device-remote{display:flex;align-items:center;gap:8px;margin:10px 0 0 48px}
+.device-control{width:34px;height:32px;border-radius:10px;background:var(--panel-2);font-size:14px}
+.device-control.primary{background:var(--accent);color:var(--accent-ink)}
+</style>
+
 </head>
 <body>
 <div id="splash">
@@ -2492,33 +2520,73 @@ async function applyDeviceCommand(command){
   if(command.action==="volume" && Number.isFinite(Number(p.volume))){cur.volume=Math.max(0,Math.min(1,Number(p.volume)));publishDeviceState();}
 }
 async function openDevices(){
-  showModal('<h3>'+esc(t("pr_devices"))+'</h3><div id="devicesList"><div class="skel"></div></div>');
+  showModal('<div class="connect-title"><span>'+esc(t("pr_devices"))+'</span><small>MusicLSP Connect</small></div><div id="devicesList"><div class="skel"></div></div>');
   try{
     const d=await get("/api/devices");
-    const devices=d.devices||[];
-    const other=devices.filter(x=>x.device_id!==DEVICE_SYNC.id && x.active);
+    const devices=(d.devices||[]).filter(x=>x.active);
+    devices.forEach(x=>{DEVICE_SYNC.remoteStates[x.device_id]=x.state||{};});
     const own=devices.find(x=>x.device_id===DEVICE_SYNC.id);
+    const playingSource=devices.find(x=>x.device_id!==DEVICE_SYNC.id && x.state && x.state.track);
     const card=(x,isOwn)=>{
       const state=x.state||{}, track=state.track||{};
-      DEVICE_SYNC.remoteStates[x.device_id]=state;
-      const status=state.playing?"Зараз відтворюється":(track.title?"Призупинено":"Очікує відтворення");
       const platform=String((x.platform||"")+" "+(x.name||"")).toLowerCase();
       const deviceIcon=/mac|macintosh|mac os/.test(platform)?"apple":/windows|win32/.test(platform)?"windows":/iphone|ipad|ios/.test(platform)?"phone":/android/.test(platform)?"android":"monitor";
       const icon=deviceIcon==="apple"?'':deviceIcon==="windows"?'⊞':deviceIcon==="phone"?'▯':deviceIcon==="android"?'◉':'▣';
+      const isSelected=isOwn?!DEVICE_SYNC.remoteTarget:DEVICE_SYNC.remoteTarget===x.device_id;
+      const status=state.playing?"Відтворюється":(track.title?"Призупинено":"Очікує відтворення");
+      const nowPlaying=track.title?'<div class="device-now"><span class="device-live '+(state.playing?"is-playing":"")+'"></span><span class="device-track">'+esc(track.title)+'</span><span class="device-artist">'+esc(track.artist||"")+'</span></div>':'<div class="device-now"><span class="device-track muted">Нічого не відтворюється</span></div>';
       const controls=isOwn?"":'<div class="device-remote">'
         +'<button class="device-control" data-device-cmd="previous" data-id="'+esc(x.device_id)+'" aria-label="Попередній">⏮</button>'
-        +'<button class="device-control primary" data-device-cmd="'+(state.playing?"pause":"play")+'" data-id="'+esc(x.device_id)+'">'+(state.playing?"Ⅱ":"▶")+'</button>'
+        +'<button class="device-control primary" data-device-cmd="'+(state.playing?"pause":"play")+'" data-id="'+esc(x.device_id)+'" aria-label="'+(state.playing?"Пауза":"Продовжити")+'">'+(state.playing?"Ⅱ":"▶")+'</button>'
         +'<button class="device-control" data-device-cmd="next" data-id="'+esc(x.device_id)+'" aria-label="Наступний">⏭</button>'
-        +'<label class="device-volume">Гучність <input data-device-volume="'+esc(x.device_id)+'" type="range" min="0" max="100" value="'+Math.round((Number(state.volume)||0)*100)+'"></label>'
         +'</div>';
-      const nowPlaying=track.title?'<div class="device-now"><span class="device-live '+(state.playing?"is-playing":"")+'"></span><span class="device-track">'+esc(track.title)+'</span><span class="device-artist">'+esc(track.artist||"")+'</span></div>':'<div class="device-now"><span class="device-track muted">Нічого не відтворюється</span></div>';
-      return '<div class="connect-device '+(DEVICE_SYNC.remoteTarget===x.device_id?"selected":"")+'"><div class="connect-device-head"><div class="device-platform '+deviceIcon+'">'+icon+'</div><div class="device-info"><div class="device-name">'+esc(x.name||"Пристрій")+(isOwn?' · '+esc(t("devices_this")):'')+'</div><div class="device-status"><i class="'+(x.active?"online":"offline")+'"></i>'+esc(x.active?(state.playing?"Відтворюється":status):t("devices_offline"))+'</div></div>'+(isOwn?'<span class="device-you">ЦЕЙ ПРИСТРІЙ</span>':'<button class="device-connect" data-remote-select="'+esc(x.device_id)+'">'+(DEVICE_SYNC.remoteTarget===x.device_id?"Підключено":"Підключити")+'</button>')+'</div>'+nowPlaying+controls+'</div>';
-    };    $("devicesList").innerHTML=(own?card(own,true):"")+(other.length?other.map(x=>card(x,false)).join(""):'<div class="empty">'+esc(t("devices_empty"))+'</div>');
-    $("devicesList").querySelectorAll("[data-device-target]").forEach(b=>b.onclick=()=>handoffToDevice(b.dataset.deviceTarget));
-    $("devicesList").querySelectorAll("[data-remote-select]").forEach(b=>b.onclick=()=>setRemoteTarget(DEVICE_SYNC.remoteTarget===b.dataset.remoteSelect?"":b.dataset.remoteSelect));
+      const actionLabel=isOwn?(playingSource?"Слухати тут":(DEVICE_SYNC.remoteTarget?"Відтворювати тут":"Цей пристрій")):(state.playing?"Підключено":"Слухати на цьому пристрої");
+      const actionDisabled=isOwn&&!playingSource&&!DEVICE_SYNC.remoteTarget;
+      return '<div class="connect-device '+(isSelected?"selected":"")+'"><div class="connect-device-head"><div class="device-platform '+deviceIcon+'">'+icon+'</div><div class="device-info"><div class="device-name">'+esc(x.name||"Пристрій")+(isOwn?' · ЦЕЙ ПРИСТРІЙ':'')+'</div><div class="device-status"><i class="online"></i>'+esc(status)+'</div></div><button class="device-connect" data-device-select="'+esc(x.device_id)+'" '+(actionDisabled?'disabled':'')+'>'+esc(actionLabel)+'</button></div>'+nowPlaying+controls+'</div>';
+    };
+    $("devicesList").innerHTML=(own?card(own,true):"")+(devices.filter(x=>x.device_id!==DEVICE_SYNC.id).map(x=>card(x,false)).join("")||'<div class="empty">Інші пристрої з’являться тут, коли MusicLSP буде відкрито на них</div>');
+    $("devicesList").querySelectorAll("[data-device-select]").forEach(b=>b.onclick=()=>selectPlaybackDevice(b.dataset.deviceSelect,devices));
     $("devicesList").querySelectorAll("[data-device-cmd]").forEach(b=>b.onclick=()=>sendDeviceCommand(b.dataset.id,b.dataset.deviceCmd));
-    $("devicesList").querySelectorAll("[data-device-volume]").forEach(el=>el.onchange=()=>sendDeviceCommand(el.dataset.deviceVolume,"volume",{volume:Number(el.value)/100}));
   }catch(e){ $("devicesList").innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
+}
+async function selectPlaybackDevice(targetId, devices){
+  if(targetId===DEVICE_SYNC.id){
+    const source=devices.find(x=>x.device_id!==DEVICE_SYNC.id && x.active && x.state && x.state.track);
+    if(!source){setRemoteTarget("");return;}
+    const state=source.state||{}, queue=Array.isArray(state.queue)&&state.queue.length?state.queue:[state.track];
+    const index=Math.max(0,Math.min(queue.length-1,Number(state.index)||0));
+    const position=Math.max(0,Number(state.position)||0);
+    setRemoteTarget("");
+    S.queue=queue.slice(0,30);S.index=Math.min(index,S.queue.length-1);
+    try{
+      const started=await play(current());
+      if(started && position>0){
+        const seek=()=>{try{cur.currentTime=position;}catch(e){}cur.removeEventListener("loadedmetadata",seek);};
+        if(cur.readyState>=1)seek();else cur.addEventListener("loadedmetadata",seek,{once:true});
+      }
+      await post("/api/devices/command",{device_id:source.device_id,action:"pause",payload:{}});
+      toast("Тепер слухаєш на цьому пристрої");
+      closeModal();
+    }catch(e){toast(e.message||"Не вдалося перемкнути відтворення");}
+    return;
+  }
+  const target=devices.find(x=>x.device_id===targetId);
+  if(!target)return;
+  if(current()){
+    try{
+      const payload={track:current(),queue:S.queue.slice(0,30),index:S.index,position:Math.floor(cur.currentTime||0)};
+      await post("/api/devices/command",{device_id:targetId,action:"handoff",payload});
+      cur.pause();S.playing=false;paintPlayState();
+      setRemoteTarget(targetId);
+      toast("Відтворення передано: "+(target.name||"пристрій"));
+    }catch(e){toast(e.message);}
+  }else if(target.state&&target.state.track){
+    setRemoteTarget(targetId);
+    await sendDeviceCommand(targetId,"play");
+    closeModal();
+  }else{
+    toast("На цьому пристрої ще немає треку для відтворення");
+  }
 }
 function setRemoteTarget(targetId){
   DEVICE_SYNC.remoteTarget=targetId||"";
@@ -2616,10 +2684,9 @@ function play(t){
   if(!t) return;
   if(DEVICE_SYNC.remoteTarget && DEVICE_SYNC.remoteTarget!==DEVICE_SYNC.id){
     const payload={track:t,queue:S.queue.slice(0,30),index:S.index,position:0};
-    post("/api/devices/command",{device_id:DEVICE_SYNC.remoteTarget,action:"handoff",payload})
-      .then(()=>toast("Відтворення передано на ПК"))
-      .catch(e=>toast(e.message));
-    return;
+    return post("/api/devices/command",{device_id:DEVICE_SYNC.remoteTarget,action:"handoff",payload})
+      .then(()=>toast("Відтворення передано на пристрій"))
+      .catch(e=>{toast(e.message);throw e;});
   }
   RESUME.pending = null; RETRY.n = 0;
   clearInterval(fadeTimer);
@@ -2632,13 +2699,16 @@ function play(t){
   S.playing = true;
   paint(t);
   publishDeviceState();
-  Promise.resolve(start).then(()=>{
+  return Promise.resolve(start).then(()=>{
     S.playing = true;
     reportPlay(t); // історія лише після фактичного старту аудіо
     paintPlayState();
-  }).catch(()=>{
+    publishDeviceState();
+    return true;
+  }).catch(err=>{
     S.playing = false; paintPlayState();
     toast("Джерело не віддало потік");
+    throw err;
   });
 }
 
