@@ -193,6 +193,93 @@ async def h_settings(request, u):
     return ok({"ok": True, "saved": list(fields.keys())})
 
 
+
+# ─── Пристрої та передавання відтворення між сесіями ──────────────────────────
+@require_auth
+async def h_devices_get(request, u):
+    devices = await to_thread(db.device_list, int(u["uid"]))
+    return ok({"ok": True, "devices": devices})
+
+
+@require_auth
+async def h_device_register(request, u):
+    try:
+        body = await request.json()
+    except (ValueError, web.HTTPException):
+        return fail("Некоректний JSON")
+    device_id = str(body.get("device_id") or "")[:80]
+    if not device_id or any(ch not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for ch in device_id):
+        return fail("Некоректний ідентифікатор пристрою")
+    await to_thread(db.device_register, int(u["uid"]), device_id,
+                    str(body.get("name") or "MusicLSP device"),
+                    str(body.get("platform") or "web"))
+    return ok({"ok": True, "device_id": device_id})
+
+
+@require_auth
+async def h_device_state(request, u):
+    try:
+        body = await request.json()
+    except (ValueError, web.HTTPException):
+        return fail("Некоректний JSON")
+    device_id = str(body.get("device_id") or "")[:80]
+    state = body.get("state") or {}
+    if not device_id or not isinstance(state, dict):
+        return fail("Некоректний стан пристрою")
+    try:
+        position = max(0, min(86400, int(float(state.get("position") or 0))))
+        volume = max(0, min(1, float(state.get("volume") or 0)))
+    except (TypeError, ValueError):
+        return fail("Некоректний стан відтворення")
+    safe = {"playing": bool(state.get("playing")), "position": position, "volume": volume}
+    track = state.get("track")
+    fields = ("id", "title", "artist", "cover", "duration", "source", "source_label", "license_short", "source_url")
+    if isinstance(track, dict) and track.get("id"):
+        safe["track"] = {k: track[k] for k in fields if k in track and isinstance(track[k], (str, int, float))}
+    queue = state.get("queue")
+    if isinstance(queue, list):
+        safe["queue"] = [{k: item[k] for k in fields if k in item and isinstance(item[k], (str, int, float))}
+                         for item in queue[:30] if isinstance(item, dict) and item.get("id")]
+        safe["index"] = max(0, min(len(safe["queue"])-1, int(state.get("index") or 0))) if safe["queue"] else -1
+    updated = await to_thread(db.device_state_update, int(u["uid"]), device_id,
+                              json.dumps(safe, ensure_ascii=False))
+    if not updated:
+        return fail("Пристрій не зареєстрований", 404)
+    return ok({"ok": True})
+
+
+@require_auth
+async def h_device_command(request, u):
+    try:
+        body = await request.json()
+    except (ValueError, web.HTTPException):
+        return fail("Некоректний JSON")
+    device_id = str(body.get("device_id") or "")[:80]
+    action = str(body.get("action") or "")
+    payload = body.get("payload") or {}
+    if action not in {"handoff", "play", "pause", "next", "previous", "seek", "volume"}:
+        return fail("Невідома команда")
+    if not device_id or not isinstance(payload, dict):
+        return fail("Некоректна команда")
+    encoded = json.dumps(payload, ensure_ascii=False)
+    if len(encoded) > 30000:
+        return fail("Завелика команда")
+    command_id = await to_thread(db.device_command_add, int(u["uid"]), device_id, action, encoded)
+    if command_id is None:
+        return fail("Пристрій не знайдено або вже не в мережі", 404)
+    return ok({"ok": True, "command_id": command_id})
+
+
+@require_auth
+async def h_device_commands(request, u):
+    device_id = str(request.query.get("device_id") or "")[:80]
+    after = bounded_int(request.query.get("after"), 0, 0, 2147483647)
+    if not device_id or after is None:
+        return fail("Некоректний запит")
+    commands = await to_thread(db.device_commands_get, int(u["uid"]), device_id, after)
+    return ok({"ok": True, "commands": commands})
+
+
 # ─── Каталог ─────────────────────────────────────────────────────────────────
 
 @require_auth
@@ -1013,6 +1100,11 @@ def build_app():
     r.add_get("/api/me", h_me)
     r.add_get("/api/resolve", h_resolve)
     r.add_post("/api/settings", h_settings)
+    r.add_get("/api/devices", h_devices_get)
+    r.add_post("/api/devices/register", h_device_register)
+    r.add_post("/api/devices/state", h_device_state)
+    r.add_post("/api/devices/command", h_device_command)
+    r.add_get("/api/devices/commands", h_device_commands)
     r.add_get("/api/search", h_search)
     r.add_get("/api/home", h_home)
     r.add_get("/api/collections", h_collections)
