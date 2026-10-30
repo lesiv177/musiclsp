@@ -599,9 +599,10 @@ async def h_resolve(request):
     if not tid:
         return fail("Немає id треку")
     qual = quality_for(int(u["uid"])) if u else "mp31"
+    force = request.query.get("r") == "1"
     url, played = await to_thread(SM.resolve_url, tid, qual,
                                   (request.query.get("t") or "")[:200],
-                                  (request.query.get("a") or "")[:200])
+                                  (request.query.get("a") or "")[:200], force)
     if not url:
         return fail("Стрім недоступний", 404)
     return ok({"ok": True, "url": url, "id": played})
@@ -619,9 +620,10 @@ async def h_stream(request):
         return fail("Немає id треку")
     qual = quality_for(int(u["uid"])) if u else "mp31"
     # перевірка посилання + запасне джерело, якщо основне не відповідає
+    force = request.query.get("r") == "1"
     url, _played = await to_thread(SM.resolve_stream_robust, tid, qual,
                                    (request.query.get("t") or "")[:200],
-                                   (request.query.get("a") or "")[:200])
+                                   (request.query.get("a") or "")[:200], force)
     if not url:
         return fail("Стрім недоступний", 404)
     raise web.HTTPFound(location=url, headers=CORS)
