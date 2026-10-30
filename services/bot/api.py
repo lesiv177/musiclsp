@@ -336,6 +336,49 @@ async def h_device_commands(request, u):
 # ─── Каталог ─────────────────────────────────────────────────────────────────
 
 @require_auth
+async def youtube_search_tracks(query, limit=12):
+    """Пошук YouTube через офіційний Data API; повертаємо лише публічні
+    відео, для яких API підтвердив можливість вбудованого відтворення."""
+    key = os.getenv("YOUTUBE_API_KEY", "").strip()
+    if not key:
+        return []
+    try:
+        search = requests.get("https://www.googleapis.com/youtube/v3/search",
+            params={"part":"snippet","type":"video","videoEmbeddable":"true",
+                    "safeSearch":"strict","maxResults":min(25,max(1,int(limit))),
+                    "q":query,"key":key}, timeout=8)
+        search.raise_for_status()
+        items = search.json().get("items", [])
+        ids = [x.get("id",{}).get("videoId") for x in items]
+        ids = [x for x in ids if x]
+        if not ids:
+            return []
+        check = requests.get("https://www.googleapis.com/youtube/v3/videos",
+            params={"part":"status,contentDetails,snippet","id":",".join(ids),"key":key},
+            timeout=8)
+        check.raise_for_status()
+        verified = {x["id"]:x for x in check.json().get("items", [])
+                    if x.get("status",{}).get("embeddable") is True
+                    and x.get("status",{}).get("privacyStatus") == "public"}
+        out = []
+        for item in items:
+            vid = item.get("id",{}).get("videoId")
+            v = verified.get(vid)
+            if not v:
+                continue
+            snippet = v.get("snippet", {})
+            thumbs = snippet.get("thumbnails", {})
+            cover = (thumbs.get("high") or thumbs.get("medium") or thumbs.get("default") or {}).get("url","")
+            out.append({"id":"yt:"+vid,"title":snippet.get("title","")[:240],
+                        "artist":snippet.get("channelTitle","")[:180],
+                        "cover":cover,"duration":0,"duration_str":"",
+                        "source":"youtube","source_label":"YouTube"})
+        return out
+    except Exception as exc:
+        logger.warning("YouTube search failed: %s", type(exc).__name__)
+        return []
+
+
 async def h_search(request, u):
     uid = int(u["uid"])
     query = (request.query.get("q") or "").strip()
@@ -373,6 +416,11 @@ async def h_search(request, u):
         data = await to_thread(P.archive_search, query, limit)
     else:
         data = await to_thread(SM.search, query, limit, qual, sources, sort)
+        youtube = await to_thread(youtube_search_tracks, query, min(12, limit))
+        # YouTube є першим джерелом каталогу; інші ліцензовані джерела лишаються нижче.
+        if youtube:
+            data = youtube + [x for x in data if x.get("id") not in {y["id"] for y in youtube}]
+            data = data[:limit]
     return ok({"ok": True, "type": kind, "query": query, "sort": sort,
                "results": data, "searches_left": max(0, cap - used)})
 
