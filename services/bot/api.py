@@ -352,7 +352,7 @@ async def h_search(request, u):
         sort = "relevance"
     sources_raw = (request.query.get("sources") or "").strip()
     sources = [s for s in sources_raw.split(",")
-               if s in ("jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia", "soundcloud")] or None
+               if s in ("jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia")] or None
 
     allowed, used, cap = await to_thread(db.bump_counter, uid, "searches")
     if not allowed:
@@ -474,15 +474,13 @@ async def h_home(request, u):
     tag = request.query.get("tag") or ""
 
     if tag:
-        # Genre pages must not depend on Jamendo alone: combine the primary
-        # SoundCloud catalogue with Jamendo and Audius, then deduplicate.
-        sc, jam, aud = await asyncio.gather(
-            _safe(to_thread(P.soundcloud_search, tag, 24)),
+        # Жанрова видача використовує лише підтримувані джерела.
+        jam, aud = await asyncio.gather(
             _safe(to_thread(P.jamendo_tag_tracks, tag, 24, 0, qual)),
             _safe(to_thread(P.audius_trending, tag, 24)),
         )
         tracks, seen = [], set()
-        for track in (sc or []) + (jam or []) + (aud or []):
+        for track in (jam or []) + (aud or []):
             key = (str(track.get("title", "")).strip().casefold(),
                    str(track.get("artist", "")).strip().casefold())
             if key in seen:
@@ -491,7 +489,7 @@ async def h_home(request, u):
             tracks.append(track)
         return ok({"ok": True, "sections": [
             {"id": f"tag:{tag}", "title": tag.capitalize(), "tracks": tracks[:60]}
-        ], "sources": {"soundcloud": P.soundcloud_enabled()}})
+        ]})
 
     popular, fresh, trending, recent = await asyncio.gather(
         _safe(to_thread(P.jamendo_tag_tracks, "pop", 20, 0, qual, "popularity_month")),
