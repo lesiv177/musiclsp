@@ -2473,7 +2473,7 @@ async function startDeviceSync(){
     await post("/api/devices/register",{device_id:DEVICE_SYNC.id,name:deviceLabel(),platform:navigator.platform||"web"});
     await syncAccountSession(true);
     publishDeviceState();
-    setInterval(publishDeviceState,5000);
+    setInterval(publishDeviceState,2000);
     setInterval(pollDeviceCommands,5000);
     DEVICE_SYNC.sessionTimer=setInterval(()=>syncAccountSession(false),2500);
     connectDeviceSocket();
