@@ -805,6 +805,36 @@ body{background:radial-gradient(120% 45% at 50% -10%,color-mix(in srgb,var(--acc
 
 <style>
 /* MusicLSP Connect + compact player layout fix */
+/* MusicLSP mobile player + Connect v2 */
+.bar.on{
+  display:grid!important;
+  grid-template-columns:42px minmax(0,1fr) 28px 58px 28px 34px 28px!important;
+  align-items:center!important;
+  gap:6px!important;
+  width:100%!important;
+  min-height:68px!important;
+  height:68px!important;
+  padding:8px 10px!important;
+  overflow:hidden!important;
+}
+.bar>*{min-width:0}
+.bar .art{width:42px!important;height:42px!important;object-fit:cover}
+.bar .meta{min-width:0!important;overflow:hidden}
+.bar .t,.bar .s{max-width:100%;display:block}
+.bar .iconbtn{width:28px!important;height:34px!important;min-width:0!important;padding:0!important;font-size:16px!important}
+.bar .iconbtn.main{width:34px!important;height:34px!important}
+#barRemote{width:58px!important;height:32px!important;border-radius:10px!important;font-size:10px!important;font-weight:750!important;white-space:nowrap!important;background:var(--panel-2)!important;color:var(--accent)!important}
+#barRemote.on{background:color-mix(in srgb,var(--accent) 18%,var(--panel))!important;color:var(--accent)!important}
+#deviceChip{min-width:72px!important;text-align:center!important;font-size:11px!important;font-weight:750!important;letter-spacing:.02em}
+.nav{z-index:45}
+@media(max-width:520px){
+  .bar.on{grid-template-columns:40px minmax(0,1fr) 26px 54px 26px 32px 26px!important;gap:5px!important;padding:7px 8px!important;height:64px!important;min-height:64px!important}
+  .bar .art{width:40px!important;height:40px!important}
+  .bar .iconbtn{width:26px!important;height:32px!important}
+  .bar .iconbtn.main{width:32px!important;height:32px!important}
+  #barRemote{width:54px!important;font-size:9px!important}
+}
+
 .bar{grid-template-columns:46px minmax(0,1fr) 32px 32px 32px 36px 32px!important}
 @media(max-width:520px){.bar{grid-template-columns:42px minmax(0,1fr) 28px 30px 28px 34px 28px!important;gap:5px!important}}
 .connect-title{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:14px}
@@ -2421,8 +2451,8 @@ async function startDeviceSync(){
     DEVICE_SYNC.cursor=Number(localStorage.getItem("mlsp_device_cursor")||0)||0;
     DEVICE_SYNC.remoteTarget=localStorage.getItem("mlsp_remote_target")||"";
     const remoteButton=$("barRemote");
-    if(remoteButton){remoteButton.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);remoteButton.textContent=DEVICE_SYNC.remoteTarget?"ПК ✓":"ПК";}
-    const deviceChip=$("deviceChip");if(deviceChip)deviceChip.textContent=DEVICE_SYNC.remoteTarget?"ПК ✓":"ПК";
+    if(remoteButton){remoteButton.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);remoteButton.textContent="Connect";}
+    const deviceChip=$("deviceChip");if(deviceChip){deviceChip.textContent="Connect";deviceChip.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);}
   }catch(e){}
   try{
     await post("/api/devices/register",{device_id:DEVICE_SYNC.id,name:deviceLabel(),platform:navigator.platform||"web"});
@@ -2598,8 +2628,8 @@ function setRemoteTarget(targetId){
   DEVICE_SYNC.remoteTarget=targetId||"";
   try{if(DEVICE_SYNC.remoteTarget)localStorage.setItem("mlsp_remote_target",DEVICE_SYNC.remoteTarget);else localStorage.removeItem("mlsp_remote_target");}catch(e){}
   const button=$("barRemote");
-  if(button){button.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);button.innerHTML=ICON("monitor","sm")+(DEVICE_SYNC.remoteTarget?" ПК":"");}
-  const deviceChip=$("deviceChip");if(deviceChip)deviceChip.innerHTML=ICON("monitor","sm")+" ПК";
+  if(button){button.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);button.textContent="Connect";}
+  const deviceChip=$("deviceChip");if(deviceChip){deviceChip.textContent="Connect";deviceChip.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);}
   const state=DEVICE_SYNC.remoteStates[DEVICE_SYNC.remoteTarget];
   if(state)renderRemoteBar(state);
   else if(DEVICE_SYNC.remoteTarget)renderRemoteBar({playing:false,track:null});
