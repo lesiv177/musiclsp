@@ -930,8 +930,8 @@ def device_command_add(uid, device_id, action, payload):
 
 def device_commands_get(uid, device_id, after_id=0):
     with conn_cursor() as (conn, cur):
-        cur.execute(q("SELECT id, action, payload FROM playback_commands WHERE uid=%s AND device_id=%s AND id>%s AND acked_at IS NULL ORDER BY id ASC LIMIT 20"),
-                    (int(uid), device_id, int(after_id)))
+        cur.execute(q("SELECT id, action, payload FROM playback_commands WHERE uid=%s AND device_id=%s AND acked_at IS NULL ORDER BY id ASC LIMIT 20"),
+                    (int(uid), device_id))
         found = rows(cur)
     out = []
     for item in found:
