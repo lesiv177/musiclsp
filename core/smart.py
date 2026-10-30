@@ -92,9 +92,9 @@ def check_url(url, timeout=4):
                                stream=True, allow_redirects=True)
             r.close()
         ok = r.status_code < 400
-    except Exception as e:
-        name = type(e).__name__
-        ok = "Timeout" in name                        # таймаут — вважаємо живим
+    except Exception:
+        # Не можемо підтвердити доступність — трек не показуємо.
+        ok = False
     cache_put(key, ok, 300 if ok else 120)
     return ok
 
