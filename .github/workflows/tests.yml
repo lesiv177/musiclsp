@@ -35,3 +35,61 @@ jobs:
           Path("/tmp/musiclsp-webapp.js").write_text(scripts[-1], encoding="utf-8")
           PY
           node --check /tmp/musiclsp-webapp.js
+      - name: Validate Mini App styles and asset references
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          root = Path("webapp")
+          html = (root / "index.html").read_text(encoding="utf-8")
+          css_files = re.findall(r'<link[^>]+href=["\\']([^"\\']+\\.css)(?:\\?[^"\\']*)?["\\']', html, flags=re.I)
+          if not css_files:
+              raise SystemExit("No local CSS stylesheets are linked")
+          for href in css_files:
+              path = root / href.removeprefix("./")
+              if not path.is_file():
+                  raise SystemExit(f"Missing stylesheet: {href}")
+              css = path.read_text(encoding="utf-8")
+              depth = 0
+              quote = None
+              escaped = False
+              comment = False
+              i = 0
+              while i < len(css):
+                  ch = css[i]
+                  nxt = css[i + 1] if i + 1 < len(css) else ""
+                  if comment:
+                      if ch == "*" and nxt == "/":
+                          comment = False
+                          i += 2
+                          continue
+                  elif quote:
+                      if escaped:
+                          escaped = False
+                      elif ch == "\\\\":
+                          escaped = True
+                      elif ch == quote:
+                          quote = None
+                  elif ch == "/" and nxt == "*":
+                      comment = True
+                      i += 2
+                      continue
+                  elif ch in ("'", '"'):
+                      quote = ch
+                  elif ch == "{":
+                      depth += 1
+                  elif ch == "}":
+                      depth -= 1
+                      if depth < 0:
+                          raise SystemExit(f"Unexpected closing brace in {href}")
+                  i += 1
+              if depth or quote or comment:
+                  raise SystemExit(f"Unbalanced CSS syntax in {href}: braces={depth}, quote={quote}, comment={comment}")
+              print(f"Validated {href} ({len(css.splitlines())} lines)")
+          ids = re.findall(r'\\bid=["\\']([^"\\']+)', html)
+          duplicates = sorted({item for item in ids if ids.count(item) > 1})
+          if duplicates:
+              raise SystemExit("Duplicate HTML ids: " + ", ".join(duplicates))
+          print("Mini App styles, local assets and element IDs validated")
+          PY
