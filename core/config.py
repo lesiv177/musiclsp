@@ -28,7 +28,7 @@ def _list(name, default=""):
 
 # ─── Загальне ────────────────────────────────────────────────────────────────
 APP_NAME = "MusicLSP"
-APP_VERSION = "5.0"
+APP_VERSION = "6.0"
 ENV = _env("ENV", "production")
 PORT = _int("PORT", 8080)           # Railway задає сам, у кожного сервісу свій
 
