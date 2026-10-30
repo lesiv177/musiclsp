@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 USE_PG = False
 _pg_pool = None
 _pg_last_error = ""
+_bot_lock_conn = None
+BOT_POLLING_LOCK_KEY = 5570475428503399248
 
 try:
     import psycopg2
@@ -41,7 +43,7 @@ def init_engine():
         # його не підтримує — підключається без нього, замість падати в SQLite.
         for mode in ("prefer", "disable"):
             try:
-                _pg_pool = pg_pool.SimpleConnectionPool(1, 8, url, sslmode=mode)
+                _pg_pool = pg_pool.ThreadedConnectionPool(1, 8, url, sslmode=mode)
                 conn = _pg_pool.getconn()
                 _pg_pool.putconn(conn)
                 USE_PG = True
@@ -57,6 +59,79 @@ def init_engine():
         _pg_last_error = "змінна DATABASE_URL не задана"
     USE_PG = False
     logger.info("База даних: SQLite (%s)", SQLITE_PATH)
+
+
+def acquire_bot_polling_lock():
+    """Отримує глобальний PostgreSQL advisory lock для єдиного Telegram poller.
+
+    З'єднання навмисно утримується відкритим увесь час polling: PostgreSQL
+    автоматично звільнить lock, якщо Railway зупинить контейнер під час rollout.
+    None означає, що PostgreSQL не використовується (локальний SQLite).
+    """
+    global _bot_lock_conn
+    if not USE_PG or _pg_pool is None:
+        return None
+    if _bot_lock_conn is not None:
+        return True
+
+    conn = _pg_pool.getconn()
+    try:
+        conn.autocommit = True
+        cur = conn.cursor()
+        try:
+            cur.execute("SELECT pg_try_advisory_lock(%s)", (BOT_POLLING_LOCK_KEY,))
+            row = cur.fetchone()
+            acquired = bool(row and row[0])
+        finally:
+            cur.close()
+        if acquired:
+            _bot_lock_conn = conn
+            logger.info("Отримано глобальне блокування Telegram polling")
+            return True
+        conn.autocommit = False
+        _pg_pool.putconn(conn)
+        return False
+    except Exception:
+        try:
+            if not conn.closed:
+                conn.autocommit = False
+            _pg_pool.putconn(conn, close=bool(conn.closed))
+        except Exception:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        raise
+
+
+def release_bot_polling_lock():
+    """Звільняє polling lock та повертає з'єднання в пул."""
+    global _bot_lock_conn
+    conn, _bot_lock_conn = _bot_lock_conn, None
+    if conn is None:
+        return False
+    try:
+        if not conn.closed:
+            cur = conn.cursor()
+            try:
+                cur.execute("SELECT pg_advisory_unlock(%s)", (BOT_POLLING_LOCK_KEY,))
+                cur.fetchone()
+            finally:
+                cur.close()
+    except Exception as exc:
+        logger.warning("Не вдалося явно звільнити polling lock: %s", exc)
+    finally:
+        try:
+            if not conn.closed:
+                conn.autocommit = False
+            _pg_pool.putconn(conn, close=bool(conn.closed))
+        except Exception:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    logger.info("Блокування Telegram polling звільнено")
+    return True
 
 
 @contextmanager
