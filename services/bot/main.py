@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MusicLSP 4.0 — точка входу.
+MusicLSP 6.0 — точка входу.
 
 Запускає Telegram-бота (polling) і HTTP API в одному процесі.
 Каталог музики — лише легальні джерела: Jamendo (Creative Commons),
@@ -1458,14 +1458,13 @@ async def run():
         # Профіль бота (видно до /start) — теж можна виставити самим ботом,
         # без ручного заходу в BotFather.
         await application.bot.set_my_short_description(
-            short_description=f"🎶 {APP_NAME} — легальна музика в Telegram: Jamendo, "
-                               "Audius, Internet Archive. Без крадених релізів.")
+            short_description=f"🎶 {APP_NAME} — легальна музика в Telegram: SoundCloud та відкриті каталоги.")
         await application.bot.set_my_description(
             description=f"{APP_NAME} — плеєр легальної музики просто в Telegram. "
                         "Сотні тисяч треків з відкритих джерел (Creative Commons, публікації "
                         "самих артистів, суспільне надбання). Черга, радіо, плейлисти, "
-                        "історія — і Premium за Telegram Stars для Hi-Fi та безлімітів. "
-                        "Підтримує 8 мов інтерфейсу.")
+                        "історія, поширення треків і персональні налаштування — Premium за Telegram Stars "
+                        "для Hi-Fi та розширених можливостей. Підтримує 8 мов інтерфейсу.")
     except Exception as e:
         logger.warning("Не вдалося встановити опис бота: %s", e)
     await application.start()
