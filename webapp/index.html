@@ -842,9 +842,10 @@ body{background:radial-gradient(120% 45% at 50% -10%,color-mix(in srgb,var(--acc
     <div class="s" id="barArtist">—</div>
   </div>
   <button class="iconbtn like" id="barLike" onclick="toggleLike()" aria-label="Улюблене"><span data-icon="heart"></span></button>
-  <button class="iconbtn" onclick="prevTrack()"><span data-icon="prev"></span></button>
-  <button class="iconbtn main" id="barPlay" onclick="togglePlay()"><span data-icon="play"></span></button>
-  <button class="iconbtn" onclick="nextTrack()"><span data-icon="next"></span></button>
+  <button class="iconbtn" id="barRemote" onclick="openDevices()" aria-label="Керувати ПК">ПК</button>
+  <button class="iconbtn" onclick="barPrev()"><span data-icon="prev"></span></button>
+  <button class="iconbtn main" id="barPlay" onclick="barTogglePlay()"><span data-icon="play"></span></button>
+  <button class="iconbtn" onclick="barNext()"><span data-icon="next"></span></button>
   <div class="barline" id="barLine"></div>
 </div>
 
@@ -882,9 +883,9 @@ body{background:radial-gradient(120% 45% at 50% -10%,color-mix(in srgb,var(--acc
 
   <div class="controls">
     <button class="iconbtn sm" id="btnShuffle" onclick="toggleShuffle()"><span data-icon="shuffle"></span></button>
-    <button class="iconbtn sm" onclick="prevTrack()"><span data-icon="prev"></span></button>
-    <button class="iconbtn main big" id="npPlay" onclick="togglePlay()"><span data-icon="play"></span></button>
-    <button class="iconbtn sm" onclick="nextTrack()"><span data-icon="next"></span></button>
+    <button class="iconbtn sm" onclick="barPrev()"><span data-icon="prev"></span></button>
+    <button class="iconbtn main big" id="npPlay" onclick="barTogglePlay()"><span data-icon="play"></span></button>
+    <button class="iconbtn sm" onclick="barNext()"><span data-icon="next"></span></button>
     <button class="iconbtn sm" id="btnRepeat" onclick="toggleRepeat()"><span data-icon="repeat"></span></button>
   </div>
 
@@ -2292,7 +2293,7 @@ async function createPlaylist(){
 
 
 /* ── синхронізація пристроїв MusicLSP ── */
-const DEVICE_SYNC = {id:"", started:false, cursor:0, polling:false};
+const DEVICE_SYNC = {id:"", started:false, cursor:0, polling:false, socket:null, reconnectTimer:null, pingTimer:null, reconnectDelay:1000, remoteStates:{}, remoteTarget:""};
 function deviceId(){
   try{
     let id=localStorage.getItem("mlsp_device_id");
@@ -2311,13 +2312,59 @@ function deviceLabel(){
 async function startDeviceSync(){
   if(DEVICE_SYNC.started || !S.me || !API) return;
   DEVICE_SYNC.started=true; DEVICE_SYNC.id=deviceId();
-  try{ DEVICE_SYNC.cursor=Number(localStorage.getItem("mlsp_device_cursor")||0)||0; }catch(e){}
+  try{ DEVICE_SYNC.cursor=Number(localStorage.getItem("mlsp_device_cursor")||0)||0; DEVICE_SYNC.remoteTarget=localStorage.getItem("mlsp_remote_target")||""; }catch(e){}
   try{
     await post("/api/devices/register",{device_id:DEVICE_SYNC.id,name:deviceLabel(),platform:navigator.platform||"web"});
     publishDeviceState();
     setInterval(publishDeviceState,7000);
-    setInterval(pollDeviceCommands,2200);
+    setInterval(pollDeviceCommands,2500);
+    connectDeviceSocket();
   }catch(e){ DEVICE_SYNC.started=false; }
+}
+function connectDeviceSocket(){
+  if(!DEVICE_SYNC.id || !S.me || !API || (DEVICE_SYNC.socket && [WebSocket.OPEN,WebSocket.CONNECTING].includes(DEVICE_SYNC.socket.readyState))) return;
+  try{
+    const base=new URL(API||location.origin,location.href);
+    const url=new URL("/api/devices/ws",base);
+    url.protocol=url.protocol==="https:"?"wss:":"ws:";
+    url.searchParams.set("device_id",DEVICE_SYNC.id);
+    url.searchParams.set("after",String(DEVICE_SYNC.cursor));
+    url.searchParams.set("initData",INIT);
+    const socket=new WebSocket(url.toString());
+    DEVICE_SYNC.socket=socket;
+    socket.onopen=()=>{
+      DEVICE_SYNC.reconnectDelay=1000;
+      if(DEVICE_SYNC.pingTimer) clearInterval(DEVICE_SYNC.pingTimer);
+      DEVICE_SYNC.pingTimer=setInterval(()=>{if(socket.readyState===WebSocket.OPEN)try{socket.send("ping");}catch(e){}},20000);
+    };
+    socket.onmessage=event=>{
+      let data;try{data=JSON.parse(event.data);}catch(e){return;}
+      if(data.type==="command" && data.device_id===DEVICE_SYNC.id && data.command){
+        const command=data.command, id=Number(command.id)||0;
+        if(id && id<=DEVICE_SYNC.cursor)return;
+        DEVICE_SYNC.cursor=Math.max(DEVICE_SYNC.cursor,id);
+        try{localStorage.setItem("mlsp_device_cursor",String(DEVICE_SYNC.cursor));}catch(e){}
+        applyDeviceCommand(command);
+      }else if(data.type==="state" && data.device_id){
+        DEVICE_SYNC.remoteStates[data.device_id]=data.state||{};
+        if(data.device_id===DEVICE_SYNC.remoteTarget)renderRemoteBar(data.state||{});
+      }
+    };
+    socket.onerror=()=>{try{socket.close();}catch(e){}};
+    socket.onclose=()=>{
+      if(DEVICE_SYNC.pingTimer){clearInterval(DEVICE_SYNC.pingTimer);DEVICE_SYNC.pingTimer=null;}
+      if(DEVICE_SYNC.socket===socket)DEVICE_SYNC.socket=null;
+      if(!DEVICE_SYNC.started || DEVICE_SYNC.reconnectTimer)return;
+      const delay=DEVICE_SYNC.reconnectDelay;
+      DEVICE_SYNC.reconnectDelay=Math.min(20000,Math.round(DEVICE_SYNC.reconnectDelay*1.8));
+      DEVICE_SYNC.reconnectTimer=setTimeout(()=>{DEVICE_SYNC.reconnectTimer=null;connectDeviceSocket();},delay);
+    };
+  }catch(e){
+    if(!DEVICE_SYNC.reconnectTimer){
+      DEVICE_SYNC.reconnectTimer=setTimeout(()=>{DEVICE_SYNC.reconnectTimer=null;connectDeviceSocket();},DEVICE_SYNC.reconnectDelay);
+      DEVICE_SYNC.reconnectDelay=Math.min(20000,DEVICE_SYNC.reconnectDelay*2);
+    }
+  }
 }
 function publishDeviceState(){
   if(!DEVICE_SYNC.id || !S.me) return;
@@ -2328,7 +2375,7 @@ function publishDeviceState(){
   }}).catch(()=>{});
 }
 async function pollDeviceCommands(){
-  if(!DEVICE_SYNC.id || DEVICE_SYNC.polling || document.visibilityState==="hidden") return;
+  if(!DEVICE_SYNC.id || DEVICE_SYNC.polling || document.visibilityState==="hidden" || DEVICE_SYNC.socket?.readyState===WebSocket.OPEN) return;
   DEVICE_SYNC.polling=true;
   try{
     const d=await get("/api/devices/commands?device_id="+encodeURIComponent(DEVICE_SYNC.id)+"&after="+DEVICE_SYNC.cursor);
@@ -2369,6 +2416,7 @@ async function openDevices(){
     const own=devices.find(x=>x.device_id===DEVICE_SYNC.id);
     const card=(x,isOwn)=>{
       const state=x.state||{}, track=state.track||{};
+      DEVICE_SYNC.remoteStates[x.device_id]=state;
       const status=state.playing?"Відтворюється":(track.title?"На паузі":"Не відтворює");
       const controls=isOwn?"":'<div class="device-remote" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:9px">'
         +'<button class="pill" data-device-cmd="previous" data-id="'+esc(x.device_id)+'">⏮</button>'
@@ -2376,13 +2424,43 @@ async function openDevices(){
         +'<button class="pill" data-device-cmd="next" data-id="'+esc(x.device_id)+'">⏭</button>'
         +'<label style="font-size:11px;color:var(--muted)">Гучність <input data-device-volume="'+esc(x.device_id)+'" type="range" min="0" max="100" value="'+Math.round((Number(state.volume)||0)*100)+'" style="width:100px;vertical-align:middle"></label>'
         +'</div>';
-      return '<div class="row" style="padding:12px 0;display:block;cursor:default"><div style="display:flex;align-items:center;gap:12px"><div class="meta"><div class="t">'+esc(x.name||"Device")+(isOwn?' · '+esc(t("devices_this")):'')+'</div><div class="s">'+esc(x.platform||"Web")+' · '+esc(x.active?t("devices_online"):t("devices_offline"))+(track.title?" · "+esc(track.title):"")+(x.active?" · "+status:"")+'</div></div>'+(isOwn?'<span class="pill">●</span>': '<button class="pill" data-device-target="'+esc(x.device_id)+'">'+esc(t("devices_handoff"))+'</button>')+'</div>'+controls+'</div>';
+      return '<div class="row" style="padding:12px 0;display:block;cursor:default"><div style="display:flex;align-items:center;gap:12px"><div class="meta"><div class="t">'+esc(x.name||"Device")+(isOwn?' · '+esc(t("devices_this")):'')+'</div><div class="s">'+esc(x.platform||"Web")+' · '+esc(x.active?t("devices_online"):t("devices_offline"))+(track.title?" · "+esc(track.title):"")+(x.active?" · "+status:"")+'</div></div>'+(isOwn?'<span class="pill">●</span>': '<button class="pill" data-device-target="'+esc(x.device_id)+'">'+esc(t("devices_handoff"))+'</button>')+'</div>'+controls+(isOwn?"":'<button class="pill" style="margin-top:8px" data-remote-select="'+esc(x.device_id)+'">'+(DEVICE_SYNC.remoteTarget===x.device_id?"✓ Керується з телефона":"Керувати з телефона")+'</button>')+'</div>';
     };
     $("devicesList").innerHTML=(own?card(own,true):"")+(other.length?other.map(x=>card(x,false)).join(""):'<div class="empty">'+esc(t("devices_empty"))+'</div>');
     $("devicesList").querySelectorAll("[data-device-target]").forEach(b=>b.onclick=()=>handoffToDevice(b.dataset.deviceTarget));
+    $("devicesList").querySelectorAll("[data-remote-select]").forEach(b=>b.onclick=()=>setRemoteTarget(b.dataset.remoteSelect));
     $("devicesList").querySelectorAll("[data-device-cmd]").forEach(b=>b.onclick=()=>sendDeviceCommand(b.dataset.id,b.dataset.deviceCmd));
     $("devicesList").querySelectorAll("[data-device-volume]").forEach(el=>el.onchange=()=>sendDeviceCommand(el.dataset.deviceVolume,"volume",{volume:Number(el.value)/100}));
   }catch(e){ $("devicesList").innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
+}
+function setRemoteTarget(targetId){
+  DEVICE_SYNC.remoteTarget=targetId||"";
+  try{if(DEVICE_SYNC.remoteTarget)localStorage.setItem("mlsp_remote_target",DEVICE_SYNC.remoteTarget);else localStorage.removeItem("mlsp_remote_target");}catch(e){}
+  const button=$("barRemote");
+  if(button){button.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);button.textContent=DEVICE_SYNC.remoteTarget?"ПК ✓":"ПК";}
+  const state=DEVICE_SYNC.remoteStates[DEVICE_SYNC.remoteTarget];
+  if(state)renderRemoteBar(state);
+  closeModal();
+  toast(DEVICE_SYNC.remoteTarget?"Керування ПК увімкнено":"Керування ПК вимкнено");
+}
+function renderRemoteBar(state){
+  const track=state.track||{};
+  if(track.title){
+    $("bar").classList.add("on");
+    $("barTitle").textContent=track.title||"—";
+    $("barArtist").textContent=track.artist||"";
+    if(track.cover)$("barArt").src=track.cover;
+  }
+  $("barPlay").innerHTML=ICON(state.playing?"pause":"play");
+}
+function barPrev(){if(DEVICE_SYNC.remoteTarget)return sendDeviceCommand(DEVICE_SYNC.remoteTarget,"previous");prevTrack();}
+function barNext(){if(DEVICE_SYNC.remoteTarget)return sendDeviceCommand(DEVICE_SYNC.remoteTarget,"next");nextTrack();}
+function barTogglePlay(){
+  if(DEVICE_SYNC.remoteTarget){
+    const state=DEVICE_SYNC.remoteStates[DEVICE_SYNC.remoteTarget]||{};
+    return sendDeviceCommand(DEVICE_SYNC.remoteTarget,state.playing?"pause":"play");
+  }
+  togglePlay();
 }
 async function sendDeviceCommand(targetId, action, payload={}){
   try{
