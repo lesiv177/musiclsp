@@ -1615,8 +1615,7 @@ function rowsHtml(list, ctxKey){
            onerror="this.style.visibility='hidden'">
       <div class="meta">
         <div class="t">${esc(t.title)}</div>
-        <div class="s">${esc(t.artist)}${t.duration_str?" · "+esc(t.duration_str):""}${
-          t.source_label?" · "+esc(t.source_label):""}</div>
+        <div class="s">${esc(t.artist)}${t.duration_str?" · "+esc(t.duration_str):""}</div>
       </div>
       <button class="act" data-menu="${i}">${ICON("kebab")}</button>
     </div>`).join("") + `</div>`;
@@ -1642,7 +1641,7 @@ function cardsHtml(list, ctxKey, isArtist){
     <div class="card" data-i="${i}" data-ctx="${ctxKey}" data-artist="${isArtist?1:0}">
       ${t.cover?`<img src="${esc(t.cover)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph'}))">`:`<div class="ph"></div>`}
       <div class="t">${esc(t.title||t.name)}</div>
-      <div class="s">${esc(t.artist||t.source_label||"")}</div>
+      <div class="s">${esc(t.artist||"")}</div>
     </div>`).join("") + `</div>`;
 }
 
@@ -1791,7 +1790,7 @@ async function loadCollections(){
       <div class="card" data-pl="${i}">
         ${p.cover?`<img src="${esc(p.cover)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph'}))">`:`<div class="ph"></div>`}
         <div class="t">${esc(p.title)}</div>
-        <div class="s">${esc(p.source_label||"")}</div>
+
       </div>`).join("") + `</div></div>`;
   }catch(e){ return ""; }
 }
@@ -2368,10 +2367,36 @@ async function openDevices(){
     const devices=d.devices||[];
     const other=devices.filter(x=>x.device_id!==DEVICE_SYNC.id && x.active);
     const own=devices.find(x=>x.device_id===DEVICE_SYNC.id);
-    const card=(x,isOwn)=>'<div class="row" style="padding:12px 0;cursor:default"><div class="meta"><div class="t">'+esc(x.name||"Device")+(isOwn?' · '+esc(t("devices_this")):'')+'</div><div class="s">'+esc(x.platform||"Web")+' · '+esc(x.active?t("devices_online"):t("devices_offline"))+'</div></div>'+(isOwn?'<span class="pill">●</span>': '<button class="pill" data-device-target="'+esc(x.device_id)+'">'+esc(t("devices_handoff"))+'</button>')+'</div>';
+    const card=(x,isOwn)=>{
+      const state=x.state||{}, track=state.track||{};
+      const status=state.playing?"Відтворюється":(track.title?"На паузі":"Не відтворює");
+      const controls=isOwn?"":'<div class="device-remote" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:9px">'
+        +'<button class="pill" data-device-cmd="previous" data-id="'+esc(x.device_id)+'">⏮</button>'
+        +'<button class="pill" data-device-cmd="'+(state.playing?"pause":"play")+'" data-id="'+esc(x.device_id)+'">'+(state.playing?"Ⅱ":"▶")+'</button>'
+        +'<button class="pill" data-device-cmd="next" data-id="'+esc(x.device_id)+'">⏭</button>'
+        +'<label style="font-size:11px;color:var(--muted)">Гучність <input data-device-volume="'+esc(x.device_id)+'" type="range" min="0" max="100" value="'+Math.round((Number(state.volume)||0)*100)+'" style="width:100px;vertical-align:middle"></label>'
+        +'</div>';
+      return '<div class="row" style="padding:12px 0;display:block;cursor:default"><div style="display:flex;align-items:center;gap:12px"><div class="meta"><div class="t">'+esc(x.name||"Device")+(isOwn?' · '+esc(t("devices_this")):'')+'</div><div class="s">'+esc(x.platform||"Web")+' · '+esc(x.active?t("devices_online"):t("devices_offline"))+(track.title?" · "+esc(track.title):"")+(x.active?" · "+status:"")+'</div></div>'+(isOwn?'<span class="pill">●</span>': '<button class="pill" data-device-target="'+esc(x.device_id)+'">'+esc(t("devices_handoff"))+'</button>')+'</div>'+controls+'</div>';
+    };
     $("devicesList").innerHTML=(own?card(own,true):"")+(other.length?other.map(x=>card(x,false)).join(""):'<div class="empty">'+esc(t("devices_empty"))+'</div>');
     $("devicesList").querySelectorAll("[data-device-target]").forEach(b=>b.onclick=()=>handoffToDevice(b.dataset.deviceTarget));
+    $("devicesList").querySelectorAll("[data-device-cmd]").forEach(b=>b.onclick=()=>sendDeviceCommand(b.dataset.id,b.dataset.deviceCmd));
+    $("devicesList").querySelectorAll("[data-device-volume]").forEach(el=>el.onchange=()=>sendDeviceCommand(el.dataset.deviceVolume,"volume",{volume:Number(el.value)/100}));
   }catch(e){ $("devicesList").innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
+}
+async function sendDeviceCommand(targetId, action, payload={}){
+  try{
+    const device=(await get("/api/devices")).devices?.find(x=>x.device_id===targetId);
+    if(!device?.active) throw new Error("Пристрій зараз не в мережі");
+    if(action==="play"){
+      const state=device.state||{};
+      const queue=Array.isArray(state.queue)&&state.queue.length?state.queue:(state.track?[state.track]:[]);
+      if(!queue.length) throw new Error("На пристрої немає треку для відновлення");
+      payload={queue,index:Number(state.index)||0,position:Number(state.position)||0};
+    }
+    await post("/api/devices/command",{device_id:targetId,action,payload});
+    toast("Команду надіслано");
+  }catch(e){toast(e.message);}
 }
 async function handoffToDevice(targetId){
   const track=current();
