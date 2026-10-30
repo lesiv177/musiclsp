@@ -2637,6 +2637,8 @@ async function openDevices(){
       const isSelected=isOwn?!DEVICE_SYNC.remoteTarget:DEVICE_SYNC.remoteTarget===x.device_id;
       const status=state.playing?"Відтворюється":(track.title?"Призупинено":"Очікує відтворення");
       const nowPlaying=track.title?'<div class="device-now"><span class="device-live '+(state.playing?"is-playing":"")+'"></span><span class="device-track">'+esc(track.title)+'</span><span class="device-artist">'+esc(track.artist||"")+'</span></div>':'<div class="device-now"><span class="device-track muted">Нічого не відтворюється</span></div>';
+      const duration=Math.max(0,Number(state.duration)||0), position=Math.max(0,Math.min(duration||Number(state.position)||0,Number(state.position)||0));
+      const seekControl=!isOwn&&track.title&&duration>0?'<div class="device-seek"><div class="device-seek-times"><span>'+formatDeviceTime(position)+'</span><span>'+formatDeviceTime(duration)+'</span></div><input aria-label="Перемотування" data-device-seek="'+esc(x.device_id)+'" type="range" min="0" max="'+duration+'" value="'+position+'"></div>':"";
       const controls=isOwn?"":'<div class="device-remote">'
         +'<button class="device-control" data-device-cmd="previous" data-id="'+esc(x.device_id)+'" aria-label="Попередній">⏮</button>'
         +'<button class="device-control primary" data-device-cmd="'+(state.playing?"pause":"play")+'" data-id="'+esc(x.device_id)+'" aria-label="'+(state.playing?"Пауза":"Продовжити")+'">'+(state.playing?"Ⅱ":"▶")+'</button>'
@@ -2645,7 +2647,7 @@ async function openDevices(){
         +'</div>';
       const actionLabel=isOwn?(playingSource?"Слухати тут":(DEVICE_SYNC.remoteTarget?"Відтворювати тут":"Цей пристрій")):(state.playing?"Підключено":"Слухати на цьому пристрої");
       const actionDisabled=isOwn&&!playingSource&&!DEVICE_SYNC.remoteTarget;
-      return '<div class="connect-device '+(isSelected?"selected":"")+'"><div class="connect-device-head"><div class="device-platform '+deviceIcon+'">'+icon+'</div><div class="device-info"><div class="device-name">'+esc(x.name||"Пристрій")+(isOwn?' · ЦЕЙ ПРИСТРІЙ':'')+'</div><div class="device-status"><i class="online"></i>'+esc(status)+'</div></div><button class="device-connect" data-device-select="'+esc(x.device_id)+'" '+(actionDisabled?'disabled':'')+'>'+esc(actionLabel)+'</button></div>'+nowPlaying+controls+'</div>';
+      return '<div class="connect-device '+(isSelected?"selected":"")+'"><div class="connect-device-head"><div class="device-platform '+deviceIcon+'">'+icon+'</div><div class="device-info"><div class="device-name">'+esc(x.name||"Пристрій")+(isOwn?' · ЦЕЙ ПРИСТРІЙ':'')+'</div><div class="device-status"><i class="online"></i>'+esc(status)+'</div></div><button class="device-connect" data-device-select="'+esc(x.device_id)+'" '+(actionDisabled?'disabled':'')+'>'+esc(actionLabel)+'</button></div>'+nowPlaying+controls+seekControl+'</div>';
     };
     $("devicesList").innerHTML=(own?card(own,true):"")+(devices.filter(x=>x.device_id!==DEVICE_SYNC.id).map(x=>card(x,false)).join("")||'<div class="empty">Інші пристрої з’являться тут, коли MusicLSP буде відкрито на них</div>');
     $("devicesList").querySelectorAll("[data-device-select]").forEach(b=>b.onclick=()=>selectPlaybackDevice(b.dataset.deviceSelect,devices));
@@ -4142,4 +4144,26 @@ paintStaticIcons();
 #devicesList .device-now{margin:12px 0 0 72px;background:transparent;padding:0}
 #devicesList .device-track{font-size:13px}
 #devicesList .device-artist{font-size:12px}
+</style><style>
+.spotify-connect-head{color:#8bcaff!important;font-size:18px!important;font-weight:800}
+#devicesList{gap:7px!important}
+#devicesList .connect-device{padding:10px 11px!important;border-radius:15px!important;background:linear-gradient(140deg,rgba(34,94,139,.22),rgba(12,27,42,.88))!important;border-color:rgba(93,174,231,.17)!important}
+#devicesList .connect-device.selected{border-color:rgba(86,177,245,.72)!important;background:linear-gradient(140deg,rgba(40,119,178,.25),rgba(12,27,42,.92))!important}
+#devicesList .device-platform{width:35px!important;height:35px!important;border-radius:11px!important;background:rgba(73,151,211,.16)!important;color:#8bcaff!important;font-size:20px!important}
+#devicesList .device-name{font-size:13px!important;color:#e8f5ff}
+#devicesList .device-status{font-size:10px!important;color:#91b7d1!important;margin-top:3px!important}
+#devicesList .device-status i.online,#devicesList .device-live.is-playing{background:#55adf5!important;box-shadow:0 0 8px #55adf580!important}
+#devicesList .device-connect{background:rgba(72,158,222,.2)!important;color:#a8d9ff!important;border:1px solid rgba(91,177,235,.3)!important;padding:7px 10px!important;font-size:10px!important;border-radius:12px!important}
+#devicesList .device-now{margin:8px 0 0!important;padding:7px 9px!important;background:rgba(3,13,23,.35)!important}
+#devicesList .device-track{font-size:11px!important;color:#e5f3ff}
+#devicesList .device-artist{font-size:10px!important}
+#devicesList .device-remote{margin-top:8px!important;gap:7px!important;flex-wrap:nowrap!important}
+#devicesList .device-control{width:31px!important;height:31px!important;background:rgba(76,145,197,.18)!important;color:#b9e1ff!important;font-size:13px!important}
+#devicesList .device-control.primary{width:35px!important;height:35px!important;background:#55adf5!important;color:#071725!important}
+#devicesList .device-volume{font-size:9px!important;color:#9dbdd5!important;gap:5px!important}
+#devicesList .device-volume input{width:68px!important;accent-color:#55adf5}
+#devicesList .device-seek{margin-top:7px;padding:0 2px}
+#devicesList .device-seek-times{display:flex;justify-content:space-between;color:#8eafc8;font-size:9px;font-variant-numeric:tabular-nums}
+#devicesList .device-seek input{display:block;width:100%;height:16px;margin:1px 0 0;accent-color:#55adf5;cursor:pointer}
+@media(max-width:420px){#devicesList .connect-device{padding:9px!important}#devicesList .device-platform{width:32px!important;height:32px!important;flex-basis:32px!important}#devicesList .device-remote{gap:5px!important}#devicesList .device-volume input{width:58px!important}}
 </style>
