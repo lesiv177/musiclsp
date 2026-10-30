@@ -2920,7 +2920,7 @@ function play(t){
   S.playing = true;
   paint(t);
   publishDeviceState();
-  return Promise.resolve(start).then(()=>{
+  return Promise.resolve(start).then(async()=>{
     S.playing = true;
     reportPlay(t); // історія лише після фактичного старту аудіо
     paintPlayState();
