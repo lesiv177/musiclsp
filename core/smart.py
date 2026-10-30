@@ -213,13 +213,17 @@ def search(query, limit=30, quality="mp32", sources=None, sort="relevance", chec
 STREAM_TTL = 600
 
 
-def _resolve_checked(track_id, quality):
-    """Прямий URL, який пройшов перевірку, або ''."""
+def _resolve_checked(track_id, quality, force=False):
+    """Прямий URL, який пройшов перевірку, або ''. force оновлює застарілий URL."""
     key = ("stream", track_id, quality)
-    hit = cache_get(key)
-    if hit:
-        return hit
-    if is_dead(track_id):
+    if force:
+        with _LOCK:
+            _CACHE.pop(key, None)
+    else:
+        hit = cache_get(key)
+        if hit:
+            return hit
+    if is_dead(track_id) and not force:
         return ""
     url = P.resolve_stream(track_id, quality)
     # Audius validates its own stream node. SoundCloud URLs are short-lived
@@ -259,12 +263,13 @@ def _alternative(track_id, title, artist, quality):
     return "", ""
 
 
-def resolve_stream_robust(track_id, quality="mp32", title="", artist=""):
-    """(url, id_що_грає). Порожній url — нічого не знайшлось, навіть у запасних джерелах."""
-    url = _resolve_checked(track_id, quality)
+def resolve_stream_robust(track_id, quality="mp32", title="", artist="", force=False):
+    """(url, id_що_грає). force=True оновлює URL після помилки відтворення."""
+    url = _resolve_checked(track_id, quality, force=force)
     if url:
         return url, track_id
-    mark_dead(track_id)
+    if not force:
+        mark_dead(track_id)
     alt_url, alt_id = _alternative(track_id, title, artist, quality)
     if alt_url:
         cache_put(("stream", track_id, quality), alt_url, 120)
@@ -272,6 +277,6 @@ def resolve_stream_robust(track_id, quality="mp32", title="", artist=""):
     return "", ""
 
 
-def resolve_url(track_id, quality="mp32", title="", artist=""):
+def resolve_url(track_id, quality="mp32", title="", artist="", force=False):
     """Для JSON-ендпоінта /api/resolve (передзавантаження наступних треків)."""
-    return resolve_stream_robust(track_id, quality, title, artist)
+    return resolve_stream_robust(track_id, quality, title, artist, force=force)
