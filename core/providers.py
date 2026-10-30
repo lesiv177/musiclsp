@@ -30,6 +30,7 @@ from core.config import (
     JAMENDO_CLIENT_ID, JAMENDO_API,
     AUDIUS_APP_NAME, AUDIUS_BOOTSTRAP,
     ARCHIVE_ENABLED, HTTP_TIMEOUT, USER_AGENT,
+    SOUNDCLOUD_CLIENT_ID, SOUNDCLOUD_CLIENT_SECRET,
 )
 
 logger = logging.getLogger(__name__)
@@ -1003,12 +1004,153 @@ def wikimedia_search(query, limit=15):
 #  АГРЕГАЦІЯ
 # ════════════════════════════════════════════════════════════════════════════
 
+# ═══ SoundCloud (офіційне API, OAuth client_credentials) ════════════════════
+# Потрібні SOUNDCLOUD_CLIENT_ID і SOUNDCLOUD_CLIENT_SECRET від зареєстрованого
+# застосунку. Без них джерело мовчки вимкнене. Беремо лише треки з прапорцем
+# streamable/playable; атрибуція й посилання на оригінал обовʼязкові (source_url).
+
+_SC_API = "https://api.soundcloud.com"
+_SC_TOKEN = {"v": "", "exp": 0}
+_sc_lock = threading.Lock()
+_SC_CACHE = {}
+
+
+def soundcloud_enabled():
+    return bool(SOUNDCLOUD_CLIENT_ID and SOUNDCLOUD_CLIENT_SECRET)
+
+
+def _sc_token():
+    with _sc_lock:
+        if _SC_TOKEN["v"] and _SC_TOKEN["exp"] > time.time() + 60:
+            return _SC_TOKEN["v"]
+    try:
+        r = _session.post("https://secure.soundcloud.com/oauth/token", data={
+            "grant_type": "client_credentials",
+            "client_id": SOUNDCLOUD_CLIENT_ID, "client_secret": SOUNDCLOUD_CLIENT_SECRET,
+        }, headers={"Accept": "application/json; charset=utf-8"}, timeout=HTTP_TIMEOUT)
+        if r.status_code != 200:
+            logger.warning("SoundCloud token -> %s", r.status_code)
+            return ""
+        d = r.json()
+        with _sc_lock:
+            _SC_TOKEN["v"] = d.get("access_token", "")
+            _SC_TOKEN["exp"] = time.time() + int(d.get("expires_in") or 3000)
+        return _SC_TOKEN["v"]
+    except Exception as e:
+        logger.warning("SoundCloud token failed: %s", e)
+        return ""
+
+
+def _sc_headers():
+    tok = _sc_token()
+    return {"Authorization": f"OAuth {tok}", "Accept": "application/json; charset=utf-8"} if tok else None
+
+
+def _sc_track(t):
+    uid = str(t.get("id") or "")
+    user = t.get("user") or {}
+    art = (t.get("artwork_url") or user.get("avatar_url") or "").replace("-large", "-t500x500")
+    lic = (t.get("license") or "").replace("-", " ").strip()
+    tr = {
+        "id": f"sc:{uid}",
+        "title": t.get("title") or "Без назви",
+        "artist": user.get("username") or "Невідомий артист",
+        "artist_id": "", "album": "", "album_id": "",
+        "cover": art,
+        "duration": int((t.get("duration") or 0) / 1000),
+        "duration_str": fmt_duration((t.get("duration") or 0) / 1000),
+        "source": "soundcloud", "source_label": "SoundCloud",
+        "source_url": t.get("permalink_url") or "https://soundcloud.com",
+        "license": lic or "Ліцензія автора (SoundCloud)",
+        "license_short": lic.upper()[:16] if lic and lic != "all rights reserved" else "SoundCloud",
+        "stream": "",                      # резолвиться через /api/stream (потрібен токен)
+        "downloadable": False, "download_url": "",
+    }
+    with _sc_lock:
+        _SC_CACHE[tr["id"]] = tr
+        if len(_SC_CACHE) > 3000:
+            for k in list(_SC_CACHE)[:1000]:
+                _SC_CACHE.pop(k, None)
+    return tr
+
+
+def soundcloud_search(query, limit=15):
+    if not soundcloud_enabled():
+        return []
+    h = _sc_headers()
+    if not h:
+        return []
+    try:
+        r = _session.get(f"{_SC_API}/tracks", headers=h, timeout=HTTP_TIMEOUT,
+                         params={"q": query, "access": "playable", "limit": limit, "linked_partitioning": "false"})
+        if r.status_code != 200:
+            logger.warning("SoundCloud search -> %s", r.status_code)
+            return []
+        data = r.json()
+        if isinstance(data, dict):
+            data = data.get("collection") or []
+        return [_sc_track(t) for t in data
+                if t.get("streamable", True) and t.get("access", "playable") == "playable"][:limit]
+    except Exception as e:
+        logger.warning("SoundCloud search failed: %s", e)
+        return []
+
+
+def soundcloud_stream_url(raw):
+    h = _sc_headers()
+    if not h:
+        return ""
+    try:
+        r = _session.get(f"{_SC_API}/tracks/{raw}/streams", headers=h, timeout=HTTP_TIMEOUT)
+        if r.status_code == 200:
+            d = r.json()
+            return d.get("http_mp3_128_url") or d.get("hls_mp3_128_url") or ""
+    except Exception as e:
+        logger.warning("SoundCloud streams failed: %s", e)
+    return ""
+
+
+def soundcloud_track(raw):
+    with _sc_lock:
+        hit = _SC_CACHE.get(f"sc:{raw}")
+    if hit:
+        return hit
+    h = _sc_headers()
+    if not h:
+        return None
+    try:
+        r = _session.get(f"{_SC_API}/tracks/{raw}", headers=h, timeout=HTTP_TIMEOUT)
+        return _sc_track(r.json()) if r.status_code == 200 else None
+    except Exception:
+        return None
+
+
 def split_id(full_id):
     """'jam:123' -> ('jam', '123')"""
     if not full_id or ":" not in full_id:
         return "", full_id or ""
     prefix, _, rest = full_id.partition(":")
     return prefix, rest
+
+
+def _run_parallel(jobs, timeout=4):
+    """Виконує функції паралельно, склеює результати в порядку jobs.
+    Джерело, що не вклалось у timeout, пропускаємо — решта не чекає на нього."""
+    from concurrent.futures import ThreadPoolExecutor, wait
+    if not jobs:
+        return []
+    ex = ThreadPoolExecutor(max_workers=len(jobs))
+    futs = [ex.submit(j) for j in jobs]
+    wait(futs, timeout=timeout)
+    out = []
+    for f in futs:
+        if f.done():
+            try:
+                out += f.result() or []
+            except Exception as e:
+                logger.warning("Джерело впало: %s", e)
+    ex.shutdown(wait=False, cancel_futures=True)
+    return out
 
 
 def search_tracks(query, limit=30, quality="mp32", sources=None, sort="relevance", genre=None):
@@ -1022,20 +1164,25 @@ def search_tracks(query, limit=30, quality="mp32", sources=None, sort="relevance
     Тепер типово шукаємо по всіх шести джерелах відразу (додано Wikimedia
     Commons напряму — Openverse і так частково тягне звідти, але напряму
     дістаємо більше й точніше фільтруємо)."""
-    sources = sources or ["jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia"]
-    results = []
+    sources = sources or ["jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia", "soundcloud"]
+    # Джерела опитуємо ПАРАЛЕЛЬНО (раніше — по черзі, і найповільніше гальмувало всіх).
+    # Порядок результатів лишається детермінованим: jamendo, audius, archive, …
+    jobs = []
     if "jamendo" in sources:
-        results += jamendo_search_tracks(query, limit=limit, audioformat=quality, sort=sort)
+        jobs.append(lambda: jamendo_search_tracks(query, limit=limit, audioformat=quality, sort=sort))
     if "audius" in sources:
-        results += audius_search_tracks(query, limit=max(10, limit // 2))
+        jobs.append(lambda: audius_search_tracks(query, limit=max(10, limit // 2)))
     if "archive" in sources:
-        results += archive_search(query, limit=12)
+        jobs.append(lambda: archive_search(query, limit=12))
     if "ccmixter" in sources:
-        results += ccmixter_search(query, limit=10)
+        jobs.append(lambda: ccmixter_search(query, limit=10))
     if "openverse" in sources:
-        results += openverse_search(query, limit=10)
+        jobs.append(lambda: openverse_search(query, limit=10))
     if "wikimedia" in sources:
-        results += wikimedia_search(query, limit=10)
+        jobs.append(lambda: wikimedia_search(query, limit=10))
+    if "soundcloud" in sources and soundcloud_enabled():
+        jobs.append(lambda: soundcloud_search(query, limit=12))
+    results = _run_parallel(jobs, timeout=4)
 
     seen, out = set(), []
     for t in results:
@@ -1092,12 +1239,19 @@ def search_everything(query, limit=12):
     """Об'єднаний пошук: треки + альбоми + артисти одним запитом. Це саме
     той пошук, який виконує вкладка "Усе" (типова при відкритті пошуку) —
     тому треки тягнемо з усіх шести джерел, а не лише Jamendo/Audius."""
-    tracks = search_tracks_smart(query, limit=limit, sources=[
-        "jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia",
-    ])
-    albums = jamendo_search_albums_smart(query, limit=limit)
-    jam_artists = jamendo_search_artists(query, limit=limit)
-    aud_artists = audius_search_users(query, limit=max(4, limit // 3))
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        f_tr = ex.submit(search_tracks_smart, query, limit=limit, sources=[
+            "jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia", "soundcloud"])
+        f_al = ex.submit(jamendo_search_albums_smart, query, limit=limit)
+        f_ja = ex.submit(jamendo_search_artists, query, limit=limit)
+        f_au = ex.submit(audius_search_users, query, limit=max(4, limit // 3))
+        def _r(f):
+            try:
+                return f.result(timeout=9) or []
+            except Exception:
+                return []
+        tracks, albums, jam_artists, aud_artists = _r(f_tr), _r(f_al), _r(f_ja), _r(f_au)
     return {
         "tracks": tracks,
         "albums": albums,
@@ -1302,6 +1456,8 @@ def get_track(full_id, quality="mp32"):
         return _ov_cache_get(raw)
     if prefix == "wm":
         return _wm_cache_get(raw)
+    if prefix == "sc":
+        return soundcloud_track(raw)
     return None
 
 
@@ -1324,6 +1480,8 @@ def resolve_stream(full_id, quality="mp32"):
     if prefix == "wm":
         t = _wm_cache_get(raw)
         return t["stream"] if t else ""
+    if prefix == "sc":
+        return soundcloud_stream_url(raw)
     return ""
 
 
