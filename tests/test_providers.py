@@ -106,6 +106,16 @@ class SoundCloudPriorityTests(unittest.TestCase):
         self.assertEqual(P.fmt_duration(125), "2:05")
         self.assertEqual(P.fmt_duration("not-a-duration"), "")
 
+    def test_url_playable_uses_thread_local_session(self):
+        class Response:
+            status_code = 200
+            def close(self):
+                pass
+        with patch.object(P, "_http_session") as session:
+            session.return_value.head.return_value = Response()
+            self.assertTrue(P._url_playable("https://audio.example.test/track.mp3"))
+            session.return_value.head.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()
