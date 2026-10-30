@@ -763,6 +763,45 @@ body{background:radial-gradient(120% 45% at 50% -10%,color-mix(in srgb,var(--acc
 #barRemote.on{color:#1ed760;border-color:#1ed760}
 
 </style>
+<style>
+/* MusicLSP polish pass: compact, aligned player and clearer library */
+.nav{grid-template-columns:repeat(5,minmax(0,1fr))!important}
+.bar{display:none;grid-template-columns:46px minmax(0,1fr) 32px 32px 36px 32px;align-items:center;gap:7px;padding:8px 9px;min-height:64px}
+.bar.on{display:grid}
+.bar .art{width:46px;height:46px;min-width:46px;object-fit:cover;display:block;align-self:center}
+.bar .meta{min-width:0;align-self:center;display:flex;flex-direction:column;justify-content:center;gap:2px;line-height:1.2}
+.bar .iconbtn{width:32px;height:36px;min-width:0;min-height:36px;padding:0;margin:0;display:grid;place-items:center;align-self:center;justify-self:center;line-height:0;border:0}
+.bar .iconbtn.main{width:36px;height:36px}
+.bar .iconbtn .icon{display:block;width:19px;height:19px;vertical-align:middle;margin:0}
+.bar .iconbtn.main .icon{width:22px;height:22px;transform:translateX(1px)}
+.bar .iconbtn.like .icon{width:18px;height:18px}
+#libTabs{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding:7px;margin:0 0 18px;border:1px solid var(--line);border-radius:17px;background:color-mix(in srgb,var(--panel) 82%,transparent)}
+#libTabs::-webkit-scrollbar{display:none}
+#libTabs .tab{flex:1 0 auto;min-height:38px;padding:0 13px;border:0;border-radius:12px;background:transparent;color:var(--muted);font-size:12px;font-weight:650;white-space:nowrap}
+#libTabs .tab.on{background:var(--panel-2);color:var(--ink);box-shadow:0 3px 12px rgba(0,0,0,.14)}
+#libBody{min-height:180px;padding:2px 1px 16px}
+#libBody>.rows{padding:4px 0}
+#libBody .row{padding:10px 9px;border:1px solid color-mix(in srgb,var(--line) 70%,transparent)!important;border-radius:16px;margin-bottom:6px;background:color-mix(in srgb,var(--panel) 54%,transparent)!important}
+#libBody .row .art{width:50px;height:50px;border-radius:12px}
+#libBody .btn{width:100%;min-height:48px;font-weight:700;box-shadow:0 8px 24px color-mix(in srgb,var(--accent) 15%,transparent)}
+#libBody .empty{margin-top:10px;padding:28px 20px;border:1px dashed var(--line);border-radius:20px;background:color-mix(in srgb,var(--panel) 55%,transparent)}
+@media(max-width:380px){.bar{grid-template-columns:42px minmax(0,1fr) 28px 28px 34px 28px;gap:5px;padding:7px 7px}.bar .art{width:42px;height:42px;min-width:42px}.bar .iconbtn{width:28px}.bar .iconbtn.main{width:34px}}
+
+</style>
+<style>
+/* MusicLSP visual cleanup */
+#splash{
+  background:
+    radial-gradient(ellipse at 18% 18%,rgba(139,107,255,.30),transparent 42%),
+    radial-gradient(ellipse at 82% 24%,rgba(255,95,200,.20),transparent 40%),
+    radial-gradient(ellipse at 52% 88%,rgba(91,227,198,.16),transparent 48%),
+    linear-gradient(145deg,#090713 0%,#17102a 48%,#090d18 100%);
+}
+#splash::before,#splash::after{content:"";position:absolute;pointer-events:none;border-radius:50%;filter:blur(2px)}
+#splash::before{width:75vw;height:75vw;max-width:520px;max-height:520px;border:1px solid rgba(198,161,255,.12);box-shadow:0 0 90px rgba(139,107,255,.10),inset 0 0 80px rgba(139,107,255,.08);animation:splashOrbit 18s linear infinite}
+#splash::after{width:110vw;height:110vw;max-width:760px;max-height:760px;border:1px solid rgba(91,227,198,.08);animation:splashOrbit 28s linear infinite reverse}
+@keyframes splashOrbit{to{transform:rotate(360deg)}}
+</style>
 </head>
 <body>
 <div id="splash">
@@ -1472,8 +1511,11 @@ function fmt(s){ if(!isFinite(s)||s<0) s=0; const m=Math.floor(s/60);
 
 let toastT;
 function toast(msg){
-  const text=String(msg||"");
-  if(/команду надіслано|джерело.{0,40}потік|потік.{0,40}джерело/i.test(text)) return;
+  const text=String(msg||"").trim();
+  // Hide technical playback/device/provider notifications from the UI.
+  // Keep genuine user-facing notices (e.g. Premium availability) visible.
+  const technical = /команду надіслано|відтворення передано|джерело.{0,60}(не надало|не повернуло|помилк|потік)|потік.{0,60}(джерело|недоступ|не знайден)|помилка.{0,40}(джерела|відтворення|підключення)|не вдалося.{0,40}(підключити|відтворити|завантажити)|пристрій.{0,40}(недоступ|відключ)|тайм.?аут|network error|failed to fetch/i.test(text);
+  if(technical) return;
   const el=$("toast"); if(!el) return;
   el.textContent=text; el.classList.add("on");
   clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove("on"),2200);
@@ -3835,27 +3877,3 @@ paintStaticIcons();
 </script>
 </body>
 </html>
-
-
-/* MusicLSP polish pass: compact, aligned player and clearer library */
-.nav{grid-template-columns:repeat(5,minmax(0,1fr))!important}
-.bar{display:none;grid-template-columns:46px minmax(0,1fr) 32px 32px 36px 32px;align-items:center;gap:7px;padding:8px 9px;min-height:64px}
-.bar.on{display:grid}
-.bar .art{width:46px;height:46px;min-width:46px;object-fit:cover;display:block;align-self:center}
-.bar .meta{min-width:0;align-self:center;display:flex;flex-direction:column;justify-content:center;gap:2px;line-height:1.2}
-.bar .iconbtn{width:32px;height:36px;min-width:0;min-height:36px;padding:0;margin:0;display:grid;place-items:center;align-self:center;justify-self:center;line-height:0;border:0}
-.bar .iconbtn.main{width:36px;height:36px}
-.bar .iconbtn .icon{display:block;width:19px;height:19px;vertical-align:middle;margin:0}
-.bar .iconbtn.main .icon{width:22px;height:22px;transform:translateX(1px)}
-.bar .iconbtn.like .icon{width:18px;height:18px}
-#libTabs{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding:7px;margin:0 0 18px;border:1px solid var(--line);border-radius:17px;background:color-mix(in srgb,var(--panel) 82%,transparent)}
-#libTabs::-webkit-scrollbar{display:none}
-#libTabs .tab{flex:1 0 auto;min-height:38px;padding:0 13px;border:0;border-radius:12px;background:transparent;color:var(--muted);font-size:12px;font-weight:650;white-space:nowrap}
-#libTabs .tab.on{background:var(--panel-2);color:var(--ink);box-shadow:0 3px 12px rgba(0,0,0,.14)}
-#libBody{min-height:180px;padding:2px 1px 16px}
-#libBody>.rows{padding:4px 0}
-#libBody .row{padding:10px 9px;border:1px solid color-mix(in srgb,var(--line) 70%,transparent)!important;border-radius:16px;margin-bottom:6px;background:color-mix(in srgb,var(--panel) 54%,transparent)!important}
-#libBody .row .art{width:50px;height:50px;border-radius:12px}
-#libBody .btn{width:100%;min-height:48px;font-weight:700;box-shadow:0 8px 24px color-mix(in srgb,var(--accent) 15%,transparent)}
-#libBody .empty{margin-top:10px;padding:28px 20px;border:1px dashed var(--line);border-radius:20px;background:color-mix(in srgb,var(--panel) 55%,transparent)}
-@media(max-width:380px){.bar{grid-template-columns:42px minmax(0,1fr) 28px 28px 34px 28px;gap:5px;padding:7px 7px}.bar .art{width:42px;height:42px;min-width:42px}.bar .iconbtn{width:28px}.bar .iconbtn.main{width:34px}}
