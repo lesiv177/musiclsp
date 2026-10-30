@@ -118,7 +118,7 @@ img{max-width:100%}
 #splash .stext{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#b9c4d8;font-weight:750}
 @keyframes markPulse{50%{transform:translateY(-4px) scale(1.035);box-shadow:0 22px 65px #8b7cff77}}
 @keyframes eq{to{transform:scaleY(1.8);opacity:.7}}
-.sk el{border-radius:16px}
+.skel{border-radius:16px}
 .skel{height:90px;border-radius:18px;background:linear-gradient(90deg,#182438,#26334a,#182438);background-size:200% 100%;animation:shimmer 1.4s infinite}
 @keyframes shimmer{to{background-position:-200% 0}}
 .spotify-connect-head{display:flex;align-items:center;justify-content:space-between;margin:0 0 16px;font-size:19px;font-weight:800}
@@ -141,9 +141,10 @@ img{max-width:100%}
 #devicesList .device-seek-times{display:flex;justify-content:space-between;color:var(--muted);font-size:10px}
 #meBody .opt,#meBody .row2,#meBody .eqrow{padding:14px;border-bottom:1px solid var(--line)}
 #meBody input,#meBody select,#meBody textarea,.modal input,.modal textarea{max-width:100%;border:1px solid var(--line);border-radius:12px;background:#0d1725;color:var(--text);padding:11px}
-#adm{position:fixed;inset:0;z-index:90;overflow:auto;background:var(--bg);padding:20px}
+#adm{display:none;position:fixed;inset:0;z-index:90;overflow:auto;background:var(--bg);padding:20px}
 #admTabs{display:flex;gap:8px;overflow:auto}
 #admBody{max-width:1100px;margin:18px auto}
+#adm.on{display:block}
 @media(min-width:760px){
  .top{padding-left:max(28px,calc((100vw - 1120px)/2));padding-right:max(28px,calc((100vw - 1120px)/2))}
  .screen{padding-top:32px}
