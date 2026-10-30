@@ -2450,7 +2450,7 @@ async function createPlaylist(){
 
 
 /* ── синхронізація пристроїв MusicLSP ── */
-const DEVICE_SYNC = {id:"", started:false, cursor:0, polling:false, socket:null, reconnectTimer:null, pingTimer:null, reconnectDelay:1000, remoteStates:{}, remoteNames:{}, remoteTarget:"", session:null, sessionTimer:null, sessionPolling:false};
+const DEVICE_SYNC = {id:"", started:false, cursor:0, polling:false, socket:null, processing:new Set(), reconnectTimer:null, pingTimer:null, reconnectDelay:1000, remoteStates:{}, remoteNames:{}, remoteTarget:"", session:null, sessionTimer:null, sessionPolling:false};
 function deviceId(){
   try{
     let id=localStorage.getItem("mlsp_device_id");
@@ -2504,11 +2504,7 @@ function connectDeviceSocket(){
         return;
       }
       if(data.type==="command" && data.device_id===DEVICE_SYNC.id && data.command){
-        const command=data.command, id=Number(command.id)||0;
-        if(id && id<=DEVICE_SYNC.cursor)return;
-        DEVICE_SYNC.cursor=Math.max(DEVICE_SYNC.cursor,id);
-        try{localStorage.setItem("mlsp_device_cursor",String(DEVICE_SYNC.cursor));}catch(e){}
-        applyDeviceCommand(command);
+        processDeviceCommand(data.command);
       }else if(data.type==="session"){
         applyAccountSession({owner_device_id:data.owner_device_id,state:data.state,updated_at:new Date().toISOString()});
       }else if(data.type==="state" && data.device_id){
@@ -2587,17 +2583,29 @@ async function syncAccountSession(initial=false){
     if(d.session) applyAccountSession(d.session,initial);
   }catch(e){}finally{DEVICE_SYNC.sessionPolling=false;}
 }
+async function processDeviceCommand(command){
+  const id=Number(command&&command.id)||0;
+  if(!id || id<=DEVICE_SYNC.cursor || DEVICE_SYNC.processing.has(id)) return;
+  DEVICE_SYNC.processing.add(id);
+  try{
+    const applied=await applyDeviceCommand(command);
+    if(applied===false) throw new Error("command application failed");
+    await post("/api/devices/command/ack",{device_id:DEVICE_SYNC.id,command_id:id,result:"ok"});
+    DEVICE_SYNC.cursor=Math.max(DEVICE_SYNC.cursor,id);
+    try{localStorage.setItem("mlsp_device_cursor",String(DEVICE_SYNC.cursor));}catch(e){}
+  }catch(error){
+    console.warn("MusicLSP command will be retried",id,error);
+  }finally{
+    DEVICE_SYNC.processing.delete(id);
+  }
+}
 async function pollDeviceCommands(){
   if(!DEVICE_SYNC.id || DEVICE_SYNC.polling || document.visibilityState==="hidden") return;
   DEVICE_SYNC.polling=true;
   try{
     const d=await get("/api/devices/commands?device_id="+encodeURIComponent(DEVICE_SYNC.id)+"&after="+DEVICE_SYNC.cursor);
     for(const command of (d.commands||[])){
-      const id=Number(command.id)||0;
-      if(id && id<=DEVICE_SYNC.cursor) continue;
-      DEVICE_SYNC.cursor=Math.max(DEVICE_SYNC.cursor,id);
-      try{ localStorage.setItem("mlsp_device_cursor",String(DEVICE_SYNC.cursor)); }catch(e){}
-      await applyDeviceCommand(command);
+      await processDeviceCommand(command);
     }
   }catch(e){}finally{ DEVICE_SYNC.polling=false; }
 }
@@ -2623,7 +2631,7 @@ async function applyDeviceCommand(command){
       const started=await play(current());
       if(!started){
         toast("Дозволь відтворення на цьому пристрої — попередній пристрій продовжить грати");
-        return;
+        return false;
       }
       if(target>0) await seekLocalPosition(target);
       if(Number.isFinite(Number(p.volume)))cur.volume=Math.max(0,Math.min(1,Number(p.volume)));
@@ -2635,23 +2643,24 @@ async function applyDeviceCommand(command){
       }catch(e){
         cur.pause();S.playing=false;paintPlayState();
         toast("Не вдалося підтвердити перемикання. Попередній пристрій продовжить грати");
-        return;
+        return false;
       }
       DEVICE_SYNC.session={owner_device_id:DEVICE_SYNC.id,state,updated_at:new Date().toISOString()};
       publishDeviceState();
-      return;
+      return true;
     }
     if(current()){
       if(!cur.src){const started=await play(current());if(started)await post("/api/player/session",{device_id:DEVICE_SYNC.id,state:{track:current(),queue:S.queue.slice(0,30),index:S.index,position:0,playing:true,volume:cur.volume||1}});}
       else {try{await cur.play();S.playing=true;paintPlayState();publishDeviceState();}catch(e){toast("Натисни відтворення на цьому пристрої");}}
     }
-    return;
+    return true;
   }
   if(command.action==="pause"){cur.pause();S.playing=false;paintPlayState();publishDeviceState();}
   if(command.action==="next") nextTrack(false);
   if(command.action==="previous") prevTrack();
   if(command.action==="seek" && Number.isFinite(Number(p.position))){cur.currentTime=Math.max(0,Number(p.position));publishDeviceState();}
   if(command.action==="volume" && Number.isFinite(Number(p.volume))){cur.volume=Math.max(0,Math.min(1,Number(p.volume)));publishDeviceState();}
+  return true;
 }
 
 async function claimLocalPlayback(){
