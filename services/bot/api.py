@@ -304,7 +304,16 @@ async def h_device_state(request, u):
         volume = max(0.0, min(1.0, volume_raw))
     except (TypeError, ValueError, OverflowError):
         return fail("Некоректний стан відтворення")
-    safe = {"playing": state.get("playing") is True, "position": position, "volume": volume}
+    duration_raw = state.get("duration") or 0
+    try:
+        duration_value = float(duration_raw)
+        if not math.isfinite(duration_value):
+            duration_value = 0
+    except (TypeError, ValueError, OverflowError):
+        duration_value = 0
+    duration = int(max(0, min(86400, duration_value)))
+    safe = {"playing": state.get("playing") is True, "position": position,
+            "duration": duration, "volume": volume}
     track = safe_device_track(state.get("track"))
     if track:
         safe["track"] = track
@@ -410,26 +419,26 @@ async def h_device_command(request, u):
         if not queue:
             return fail("На пристрої немає треку для відновлення", 409)
         payload = {"queue": queue[:30], "index": state.get("index", 0), "position": state.get("position", 0)}
+    if action == "handoff":
+        track = safe_device_track(payload.get("track"))
+        if not track:
+            return fail("Немає треку для передачі", 409)
+        queue_raw = payload.get("queue") if isinstance(payload.get("queue"), list) else [track]
+        queue = [item for raw_item in queue_raw[:30] if (item := safe_device_track(raw_item))]
+        if not queue:
+            queue = [track]
+        index = bounded_int(payload.get("index"), 0, 0, max(0, len(queue) - 1))
+        try:
+            position = float(payload.get("position") or 0)
+            if not math.isfinite(position):
+                raise ValueError()
+        except (TypeError, ValueError, OverflowError):
+            position = 0
+        payload = {"track": track, "queue": queue, "index": index,
+                   "position": int(max(0, min(86400, position)))}
     encoded = json.dumps(payload, ensure_ascii=False)
     if len(encoded) > 30000:
         return fail("Завелика команда")
-    if action == "handoff":
-        track = safe_device_track(payload.get("track"))
-        queue_raw = payload.get("queue") if isinstance(payload.get("queue"), list) else [track]
-        queue = [item for raw in queue_raw[:30] if (item := safe_device_track(raw))]
-        if track and queue:
-            index = bounded_int(payload.get("index"), 0, 0, max(0, len(queue) - 1))
-            try:
-                position = float(payload.get("position") or 0)
-                if not math.isfinite(position):
-                    raise ValueError()
-            except (TypeError, ValueError, OverflowError):
-                position = 0
-            shared = {"track": track, "queue": queue, "index": index,
-                      "position": int(max(0, min(86400, position))),
-                      "playing": True, "volume": 1}
-            await to_thread(db.player_session_set, uid, device_id, json.dumps(shared, ensure_ascii=False))
-            await broadcast_device_event(uid, {"type": "session", "owner_device_id": device_id, "state": shared})
     command_id = await to_thread(db.device_command_add, uid, device_id, action, encoded)
     if command_id is None:
         return fail("Пристрій не знайдено або вже не в мережі", 404)
