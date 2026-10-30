@@ -201,6 +201,10 @@ def search(query, limit=30, quality="mp32", sources=None, sort="relevance", chec
             pool = rank(query, pool)
         res = pool[:limit]
         cache_put(key, res, 300)
+        # прямі посилання зі видачі одразу кладемо в кеш стрімів — перший ▶ без звернень до API
+        for t in res:
+            if (t.get("stream") or "").startswith("https://"):
+                cache_put(("stream", t["id"], quality), t["stream"], STREAM_TTL)
     return filter_available(res) if check else res
 
 
@@ -218,7 +222,8 @@ def _resolve_checked(track_id, quality):
     if is_dead(track_id):
         return ""
     url = P.resolve_stream(track_id, quality)
-    if url and check_url(url):
+    # audius перевіряє посилання сам, SoundCloud віддає підписані URL (HEAD їх може відхиляти)
+    if url and (P.split_id(track_id)[0] in ("aud", "sc") or check_url(url)):
         cache_put(key, url, STREAM_TTL)
         return url
     return ""
@@ -262,3 +267,8 @@ def resolve_stream_robust(track_id, quality="mp32", title="", artist=""):
         cache_put(("stream", track_id, quality), alt_url, 120)
         return alt_url, alt_id
     return "", ""
+
+
+def resolve_url(track_id, quality="mp32", title="", artist=""):
+    """Для JSON-ендпоінта /api/resolve (передзавантаження наступних треків)."""
+    return resolve_stream_robust(track_id, quality, title, artist)
