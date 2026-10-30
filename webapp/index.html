@@ -796,7 +796,7 @@ const S = {
   queue:[], index:-1, playing:false, shuffle:false, repeat:"off",
   liked:new Set(), playlists:[], eq:null, eqNodes:null, ctx:null,
   crossfade:0, sleepAt:0, sleepTimer:null, kind:"tracks", libView:"liked",
-  sort:"relevance", sources:["jamendo","audius","archive","ccmixter","openverse","wikimedia","soundcloud"],
+  sort:"relevance", sources:["soundcloud","jamendo","audius","archive","ccmixter","openverse","wikimedia"],
   speed:1, nightQuiet:false, dataSaver:false,
 };
 
@@ -2099,7 +2099,7 @@ function crossfadeTo(t){
     cur = incoming; alt = outgoing;
   }).catch(err=>{
     incoming.pause(); incoming.removeAttribute("src"); incoming.load();
-    outgoing.volume = nightCap(1);
+    outgoing.pause(); outgoing.volume = nightCap(1);
     throw err;
   });
 }
