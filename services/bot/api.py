@@ -100,6 +100,7 @@ async def h_health(request):
             "ccmixter": True,
             "openverse": True,
             "wikimedia": True,
+            "soundcloud": P.soundcloud_enabled(),
         },
     })
 
@@ -188,7 +189,7 @@ async def h_search(request, u):
         sort = "relevance"
     sources_raw = (request.query.get("sources") or "").strip()
     sources = [s for s in sources_raw.split(",")
-               if s in ("jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia")] or None
+               if s in ("jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia", "soundcloud")] or None
 
     allowed, used, cap = await to_thread(db.bump_counter, uid, "searches")
     if not allowed:
@@ -409,6 +410,22 @@ async def h_radio(request, u):
     length = db.limits_for(uid)["radio_length"]
     queue = await to_thread(P.build_radio, seed, length, quality_for(uid))
     return ok({"ok": True, "tracks": queue, "length": len(queue)})
+
+
+async def h_resolve(request):
+    """JSON-версія /api/stream: повертає готове посилання, щоб клієнт міг заздалегідь
+    підготувати наступні треки й запускати їх без жодного запиту до сервера."""
+    u = auth_user(request)
+    tid = request.query.get("id") or ""
+    if not tid:
+        return fail("Немає id треку")
+    qual = quality_for(int(u["uid"])) if u else "mp31"
+    url, played = await to_thread(SM.resolve_url, tid, qual,
+                                  (request.query.get("t") or "")[:200],
+                                  (request.query.get("a") or "")[:200])
+    if not url:
+        return fail("Стрім недоступний", 404)
+    return ok({"ok": True, "url": url, "id": played})
 
 
 async def h_stream(request):
@@ -969,6 +986,7 @@ def build_app():
     r.add_get("/", h_health)
     r.add_get("/api/health", h_health)
     r.add_get("/api/me", h_me)
+    r.add_get("/api/resolve", h_resolve)
     r.add_post("/api/settings", h_settings)
     r.add_get("/api/search", h_search)
     r.add_get("/api/home", h_home)
