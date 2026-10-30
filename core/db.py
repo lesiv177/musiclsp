@@ -160,6 +160,17 @@ SCHEMA_PG = [
         uid BIGINT PRIMARY KEY, name TEXT DEFAULT '', best_streak INTEGER DEFAULT 0,
         updated_at TIMESTAMP DEFAULT NOW()
     )""",
+    """CREATE TABLE IF NOT EXISTS playback_devices (
+        uid BIGINT, device_id TEXT, name TEXT DEFAULT '', platform TEXT DEFAULT '',
+        state_json TEXT DEFAULT '{}', last_seen TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY(uid, device_id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS playback_commands (
+        id SERIAL PRIMARY KEY, uid BIGINT, device_id TEXT, action TEXT,
+        payload TEXT DEFAULT '{}', created_at TIMESTAMP DEFAULT NOW()
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_playback_devices_uid ON playback_devices(uid)",
+    "CREATE INDEX IF NOT EXISTS idx_playback_commands_target ON playback_commands(uid, device_id, id)",
     """CREATE TABLE IF NOT EXISTS track_reports (
         id SERIAL PRIMARY KEY, uid BIGINT, tid TEXT, title TEXT DEFAULT '',
         artist TEXT DEFAULT '', source TEXT DEFAULT '', reason TEXT DEFAULT '',
@@ -719,6 +730,79 @@ def history_add(uid, t, seconds=0):
             (uid, t.get("id", ""), t.get("title", ""), t.get("artist", ""),
              t.get("cover", ""), t.get("source", ""), int(seconds or 0), now_str()))
 
+
+
+# ─── Сесії пристроїв і віддалене керування відтворенням ────────────────────────
+def device_register(uid, device_id, name, platform):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("""INSERT INTO playback_devices
+            (uid, device_id, name, platform, state_json, last_seen)
+            VALUES (%s,%s,%s,%s,%s,%s)
+            ON CONFLICT(uid, device_id) DO UPDATE SET
+              name=excluded.name, platform=excluded.platform, last_seen=excluded.last_seen"""),
+            (int(uid), device_id, name[:60], platform[:80], "{}", now_str()))
+    return True
+
+
+def device_state_update(uid, device_id, state_json):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("UPDATE playback_devices SET state_json=%s, last_seen=%s WHERE uid=%s AND device_id=%s"),
+                    (state_json, now_str(), int(uid), device_id))
+        return cur.rowcount > 0
+
+
+def device_list(uid):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT device_id, name, platform, state_json, last_seen FROM playback_devices WHERE uid=%s ORDER BY last_seen DESC"),
+                    (int(uid),))
+        found = rows(cur)
+    now = datetime.datetime.utcnow()
+    out = []
+    for item in found:
+        raw = item.get("last_seen")
+        try:
+            seen = raw if isinstance(raw, datetime.datetime) else datetime.datetime.fromisoformat(str(raw).replace("Z", "").replace("T", " "))
+            active = (now - seen).total_seconds() < 35
+        except Exception:
+            active = False
+        try:
+            state = json.loads(item.get("state_json") or "{}")
+        except Exception:
+            state = {}
+        out.append({"device_id": item["device_id"], "name": item.get("name") or "Device",
+                    "platform": item.get("platform") or "", "active": active,
+                    "last_seen": str(raw or ""), "state": state if active else {}})
+    return out
+
+
+def device_command_add(uid, device_id, action, payload):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT device_id FROM playback_devices WHERE uid=%s AND device_id=%s"),
+                    (int(uid), device_id))
+        if not one(cur):
+            return None
+        cur.execute(q("DELETE FROM playback_commands WHERE created_at < %s"),
+                    ((datetime.datetime.utcnow() - datetime.timedelta(days=1)).isoformat(sep=" ", timespec="seconds"),))
+        cur.execute(q("""INSERT INTO playback_commands(uid,device_id,action,payload,created_at)
+                        VALUES (%s,%s,%s,%s,%s) RETURNING id"""),
+                    (int(uid), device_id, action, payload, now_str()))
+        row = one(cur)
+        return int(row["id"]) if row else None
+
+
+def device_commands_get(uid, device_id, after_id=0):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT id, action, payload FROM playback_commands WHERE uid=%s AND device_id=%s AND id>%s ORDER BY id ASC LIMIT 20"),
+                    (int(uid), device_id, int(after_id)))
+        found = rows(cur)
+    out = []
+    for item in found:
+        try:
+            payload = json.loads(item.get("payload") or "{}")
+        except Exception:
+            payload = {}
+        out.append({"id": int(item["id"]), "action": item["action"], "payload": payload})
+    return out
 
 def history_list(uid, limit=100):
     with conn_cursor() as (conn, cur):
