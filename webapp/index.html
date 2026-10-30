@@ -671,6 +671,69 @@ body.data-saver .rows .row,body.data-saver .reel .card{animation:none!important}
 #devicesList .pill{white-space:nowrap;font-size:11px}
 #devicesList .meta .t{font-weight:650}
 #devicesList .meta .s{font-size:11px;color:var(--muted)}
+
+
+/* ═══ MUSICLSP 7 · mobile-first platform refresh ═══ */
+:root{--nav-h:70px;--bar-h:68px}
+body{background:radial-gradient(120% 45% at 50% -10%,color-mix(in srgb,var(--accent) 13%,transparent),transparent 70%),var(--bg)}
+.app{max-width:620px;padding-bottom:calc(var(--nav-h) + var(--bar-h) + 26px + env(safe-area-inset-bottom))}
+.top{padding:15px 20px 13px;border-bottom-color:transparent}
+.top .mark{border-radius:12px;box-shadow:0 7px 22px color-mix(in srgb,var(--accent) 20%,transparent)}
+.top .name{font-size:20px;letter-spacing:-.055em}
+.top .sub{font-size:10px;letter-spacing:.04em}
+.screen{padding:14px 18px 22px;animation:screenEnter .24s ease both}
+@keyframes screenEnter{from{opacity:.45;transform:translateY(5px)}to{opacity:1;transform:none}}
+.home-hero{min-height:270px;border:1px solid color-mix(in srgb,var(--accent) 20%,transparent);border-radius:28px;padding:25px 22px 19px;background:radial-gradient(80% 110% at 100% 0%,color-mix(in srgb,var(--accent) 45%,#3c245b),transparent 68%),linear-gradient(145deg,#211934,#14101f 78%);box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.home-hero h1{font-size:34px;letter-spacing:-.07em}
+.sect{margin-bottom:30px}
+.sect h2{font-size:17px;letter-spacing:-.025em;margin-bottom:14px}
+.rows{gap:5px}
+.row{min-height:68px;padding:8px 9px;border:1px solid transparent;border-radius:15px;transition:background .18s,border-color .18s}
+.row:active{background:var(--panel-2);border-color:var(--line)}
+.row .art{width:50px;height:50px;border-radius:11px}
+.row .t{font-size:13.5px;font-weight:650}
+.row .s{font-size:11px;margin-top:3px}
+.reel{gap:13px;padding-bottom:6px}
+.card{width:142px}
+.card img,.card .ph{width:142px;height:142px;border-radius:18px}
+.card .t{font-size:13px;margin-top:8px}
+.searchbar{border-radius:16px;padding:13px 15px;border-color:color-mix(in srgb,var(--accent) 16%,var(--line));background:var(--panel)}
+.searchbar input{font-size:16px}
+.nav{grid-template-columns:repeat(5,minmax(0,1fr));background:color-mix(in srgb,var(--panel) 94%,transparent);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border-top:1px solid color-mix(in srgb,var(--accent) 13%,var(--line));padding-top:5px}
+.nav button{height:calc(var(--nav-h) - 5px);gap:4px;font-size:10px;font-weight:600}
+.nav button .ic{font-size:20px}
+.nav button.on{color:var(--accent)}
+.bar{margin:0 9px;max-width:602px;width:calc(100% - 18px);border:1px solid color-mix(in srgb,var(--accent) 22%,var(--line));border-radius:17px 17px 13px 13px;background:color-mix(in srgb,var(--panel) 96%,transparent);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 8px 28px rgba(0,0,0,.24);padding:8px 10px}
+.bar .art{width:46px;height:46px;border-radius:10px}
+.bar .t{font-weight:650}
+.bar .iconbtn{width:34px;height:34px}
+.sheet{background:radial-gradient(110% 50% at 50% 0%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 75%),var(--bg)}
+.explore-head{padding:16px 2px 24px}
+.explore-kicker{font-size:9px;font-weight:800;letter-spacing:.19em;color:var(--accent);margin-bottom:10px}
+.explore-head h1{font-size:31px;line-height:1.04;letter-spacing:-.065em;max-width:300px}
+.explore-head h1 em{font-style:normal;color:var(--accent)}
+.explore-head p{color:var(--muted);font-size:12px;margin-top:9px}
+.explore-section{margin:8px 0 28px}
+.explore-section-title{display:flex;align-items:end;justify-content:space-between;margin-bottom:13px}
+.explore-section-title small{font-size:9px;letter-spacing:.15em;font-weight:800;color:var(--muted)}
+.explore-section-title h2{font-size:20px;letter-spacing:-.04em;margin-top:3px}
+.explore-section-title>span{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.mood-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.mood-tile{position:relative;min-height:94px;padding:13px 14px;border-radius:17px;text-align:left;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;overflow:hidden;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 28%,var(--panel-2)),var(--panel));border:1px solid var(--line)}
+.mood-tile>span{font-size:20px;color:var(--accent)}
+.mood-tile b{font-size:14px;margin-top:8px}
+.mood-tile small{position:absolute;right:11px;top:12px;font-size:8px;letter-spacing:.12em;color:var(--muted)}
+.mood-1{background:linear-gradient(135deg,#46301d,#211a27)}.mood-2{background:linear-gradient(135deg,#173d3b,#151c26)}.mood-3{background:linear-gradient(135deg,#30234d,#191525)}.mood-4{background:linear-gradient(135deg,#3c253f,#1b1627)}.mood-5{background:linear-gradient(135deg,#283d54,#171c2c)}
+.genre-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.genre-tile{min-height:75px;padding:12px 13px;border-radius:15px;text-align:left;display:flex;align-items:flex-end;justify-content:space-between;position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.07);background:linear-gradient(135deg,#26324a,#1a1c2a)}
+.genre-tile span{position:absolute;top:9px;left:12px;font-size:8px;letter-spacing:.12em;opacity:.55}
+.genre-tile b{font-size:14px}.genre-tile i{font-style:normal;font-size:16px;opacity:.7}
+.genre-1{background:linear-gradient(135deg,#593548,#251b2d)}.genre-2{background:linear-gradient(135deg,#244b4a,#17272b)}.genre-3{background:linear-gradient(135deg,#4d3d67,#211d35)}.genre-4{background:linear-gradient(135deg,#6a4b2d,#29201b)}.genre-5{background:linear-gradient(135deg,#274c65,#17232f)}.genre-6{background:linear-gradient(135deg,#5b3c36,#2a1e22)}.genre-7{background:linear-gradient(135deg,#34503b,#1a2a25)}
+.explore-note{display:flex;gap:12px;align-items:center;padding:15px;border:1px solid var(--line);border-radius:16px;background:var(--panel)}
+.explore-note-icon{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--panel-2);color:var(--accent);font-size:20px;flex:none}
+.explore-note b{font-size:12px}.explore-note p{font-size:10px;color:var(--muted);margin-top:3px;line-height:1.5}
+@media(max-width:380px){.screen{padding-left:14px;padding-right:14px}.nav button{font-size:9px}.mood-grid,.genre-grid{gap:7px}.home-hero h1{font-size:30px}}
+
 </style>
 </head>
 <body>
@@ -712,6 +775,16 @@ body.data-saver .rows .row,body.data-saver .reel .card{animation:none!important}
     <div id="homeBody">
       <div class="skel"></div><div class="skel"></div><div class="skel"></div>
     </div>
+  </section>
+
+  <!-- EXPLORE -->
+  <section class="screen" id="scExplore">
+    <div class="explore-head">
+      <div class="explore-kicker">MUSICLSP / DISCOVERY</div>
+      <h1>Відкривай <em>своє звучання</em></h1>
+      <p>Жанри, настрої та музика, яку варто почути.</p>
+    </div>
+    <div id="exploreBody"><div class="skel"></div><div class="skel"></div></div>
   </section>
 
   <!-- SEARCH -->
@@ -776,11 +849,12 @@ body.data-saver .rows .row,body.data-saver .reel .card{animation:none!important}
 </div>
 
 <!-- bottom nav -->
-<nav class="nav">
-  <button class="on" data-go="Home"><span class="ic" data-icon="home"></span>Головна</button>
-  <button data-go="Search"><span class="ic" data-icon="search"></span>Пошук</button>
-  <button data-go="Lib"><span class="ic" data-icon="library"></span>Бібліотека</button>
-  <button data-go="Me"><span class="ic" data-icon="profile"></span>Профіль</button>
+<nav class="nav" aria-label="Основна навігація">
+  <button class="on" data-go="Home"><span class="ic" data-icon="home"></span><span>Головна</span></button>
+  <button data-go="Explore"><span class="ic" data-icon="compass"></span><span>Огляд</span></button>
+  <button data-go="Search"><span class="ic" data-icon="search"></span><span>Пошук</span></button>
+  <button data-go="Lib"><span class="ic" data-icon="library"></span><span>Музика</span></button>
+  <button data-go="Me"><span class="ic" data-icon="profile"></span><span>Профіль</span></button>
 </nav>
 
 <!-- now playing -->
@@ -1527,6 +1601,7 @@ function go(name){
   });
   if(name==="Me"){ refreshMe().then(renderProfile); renderProfile(); }
   if(name==="Lib") renderLibrary();
+  if(name==="Explore") loadExplore();
   if(name==="Search"){ setTimeout(()=>$("qInput").focus(), 120); if(!$("qInput").value.trim()) renderRecentSearches(); }
   window.scrollTo(0,0);
 }
@@ -1638,6 +1713,35 @@ async function openMood(key, label){
     const wrap = document.createElement("div"); $("qBody").appendChild(wrap);
     mountRows(wrap, d.tracks, "mood_"+key);
   }catch(e){ toast(e.message); }
+}
+
+async function loadExplore(){
+  const root=$("exploreBody");
+  if(!root) return;
+  root.innerHTML='<div class="skel"></div><div class="skel"></div>';
+  try{
+    const [g,m]=await Promise.all([get("/api/genres"),get("/api/moods")]);
+    const genres=g.genres||[], moods=m.moods||[];
+    window.__exploreGenres=genres; window.__exploreMoods=moods;
+    root.innerHTML=`
+      <section class="explore-section">
+        <div class="explore-section-title"><div><small>ПІД НАСТРІЙ</small><h2>Що відчуваєш?</h2></div><span>01</span></div>
+        <div class="mood-grid">${moods.map((x,i)=>`<button class="mood-tile mood-${i%6}" data-explore-mood="${i}"><span>${["☁","⚡","◉","☾","✦","♫"][i%6]}</span><b>${esc(x.label)}</b><small>${x.locked?"PREMIUM":"MIX"}</small></button>`).join("")}</div>
+      </section>
+      <section class="explore-section">
+        <div class="explore-section-title"><div><small>ДОСЛІДЖУЙ КАТАЛОГ</small><h2>Жанри</h2></div><span>02</span></div>
+        <div class="genre-grid">${genres.map((x,i)=>`<button class="genre-tile genre-${i%8}" data-explore-genre="${i}"><span>${String(i+1).padStart(2,"0")}</span><b>${esc(x.label)}</b><i>↗</i></button>`).join("")}</div>
+      </section>
+      <div class="explore-note"><span class="explore-note-icon">♫</span><div><b>Незалежна музика</b><p>Відкривай записи з відкритими ліцензіями та підтримуй авторів.</p></div></div>`;
+    root.querySelectorAll("[data-explore-mood]").forEach(b=>b.onclick=()=>{
+      const x=moods[+b.dataset.exploreMood]; tap();
+      if(x.locked) return toast("Цей настрій доступний у Premium");
+      openMood(x.key,x.label);
+    });
+    root.querySelectorAll("[data-explore-genre]").forEach(b=>b.onclick=()=>{
+      const x=genres[+b.dataset.exploreGenre]; tap(); openGenre(x.tag,x.label);
+    });
+  }catch(e){root.innerHTML='<div class="empty"><b>Не вдалося завантажити огляд</b>'+esc(e.message)+'</div>';}
 }
 
 async function loadHome(){
@@ -2292,14 +2396,9 @@ async function playById(id){
 
 const URLCACHE = {};      // id -> готове пряме посилання (з /api/resolve)
 function streamUrl(t){
-  /* Швидкий шлях: пряме посилання, яке вже є у видачі або передзавантажене —
-     трек стартує без жодного запиту до нашого сервера. Після збою (RETRY.n>0)
-     йдемо через сервер: він перевіряє посилання й шукає запасне джерело. */
-  if(!RETRY.n){
-    if(URLCACHE[t.id]) return URLCACHE[t.id];
-    if((t.stream||"").startsWith("https://")) return t.stream;
-  }
-  /* назва й артист — щоб сервер міг знайти запасне джерело, якщо основне не грає */
+  /* Усі джерела проходять через один серверний resolver: він перевіряє URL,
+     оновлює підписані посилання та підбирає легальне запасне джерело.
+     Не віддаємо iOS старі прямі URL з кешу пошуку. */
   return `${API}/api/stream?id=${encodeURIComponent(t.id)}&initData=${encodeURIComponent(INIT)}`
     + `&t=${encodeURIComponent((t.title||"").slice(0,120))}&a=${encodeURIComponent((t.artist||"").slice(0,120))}`
     + (RETRY.n ? `&r=${RETRY.n}` : "");
