@@ -485,7 +485,7 @@ def _url_playable(url, timeout=5):
     """Легка перевірка, що посилання реально віддає аудіо, а не 404/500 —
     щоб клієнту ніколи не йшов мертвий стрім, який довелось би скіпати."""
     try:
-        r = _session.head(url, timeout=timeout, allow_redirects=True)
+        r = _http_session().head(url, timeout=timeout, allow_redirects=True)
         if r.status_code == 405:  # деякі ноди не вміють HEAD — пробуємо GET шматка
             r = _http_session().get(url, timeout=timeout, headers={"Range": "bytes=0-1"},
                               stream=True, allow_redirects=True)
