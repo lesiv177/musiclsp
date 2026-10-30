@@ -805,6 +805,26 @@ body{background:radial-gradient(120% 45% at 50% -10%,color-mix(in srgb,var(--acc
 
 <style>
 /* MusicLSP Connect + compact player layout fix */
+/* Connect modal: prevent horizontal overflow on narrow Telegram WebViews */
+.modal .box{width:min(100vw,560px)!important;max-width:100vw!important;min-width:0!important;overflow-x:hidden!important}
+#devicesList,#devicesList>*{width:100%;max-width:100%;min-width:0;box-sizing:border-box}
+#devicesList .connect-device{width:100%;max-width:100%;min-width:0;box-sizing:border-box;overflow:hidden}
+#devicesList .connect-device-head{min-width:0;flex-wrap:wrap;gap:9px}
+#devicesList .device-info{min-width:0;flex:1 1 110px}
+#devicesList .device-name{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+#devicesList .device-connect{flex:0 1 auto;max-width:44%;min-width:0;padding:9px 10px;overflow:hidden;text-overflow:ellipsis}
+#devicesList .device-now{width:100%;max-width:100%;min-width:0;overflow:hidden;box-sizing:border-box}
+#devicesList .device-track{min-width:0;flex:1 1 auto}
+#devicesList .device-artist{min-width:0;flex:0 1 28%;overflow:hidden;text-overflow:ellipsis}
+#devicesList .device-remote{width:100%;max-width:100%;min-width:0;flex-wrap:wrap;box-sizing:border-box}
+#devicesList .device-volume{min-width:0;max-width:100%;flex-wrap:wrap}
+@media(max-width:420px){
+  .modal .box{padding-left:14px!important;padding-right:14px!important}
+  #devicesList .connect-device{padding:11px!important}
+  #devicesList .device-platform{width:38px!important;height:38px!important;flex:0 0 38px!important}
+  #devicesList .device-connect{max-width:48%;font-size:10px!important;padding:8px!important}
+}
+
 /* MusicLSP mobile player + Connect v2 */
 .bar.on{
   display:grid!important;
@@ -2428,7 +2448,7 @@ async function createPlaylist(){
 
 
 /* ── синхронізація пристроїв MusicLSP ── */
-const DEVICE_SYNC = {id:"", started:false, cursor:0, polling:false, socket:null, reconnectTimer:null, pingTimer:null, reconnectDelay:1000, remoteStates:{}, remoteTarget:""};
+const DEVICE_SYNC = {id:"", started:false, cursor:0, polling:false, socket:null, reconnectTimer:null, pingTimer:null, reconnectDelay:1000, remoteStates:{}, remoteTarget:"", session:null, sessionTimer:null, sessionPolling:false};
 function deviceId(){
   try{
     let id=localStorage.getItem("mlsp_device_id");
@@ -2447,18 +2467,14 @@ function deviceLabel(){
 async function startDeviceSync(){
   if(DEVICE_SYNC.started || !S.me || !API) return;
   DEVICE_SYNC.started=true; DEVICE_SYNC.id=deviceId();
-  try{
-    DEVICE_SYNC.cursor=Number(localStorage.getItem("mlsp_device_cursor")||0)||0;
-    DEVICE_SYNC.remoteTarget=localStorage.getItem("mlsp_remote_target")||"";
-    const remoteButton=$("barRemote");
-    if(remoteButton){remoteButton.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);remoteButton.textContent="Connect";}
-    const deviceChip=$("deviceChip");if(deviceChip){deviceChip.textContent="Connect";deviceChip.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);}
-  }catch(e){}
+  try{ DEVICE_SYNC.cursor=Number(localStorage.getItem("mlsp_device_cursor")||0)||0; }catch(e){}
   try{
     await post("/api/devices/register",{device_id:DEVICE_SYNC.id,name:deviceLabel(),platform:navigator.platform||"web"});
+    await syncAccountSession(true);
     publishDeviceState();
-    setInterval(publishDeviceState,7000);
-    setInterval(pollDeviceCommands,8000);
+    setInterval(publishDeviceState,5000);
+    setInterval(pollDeviceCommands,5000);
+    DEVICE_SYNC.sessionTimer=setInterval(()=>syncAccountSession(false),2500);
     connectDeviceSocket();
   }catch(e){ DEVICE_SYNC.started=false; }
 }
@@ -2486,6 +2502,8 @@ function connectDeviceSocket(){
         DEVICE_SYNC.cursor=Math.max(DEVICE_SYNC.cursor,id);
         try{localStorage.setItem("mlsp_device_cursor",String(DEVICE_SYNC.cursor));}catch(e){}
         applyDeviceCommand(command);
+      }else if(data.type==="session"){
+        applyAccountSession({owner_device_id:data.owner_device_id,state:data.state,updated_at:new Date().toISOString()});
       }else if(data.type==="state" && data.device_id){
         DEVICE_SYNC.remoteStates[data.device_id]=data.state||{};
         if(data.device_id===DEVICE_SYNC.remoteTarget)renderRemoteBar(data.state||{});
@@ -2515,6 +2533,41 @@ function publishDeviceState(){
     playing:actuallyPlaying,position:Math.floor(cur.currentTime||0),volume:cur.volume||0,
     track:track||null,queue:q,index:S.index
   }}).catch(()=>{});
+}
+function applyAccountSession(session, initial=false){
+  if(!session || !session.owner_device_id || !session.state) return;
+  DEVICE_SYNC.session=session;
+  const owner=session.owner_device_id, state=session.state||{};
+  const queue=Array.isArray(state.queue)&&state.queue.length?state.queue:(state.track?[state.track]:[]);
+  if(owner!==DEVICE_SYNC.id){
+    DEVICE_SYNC.remoteTarget=owner;
+    DEVICE_SYNC.remoteStates[owner]=state;
+    try{localStorage.removeItem("mlsp_remote_target");}catch(e){}
+    if(queue.length){S.queue=queue.slice(0,30);S.index=Math.max(0,Math.min(S.queue.length-1,Number(state.index)||0));}
+    renderRemoteBar(state);
+    const b=$("barRemote"), chip=$("deviceChip");
+    if(b){b.classList.add("on");b.textContent="Connect";}
+    if(chip){chip.classList.add("on");chip.textContent="Connect";}
+    return;
+  }
+  DEVICE_SYNC.remoteTarget="";
+  try{localStorage.removeItem("mlsp_remote_target");}catch(e){}
+  if(queue.length && (initial || !current())){
+    S.queue=queue.slice(0,30);
+    S.index=Math.max(0,Math.min(S.queue.length-1,Number(state.index)||0));
+    if(current()){paint(current());paintPlayState();}
+  }
+  const b=$("barRemote"), chip=$("deviceChip");
+  if(b){b.classList.remove("on");b.textContent="Connect";}
+  if(chip){chip.classList.remove("on");chip.textContent="Connect";}
+}
+async function syncAccountSession(initial=false){
+  if(!DEVICE_SYNC.id || !S.me || DEVICE_SYNC.sessionPolling || document.visibilityState==="hidden") return;
+  DEVICE_SYNC.sessionPolling=true;
+  try{
+    const d=await get("/api/player/session");
+    if(d.session) applyAccountSession(d.session,initial);
+  }catch(e){}finally{DEVICE_SYNC.sessionPolling=false;}
 }
 async function pollDeviceCommands(){
   if(!DEVICE_SYNC.id || DEVICE_SYNC.polling || document.visibilityState==="hidden") return;
@@ -2586,21 +2639,27 @@ async function openDevices(){
 }
 async function selectPlaybackDevice(targetId, devices){
   if(targetId===DEVICE_SYNC.id){
-    const source=devices.find(x=>x.device_id!==DEVICE_SYNC.id && x.active && x.state && x.state.track);
-    if(!source){setRemoteTarget("");return;}
-    const state=source.state||{}, queue=Array.isArray(state.queue)&&state.queue.length?state.queue:[state.track];
-    const index=Math.max(0,Math.min(queue.length-1,Number(state.index)||0));
-    const position=Math.max(0,Number(state.position)||0);
-    setRemoteTarget("");
-    S.queue=queue.slice(0,30);S.index=Math.min(index,S.queue.length-1);
     try{
+      const latest=await get("/api/player/session");
+      const session=latest.session||DEVICE_SYNC.session||{};
+      const sourceId=session.owner_device_id||DEVICE_SYNC.remoteTarget;
+      const source=devices.find(x=>x.device_id===sourceId);
+      const state=session.state||(source&&source.state)||{};
+      const queue=Array.isArray(state.queue)&&state.queue.length?state.queue:(state.track?[state.track]:[]);
+      if(!queue.length){setRemoteTarget("");return;}
+      const index=Math.max(0,Math.min(queue.length-1,Number(state.index)||0));
+      const position=Math.max(0,Number(state.position)||0);
+      DEVICE_SYNC.remoteTarget="";
+      S.queue=queue.slice(0,30);S.index=Math.min(index,S.queue.length-1);
       const started=await play(current());
       if(!started)return;
       if(position>0){
         const seek=()=>{try{cur.currentTime=position;}catch(e){}cur.removeEventListener("loadedmetadata",seek);};
         if(cur.readyState>=1)seek();else cur.addEventListener("loadedmetadata",seek,{once:true});
       }
-      await post("/api/devices/command",{device_id:source.device_id,action:"pause",payload:{}});
+      await post("/api/player/session",{device_id:DEVICE_SYNC.id,state:{track:current(),queue:S.queue.slice(0,30),index:S.index,position,playing:true,volume:cur.volume||1}});
+      if(sourceId && sourceId!==DEVICE_SYNC.id) await post("/api/devices/command",{device_id:sourceId,action:"pause",payload:{}});
+      await syncAccountSession(false);
       toast("Тепер слухаєш на цьому пристрої");
       closeModal();
     }catch(e){toast(e.message||"Не вдалося перемкнути відтворення");}
@@ -2659,6 +2718,10 @@ function barTogglePlay(){
   if(DEVICE_SYNC.remoteTarget){
     const state=DEVICE_SYNC.remoteStates[DEVICE_SYNC.remoteTarget]||{};
     return sendDeviceCommand(DEVICE_SYNC.remoteTarget,state.playing?"pause":"play");
+  }
+  if(current() && !cur.src && DEVICE_SYNC.session && DEVICE_SYNC.session.state){
+    const pos=Number(DEVICE_SYNC.session.state.position)||0;
+    return play(current()).then(ok=>{if(ok && pos>0){try{cur.currentTime=pos;}catch(e){}}});
   }
   togglePlay();
 }
