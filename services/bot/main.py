@@ -63,9 +63,9 @@ BOT_LANG_CODES = {c for c, _ in BOT_LANGS}
 
 BOT_TR = {
     "uk": {
-        "welcome": ("👋 <b>{name}</b> 🎶 — 600 000+ треків з Jamendo, Audius та Internet "
-            "Archive, тільки легальна музика.\n"
-            "Напишіть назву пісні чи артиста, або тисніть кнопку нижче 👇"),
+        "welcome": ("👋 <b>{name}</b> 🎶 — шукайте музику із SoundCloud та відкритих каталогів "
+            "Jamendo, Audius й Internet Archive.\n"
+            "Напишіть назву пісні чи артиста або відкрийте плеєр нижче 👇"),
         "btn_open_player": "🎧 Відкрити плеєр", "btn_premium": "✨ Premium",
         "btn_invite": "🤝 Запросити друга", "btn_admin": "🛠 Адмінка", "btn_back": "← Назад",
         "premium_active_title": "✨ <b>Premium активний</b>", "premium_active_until": "Діє до {until} · дякуємо, що підтримуєте проєкт!",
@@ -87,9 +87,9 @@ BOT_TR = {
         "lang_changed": "✅ Мову змінено на {lang}.",
     },
     "ru": {
-        "welcome": ("👋 <b>{name}</b> 🎶 — 600 000+ треков с Jamendo, Audius и Internet "
-            "Archive, только легальная музыка.\n"
-            "Напишите название песни или артиста, или нажмите кнопку ниже 👇"),
+        "welcome": ("👋 <b>{name}</b> 🎶 — ищите музыку из SoundCloud и открытых каталогов "
+            "Jamendo, Audius и Internet Archive.\n"
+            "Напишите название песни или артиста либо откройте плеер ниже 👇"),
         "btn_open_player": "🎧 Открыть плеер", "btn_premium": "✨ Premium",
         "btn_invite": "🤝 Пригласить друга", "btn_admin": "🛠 Админка", "btn_back": "← Назад",
         "premium_active_title": "✨ <b>Premium активен</b>", "premium_active_until": "Действует до {until} · спасибо, что поддерживаете проект!",
@@ -105,9 +105,9 @@ BOT_TR = {
         "lang_changed": "✅ Язык изменён на {lang}.",
     },
     "en": {
-        "welcome": ("👋 <b>{name}</b> 🎶 — 600,000+ tracks from Jamendo, Audius and "
-            "Internet Archive, all fully legal.\n"
-            "Type a song or artist, or tap the button below 👇"),
+        "welcome": ("👋 <b>{name}</b> 🎶 — discover music from SoundCloud and open catalogs "
+            "including Jamendo, Audius and Internet Archive.\n"
+            "Type a song or artist, or open the player below 👇"),
         "btn_open_player": "🎧 Open player", "btn_premium": "✨ Premium",
         "btn_invite": "🤝 Invite a friend", "btn_admin": "🛠 Admin panel", "btn_back": "← Back",
         "premium_active_title": "✨ <b>Premium is active</b>", "premium_active_until": "Active until {until} · thanks for supporting the project!",
@@ -129,9 +129,9 @@ BOT_TR = {
         "lang_changed": "✅ Language changed to {lang}.",
     },
     "pl": {
-        "welcome": ("👋 <b>{name}</b> 🎶 — ponad 600 000 utworów z Jamendo, Audius i "
-            "Internet Archive, w pełni legalnie.\n"
-            "Wpisz nazwę utworu lub artysty, albo naciśnij przycisk poniżej 👇"),
+        "welcome": ("👋 <b>{name}</b> 🎶 — odkrywaj muzykę z SoundCloud oraz otwartych katalogów "
+            "Jamendo, Audius i Internet Archive.\n"
+            "Wpisz tytuł utworu lub artystę albo otwórz odtwarzacz poniżej 👇"),
         "btn_open_player": "🎧 Otwórz odtwarzacz", "btn_premium": "✨ Premium",
         "btn_invite": "🤝 Zaproś znajomego", "btn_admin": "🛠 Panel admina", "btn_back": "← Wstecz",
         "premium_active_title": "✨ <b>Premium jest aktywne</b>", "premium_active_until": "Ważne do {until} · dziękujemy za wsparcie!",
@@ -147,9 +147,9 @@ BOT_TR = {
         "lang_changed": "✅ Język zmieniono na {lang}.",
     },
     "de": {
-        "welcome": ("👋 <b>{name}</b> 🎶 — über 600.000 Tracks von Jamendo, Audius und "
-            "Internet Archive, komplett legal.\n"
-            "Schreib einen Song- oder Künstlernamen, oder tippe den Button unten 👇"),
+        "welcome": ("👋 <b>{name}</b> 🎶 — entdecke Musik von SoundCloud und aus offenen Katalogen "
+            "wie Jamendo, Audius und Internet Archive.\n"
+            "Schreib einen Song- oder Künstlernamen oder öffne den Player unten 👇"),
         "btn_open_player": "🎧 Player öffnen", "btn_premium": "✨ Premium",
         "btn_invite": "🤝 Freund einladen", "btn_admin": "🛠 Admin-Panel", "btn_back": "← Zurück",
         "premium_active_title": "✨ <b>Premium ist aktiv</b>", "premium_active_until": "Gültig bis {until} · danke für deine Unterstützung!",
@@ -165,9 +165,9 @@ BOT_TR = {
         "lang_changed": "✅ Sprache geändert zu {lang}.",
     },
     "es": {
-        "welcome": ("👋 <b>{name}</b> 🎶 — más de 600 000 pistas de Jamendo, Audius e "
-            "Internet Archive, totalmente legal.\n"
-            "Escribe una canción o artista, o pulsa el botón de abajo 👇"),
+        "welcome": ("👋 <b>{name}</b> 🎶 — descubre música de SoundCloud y de catálogos abiertos "
+            "como Jamendo, Audius e Internet Archive.\n"
+            "Escribe una canción o artista, o abre el reproductor abajo 👇"),
         "btn_open_player": "🎧 Abrir reproductor", "btn_premium": "✨ Premium",
         "btn_invite": "🤝 Invitar a un amigo", "btn_admin": "🛠 Panel admin", "btn_back": "← Atrás",
         "premium_active_title": "✨ <b>Premium está activo</b>", "premium_active_until": "Activo hasta {until} · ¡gracias por apoyar el proyecto!",
@@ -183,9 +183,9 @@ BOT_TR = {
         "lang_changed": "✅ Idioma cambiado a {lang}.",
     },
     "fr": {
-        "welcome": ("👋 <b>{name}</b> 🎶 — plus de 600 000 titres de Jamendo, Audius et "
-            "Internet Archive, entièrement légal.\n"
-            "Écris un titre ou un artiste, ou touche le bouton ci-dessous 👇"),
+        "welcome": ("👋 <b>{name}</b> 🎶 — découvre la musique de SoundCloud et des catalogues ouverts "
+            "comme Jamendo, Audius et Internet Archive.\n"
+            "Saisis un titre ou un artiste, ou ouvre le lecteur ci-dessous 👇"),
         "btn_open_player": "🎧 Ouvrir le lecteur", "btn_premium": "✨ Premium",
         "btn_invite": "🤝 Inviter un ami", "btn_admin": "🛠 Panneau admin", "btn_back": "← Retour",
         "premium_active_title": "✨ <b>Premium est actif</b>", "premium_active_until": "Actif jusqu'au {until} · merci de soutenir le projet !",
@@ -201,9 +201,9 @@ BOT_TR = {
         "lang_changed": "✅ Langue changée pour {lang}.",
     },
     "tr": {
-        "welcome": ("👋 <b>{name}</b> 🎶 — Jamendo, Audius ve Internet Archive'dan 600 "
-            "binden fazla tamamen yasal parça.\n"
-            "Bir şarkı ya da sanatçı yaz, ya da aşağıdaki düğmeye dokun 👇"),
+        "welcome": ("👋 <b>{name}</b> 🎶 — SoundCloud ve Jamendo, Audius, Internet Archive gibi "
+            "açık kataloglardan müzik keşfet.\n"
+            "Bir şarkı ya da sanatçı yaz veya aşağıdan oynatıcıyı aç 👇"),
         "btn_open_player": "🎧 Oynatıcıyı aç", "btn_premium": "✨ Premium",
         "btn_invite": "🤝 Arkadaş davet et", "btn_admin": "🛠 Yönetim paneli", "btn_back": "← Geri",
         "premium_active_title": "✨ <b>Premium aktif</b>", "premium_active_until": "{until} tarihine kadar aktif · projeyi desteklediğin için teşekkürler!",
