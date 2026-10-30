@@ -1378,9 +1378,13 @@ async function req(path, opts={}){
   let res;
   try{
     res = await fetch(API+path, {
-      ...opts, signal:controller.signal,
-      headers:{ "Content-Type":"application/json",
-                "X-Telegram-Init-Data": INIT, ...(opts.headers||{}) ,ui_no_genres:"Tür yok",ui_genres_error:"Türler yüklenemedi",ui_stats_error:"İstatistikler yüklenemedi",ui_listener:"Dinleyici",ui_premium_active:"Premium etkin",ui_free_plan:"Ücretsiz plan",ui_admin:"Yönetici",ui_admin_open:"Yönetici panelini aç",ui_track_radio:"Bu parçadan radyo başlat",ui_open_original:"Orijinali aç",ui_stream_error:"Kaynak akış sağlamadı",ui_track_skip:"Parça kullanılamıyor, geçiliyor",ui_shuffle_on:"Karışık çalma açık",ui_shuffle_off:"Liste sırasıyla çal",ui_repeat_off:"Tekrar kapalı",ui_repeat_queue:"Sırayı tekrarla",ui_repeat_track:"Parçayı tekrarla",ui_download_premium:"İndirme Premium'da kullanılabilir",ui_mood_premium:"Bu ruh hâli Premium'da kullanılabilir",ui_removed:"Kaldırıldı",ui_share_error:"Parça paylaşılamadı"},
+      ...opts,
+      signal:controller.signal,
+      headers:{
+        "Content-Type":"application/json",
+        "X-Telegram-Init-Data": INIT,
+        ...(opts.headers||{})
+      },
     });
   }catch(e){
     if(e && e.name === "AbortError") throw new Error("Сервер довго не відповідає. Спробуйте ще раз.");
