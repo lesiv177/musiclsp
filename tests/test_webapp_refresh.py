@@ -18,6 +18,15 @@ class MobileAppContractTests(unittest.TestCase):
         self.assertIn('/api/stream?id=', block)
         self.assertNotIn('return t.stream', block)
 
+    def test_genre_endpoint_combines_soundcloud_jamendo_and_audius(self):
+        api = Path("services/bot/api.py").read_text(encoding="utf-8")
+        start = api.index("async def h_home")
+        end = api.index("\n\n@require_auth", start)
+        block = api[start:end]
+        self.assertIn("P.soundcloud_search", block)
+        self.assertIn("P.jamendo_tag_tracks", block)
+        self.assertIn("P.audius_trending", block)
+
 
 if __name__ == "__main__":
     unittest.main()
