@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>MusicLSP</title>
+<title>MusicLSP 6.0</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -550,6 +550,50 @@ body.is-playing .bar .art{animation:barArtPulse 2.4s ease-in-out infinite}
 .admBody h3{margin:6px 0 10px;font-size:15px}
 .admMini{padding:7px 12px;border-radius:9px;background:var(--panel-2);font-size:12.5px;font-weight:500}
 .admMini.danger{color:#ff7a8a}
+/* ═══ MusicLSP 6.0 — visual refresh ═══ */
+#splash{isolation:isolate;background:
+  radial-gradient(70% 55% at 12% 16%,rgba(150,105,255,.24),transparent 72%),
+  radial-gradient(65% 55% at 88% 22%,rgba(55,218,190,.17),transparent 70%),
+  radial-gradient(80% 70% at 50% 100%,rgba(255,126,185,.13),transparent 72%),
+  linear-gradient(145deg,#080711 0%,#151027 52%,#090d18 100%)}
+#splash::before,#splash::after{content:"";position:absolute;z-index:0;pointer-events:none;
+  width:62vw;height:62vw;max-width:560px;max-height:560px;border-radius:50%;
+  filter:blur(58px);opacity:.34;will-change:transform}
+#splash::before{left:-22%;top:5%;background:radial-gradient(circle,rgba(143,99,255,.8),transparent 68%);
+  animation:splashDriftA 12s ease-in-out infinite alternate}
+#splash::after{right:-24%;bottom:0;background:radial-gradient(circle,rgba(64,220,190,.62),transparent 68%);
+  animation:splashDriftB 15s ease-in-out infinite alternate}
+#splash .splashBg{background-size:56% auto;filter:blur(82px) saturate(145%);opacity:.22}
+#splash .vinylWrap{filter:drop-shadow(0 24px 48px rgba(0,0,0,.32))}
+#splash .swordmark{filter:drop-shadow(0 7px 24px color-mix(in srgb,var(--accent) 35%,transparent))}
+#splash .stext{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#bdb4d6}
+@keyframes splashDriftA{to{transform:translate3d(16vw,10vh,0) scale(1.14)}}
+@keyframes splashDriftB{to{transform:translate3d(-14vw,-8vh,0) scale(1.18)}}
+.top{padding-top:13px;padding-bottom:13px;border-bottom-color:color-mix(in srgb,var(--line) 70%,transparent)}
+.mark{border-radius:12px;box-shadow:0 7px 22px color-mix(in srgb,var(--accent) 20%,transparent)}
+.sect{margin-top:22px}
+.sect h2{font-size:18px;margin-bottom:12px}
+.card,.row,.admStat{border:1px solid var(--line);box-shadow:0 8px 24px rgba(0,0,0,.10)}
+.searchbar{border:1px solid var(--line);box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.tab,.fchip,.pill{transition:transform .16s ease,background .18s ease,border-color .18s ease}
+.tab:active,.fchip:active,.pill:active{transform:scale(.96)}
+.nav{padding-bottom:env(safe-area-inset-bottom);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.sheet{padding-bottom:calc(18px + env(safe-area-inset-bottom))}
+.recent-searches{padding:14px 16px 4px}
+.recent-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;color:var(--muted);font-size:12px}
+.recent-head button{color:var(--accent);font-size:12px;padding:6px}
+.recent-chips{display:flex;gap:8px;flex-wrap:wrap}
+.recent-chip{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  padding:9px 12px;border:1px solid var(--line);border-radius:99px;background:var(--panel);
+  color:var(--ink);font-size:12px}
+body.data-saver .splashBg{filter:blur(34px);opacity:.12}
+body.data-saver #splash::before,body.data-saver #splash::after{animation:none;opacity:.14}
+body.data-saver .rows .row,body.data-saver .reel .card{animation:none!important}
+@media(prefers-reduced-motion:reduce){
+  #splash::before,#splash::after,#splash .vinyl,#splash .seq i{animation:none!important}
+  *,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important}
+}
+@media(max-width:380px){#splash .vinylWrap{width:196px;height:196px}.recent-searches{padding-left:12px;padding-right:12px}}
 </style>
 </head>
 <body>
@@ -697,6 +741,7 @@ body.is-playing .bar .art{animation:barArtPulse 2.4s ease-in-out infinite}
     <button class="pill" id="pillLike" onclick="toggleLike()"><span data-icon="heart"></span>Зберегти</button>
     <button class="pill" onclick="openAddToPlaylist()"><span data-icon="playlist-add"></span>У плейлист</button>
     <button class="pill" onclick="startRadio()"><span data-icon="radio"></span>Радіо</button>
+    <button class="pill" onclick="shareCurrentTrack()"><span data-icon="share"></span>Поділитися</button>
     <button class="pill" onclick="downloadCurrent()"><span data-icon="download"></span>MP3</button>
     <button class="pill" onclick="openQueue()"><span data-icon="queue"></span>Черга</button>
     <button class="pill" onclick="closeSheet()"><span data-icon="close"></span>Згорнути</button>
@@ -733,7 +778,7 @@ body.is-playing .bar .art{animation:barArtPulse 2.4s ease-in-out infinite}
 /* ════════ Ініціалізація ════════ */
 const tg = window.Telegram?.WebApp;
 tg?.ready(); tg?.expand();
-try { tg?.setHeaderColor?.("secondary_bg_color"); } catch(e){}
+try { tg?.setHeaderColor?.("#0E0B18"); tg?.setBackgroundColor?.("#0E0B18"); } catch(e){}
 // Telegram Mini App не має API для фонового відтворення — коли застосунок
 // повністю згорнутий чи закритий, Telegram зупиняє його WebView і музика
 // зупиняється. Це обмеження платформи, обійти його через JS неможливо.
@@ -752,13 +797,15 @@ const S = {
   liked:new Set(), playlists:[], eq:null, eqNodes:null, ctx:null,
   crossfade:0, sleepAt:0, sleepTimer:null, kind:"tracks", libView:"liked",
   sort:"relevance", sources:["jamendo","audius","archive","ccmixter","openverse","wikimedia","soundcloud"],
-  speed:1, nightQuiet:false,
+  speed:1, nightQuiet:false, dataSaver:false,
 };
 
 /* ── локальні комфорт-налаштування (швидкість, тихий вечір, моменти) ──
    Зберігаються тільки на пристрої: не потребують синхронізації з сервером. */
 try{ S.speed = parseFloat(localStorage.getItem("mlsp_speed")) || 1; }catch(e){}
 try{ S.nightQuiet = localStorage.getItem("mlsp_nightquiet") === "1"; }catch(e){}
+try{ S.dataSaver = localStorage.getItem("mlsp_data_saver") === "1"; }catch(e){}
+if(S.dataSaver) document.body.classList.add("data-saver");
 function isNightHours(){
   const h = new Date().getHours();
   return h >= 23 || h < 7;
@@ -1092,6 +1139,17 @@ const I18N = {
   },
 };
 
+const DATA_SAVER_LABELS = {
+  uk:["Економія трафіку","Менше фонових завантажень і передзавантаження аудіо"],
+  ru:["Экономия трафика","Меньше фоновых загрузок и предварительной загрузки аудио"],
+  en:["Data saver","Less background loading and audio prefetching"],
+  pl:["Oszczędzanie danych","Mniej pobierania w tle i wstępnego ładowania audio"],
+  de:["Datensparen","Weniger Hintergrund- und Audio-Vorladevorgänge"],
+  es:["Ahorro de datos","Menos cargas en segundo plano y precarga de audio"],
+  fr:["Économie de données","Moins de chargements en arrière-plan et de préchargement audio"],
+  tr:["Veri tasarrufu","Daha az arka plan yüklemesi ve ses ön yüklemesi"]
+};
+
 function t(key){
   const lang = (S.me && S.me.lang) || "uk";
   return (I18N[lang] && I18N[lang][key]) || I18N.uk[key] || key;
@@ -1174,15 +1232,20 @@ function toast(msg){
 /* ════════ API ════════ */
 async function req(path, opts={}){
   if(!API) throw new Error("Адресу API не передано. Відкрийте плеєр кнопкою в боті.");
+  const controller = new AbortController();
+  const timeout = setTimeout(()=>controller.abort(), 18000);
   let res;
   try{
     res = await fetch(API+path, {
-      ...opts,
+      ...opts, signal:controller.signal,
       headers:{ "Content-Type":"application/json",
                 "X-Telegram-Init-Data": INIT, ...(opts.headers||{}) },
     });
   }catch(e){
+    if(e && e.name === "AbortError") throw new Error("Сервер довго не відповідає. Спробуйте ще раз.");
     throw new Error("Немає зв'язку із сервером. Перевірте інтернет або перезапуск бота на Railway.");
+  }finally{
+    clearTimeout(timeout);
   }
   const data = await res.json().catch(()=>({}));
   if(!res.ok || data.ok === false) throw new Error(data.error || ("Помилка "+res.status));
@@ -1308,7 +1371,7 @@ function go(name){
   });
   if(name==="Me"){ refreshMe().then(renderProfile); renderProfile(); }
   if(name==="Lib") renderLibrary();
-  if(name==="Search") setTimeout(()=>$("qInput").focus(), 120);
+  if(name==="Search"){ setTimeout(()=>$("qInput").focus(), 120); if(!$("qInput").value.trim()) renderRecentSearches(); }
   window.scrollTo(0,0);
 }
 
@@ -1543,7 +1606,39 @@ async function loadGenresGrid(){
 let searchT;
 $("qInput").oninput = () => { clearTimeout(searchT); searchT = setTimeout(runSearch, 450); };
 $("qInput").onkeydown = e => { if(e.key==="Enter"){ clearTimeout(searchT); runSearch(); e.target.blur(); } };
-$("qClear").onclick = () => { $("qInput").value=""; $("qBody").innerHTML=""; };
+const SEARCH_HISTORY_KEY = "mlsp_recent_searches";
+const SEARCH_HISTORY_LABELS = {
+  uk:["Нещодавні запити","Очистити"],ru:["Недавние запросы","Очистить"],
+  en:["Recent searches","Clear"],pl:["Ostatnie wyszukiwania","Wyczyść"],
+  de:["Letzte Suchen","Leeren"],es:["Búsquedas recientes","Borrar"],
+  fr:["Recherches récentes","Effacer"],tr:["Son aramalar","Temizle"]
+};
+let SEARCH_SEQ = 0;
+function recentSearches(){
+  try{ const v=JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY)||"[]");
+    return Array.isArray(v)?v.filter(x=>typeof x==="string").slice(0,6):[]; }catch(e){ return []; }
+}
+function rememberSearch(query){
+  const q=(query||"").trim().slice(0,100); if(q.length<2) return;
+  try{ localStorage.setItem(SEARCH_HISTORY_KEY,JSON.stringify([q,...recentSearches().filter(x=>x.toLowerCase()!==q.toLowerCase())].slice(0,6)); }catch(e){}
+}
+function clearRecentSearches(){
+  try{ localStorage.removeItem(SEARCH_HISTORY_KEY); }catch(e){}
+  document.querySelector(".recent-searches")?.remove();
+}
+function renderRecentSearches(){
+  const root=$("qBody"), items=recentSearches(); if(!root||!items.length) return;
+  const labels=SEARCH_HISTORY_LABELS[S.me?.lang||"uk"]||SEARCH_HISTORY_LABELS.uk;
+  const box=document.createElement("div"); box.className="recent-searches";
+  box.innerHTML=`<div class="recent-head"><b>${labels[0]}</b><button type="button" id="clearRecentSearches">${labels[1]}</button></div>
+    <div class="recent-chips">${items.map(q=>`<button type="button" class="recent-chip" data-recent="${esc(q)}">${esc(q)}</button>`).join("")}</div>`;
+  root.appendChild(box);
+  box.querySelector("#clearRecentSearches").onclick=clearRecentSearches;
+  box.querySelectorAll("[data-recent]").forEach(b=>b.onclick=()=>{
+    $("qInput").value=b.dataset.recent; runSearch(); tap();
+  });
+}
+$("qClear").onclick = () => { $("qInput").value=""; $("qBody").innerHTML=""; renderRecentSearches(); SEARCH_SEQ++; };
 
 /* ════════ Гра "Вгадай трек" — прибрано з головного екрана на прохання,
    функції лишились нижче невикористаними на випадок, якщо гру захочуть
@@ -1663,23 +1758,28 @@ const NO_RESULTS_HINT =
 async function runSearch(){
   if(S.kind === "genres") return;
   const q = $("qInput").value.trim();
-  if(q.length < 2) return;
+  const seq = ++SEARCH_SEQ;
+  if(q.length < 2){ if(!q) renderRecentSearches(); return; }
+  rememberSearch(q);
   $("qBody").innerHTML = `<div class="skel"></div><div class="skel"></div><div class="skel"></div>`;
   try{
     if(S.kind === "all"){
       const params = `q=${encodeURIComponent(q)}&type=all&limit=15&sort=${S.sort}`;
       const d = await get(`/api/search?${params}`);
+      if(seq !== SEARCH_SEQ) return;
       renderAllResults(d.results);
       return;
     }
     const params = `q=${encodeURIComponent(q)}&type=${S.kind}&limit=40&sort=${S.sort}&sources=${S.sources.join(",")}`;
     const d = await get(`/api/search?${params}`);
+    if(seq !== SEARCH_SEQ) return;
     if(!d.results.length){
       // Нічого не знайшли в поточному типі (альбоми/артисти/жанр тощо) —
       // не показуємо порожній екран, а пробуємо ті самі слова серед треків.
       if(S.kind !== "tracks"){
         const fbParams = `q=${encodeURIComponent(q)}&type=tracks&limit=40&sort=${S.sort}&sources=${S.sources.join(",")}`;
         const fb = await get(`/api/search?${fbParams}`).catch(()=>({results:[]}));
+        if(seq !== SEARCH_SEQ) return;
         if(fb.results.length){
           $("qBody").innerHTML = `<div class="sect"><h2 data-i18n="search_tracks">Треки</h2></div>`;
           const wrap = document.createElement("div"); $("qBody").appendChild(wrap);
@@ -1696,6 +1796,7 @@ async function runSearch(){
     else mountRows($("qBody"), d.results, "search");
     applyI18n();
   }catch(e){
+    if(seq !== SEARCH_SEQ) return;
     $("qBody").innerHTML = `<div class="empty"><b data-i18n="nothing_worked_title">Нічого не вийшло</b>${esc(e.message)}</div>`;
     applyI18n();
   }
@@ -1966,29 +2067,41 @@ function play(t){
   if(!t) return;
   RESUME.pending = null; RETRY.n = 0;
   clearInterval(fadeTimer);
-  if(S.crossfade > 0 && S.playing){ crossfadeTo(t); }
+  let start;
+  if(S.crossfade > 0 && S.playing){ start = crossfadeTo(t); }
   else {
     cur.pause(); cur.src = streamUrl(t); cur.playbackRate = S.speed; cur.volume = nightCap(1);
-    cur.play().catch(err => toast("Джерело не віддало потік"));
+    start = cur.play();
   }
   S.playing = true;
   paint(t);
   reportPlay(t);
+  Promise.resolve(start).then(()=>{
+    S.playing = true; paintPlayState();
+  }).catch(()=>{
+    S.playing = false; paintPlayState();
+    toast("Джерело не віддало потік");
+  });
 }
 
 function crossfadeTo(t){
   const outgoing = cur, incoming = alt;
   incoming.src = streamUrl(t); incoming.playbackRate = S.speed; incoming.volume = 0;
-  incoming.play().catch(()=>{ outgoing.volume=nightCap(1); });
-  const steps = 20, ms = (S.crossfade*1000)/steps, cap = nightCap(1);
-  let k = 0;
-  fadeTimer = setInterval(()=>{
-    k++; const r = k/steps;
-    incoming.volume = Math.min(cap, r*cap);
-    outgoing.volume = Math.max(0, cap-r*cap);
-    if(k>=steps){ clearInterval(fadeTimer); outgoing.pause(); outgoing.volume = cap; }
-  }, ms);
-  cur = incoming; alt = outgoing;
+  return incoming.play().then(()=>{
+    const steps = 20, ms = (S.crossfade*1000)/steps, cap = nightCap(1);
+    let k = 0;
+    fadeTimer = setInterval(()=>{
+      k++; const r = k/steps;
+      incoming.volume = Math.min(cap, r*cap);
+      outgoing.volume = Math.max(0, cap-r*cap);
+      if(k>=steps){ clearInterval(fadeTimer); outgoing.pause(); outgoing.volume = cap; }
+    }, ms);
+    cur = incoming; alt = outgoing;
+  }).catch(err=>{
+    incoming.pause(); incoming.removeAttribute("src"); incoming.load();
+    outgoing.volume = nightCap(1);
+    throw err;
+  });
 }
 
 function setSpeed(v){
@@ -2009,8 +2122,10 @@ function togglePlay(){
   tap();
   if(!current()) return;
   if(RESUME.pending){ startPending(); return; }
-  if(cur.paused){ cur.play(); S.playing = true; } else { cur.pause(); S.playing = false; }
-  paintPlayState();
+  if(cur.paused){
+    cur.play().then(()=>{ S.playing = true; paintPlayState(); })
+      .catch(()=>{ S.playing = false; paintPlayState(); toast("Не вдалося відновити відтворення"); });
+  }else{ cur.pause(); S.playing = false; paintPlayState(); }
 }
 
 function nextTrack(auto){
@@ -2276,6 +2391,21 @@ async function toggleLike(){
   }catch(e){ toast(e.message); }
 }
 
+async function shareCurrentTrack(){
+  const tr=current(); if(!tr) return toast("Спершу оберіть трек");
+  const title=(tr.title||"Трек")+" — "+(tr.artist||"Невідомий артист");
+  const original=tr.source_url||"";
+  const text=original ? title+"\\nОригінал: "+original : title;
+  const url=original || location.href;
+  const telegramUrl="https://t.me/share/url?url="+encodeURIComponent(url)+"&text="+encodeURIComponent(text);
+  try{
+    if(tg?.openTelegramLink){ tg.openTelegramLink(telegramUrl); return; }
+    if(navigator.share){ await navigator.share({title, text, url}); return; }
+    if(navigator.clipboard?.writeText){ await navigator.clipboard.writeText(text); toast("Посилання скопійовано"); return; }
+    toast("Не вдалося відкрити поширення");
+  }catch(e){ if(e?.name!=="AbortError") toast("Не вдалося поділитися треком"); }
+}
+
 function openTrackMenu(t){
   tap();
   showModal(`<h3>${esc(t.title)}</h3>
@@ -2416,6 +2546,9 @@ function renderProfile(){
       <div class="opt"><div class="lbl"><b data-i18n="pr_night">Тихий вечір</b>
         <span data-i18n="pr_night_sub">23:00–07:00 — гучність сама стає м'якшою</span></div>
         <div class="sw ${S.nightQuiet?"on":""}" id="swNight"></div></div>
+      <div class="opt"><div class="lbl"><b id="dataSaverTitle">Економія трафіку</b>
+        <span id="dataSaverHint">Менше фонових завантажень і передзавантаження аудіо</span></div>
+        <div class="sw ${S.dataSaver?"on":""}" id="swDataSaver" role="switch" aria-checked="${S.dataSaver?"true":"false"}"></div></div>
     </div>
 
     <div class="sect"><h2 data-i18n="pr_theme">Тема</h2>
@@ -2532,6 +2665,19 @@ function bindProfile(){
   };
 
   $("swNight").onclick = () => { tap(); toggleNightQuiet(); };
+  const dsLabels = DATA_SAVER_LABELS[S.me?.lang||"uk"] || DATA_SAVER_LABELS.uk;
+  $("dataSaverTitle").textContent = dsLabels[0];
+  $("dataSaverHint").textContent = dsLabels[1];
+  $("swDataSaver").onclick = () => {
+    S.dataSaver = !S.dataSaver;
+    try{ localStorage.setItem("mlsp_data_saver", S.dataSaver ? "1" : "0"); }catch(e){}
+    document.body.classList.toggle("data-saver", S.dataSaver);
+    $("swDataSaver").classList.toggle("on", S.dataSaver);
+    $("swDataSaver").setAttribute("aria-checked", S.dataSaver ? "true" : "false");
+    toast(S.dataSaver ? dsLabels[0] + ": ON" : dsLabels[0] + ": OFF");
+    if(!S.dataSaver) prefetchNext();
+    tap();
+  };
 
   $("themeRow").querySelectorAll(".swatch").forEach(b => b.onclick = async () => {
     const t = b.dataset.theme;
@@ -3116,7 +3262,7 @@ window.addEventListener("online", ()=>{
 const PRE = new Audio(); PRE.preload = "auto"; PRE.muted = true;
 let preBusy = false;
 async function prefetchNext(){
-  if(preBusy || S.shuffle || !S.queue.length) return;
+  if(preBusy || S.shuffle || S.dataSaver || !S.queue.length) return;
   preBusy = true;
   try{
     for(let k=1; k<=2; k++){
