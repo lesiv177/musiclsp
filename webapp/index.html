@@ -2497,6 +2497,11 @@ function connectDeviceSocket(){
     };
     socket.onmessage=event=>{
       let data;try{data=JSON.parse(event.data);}catch(e){return;}
+      if(data.type==="reset"){
+        clearLocalDeviceIdentity();
+        location.reload();
+        return;
+      }
       if(data.type==="command" && data.device_id===DEVICE_SYNC.id && data.command){
         const command=data.command, id=Number(command.id)||0;
         if(id && id<=DEVICE_SYNC.cursor)return;
@@ -2644,6 +2649,35 @@ async function applyDeviceCommand(command){
   if(command.action==="volume" && Number.isFinite(Number(p.volume))){cur.volume=Math.max(0,Math.min(1,Number(p.volume)));publishDeviceState();}
 }
 
+async function claimLocalPlayback(){
+  if(!DEVICE_SYNC.id || !S.me || !current() || !cur || cur.paused) return false;
+  const state={track:current(),queue:S.queue.slice(0,30),index:S.index,
+    position:Math.floor(cur.currentTime||0),duration:Math.floor(cur.duration||0),
+    playing:true,volume:Math.max(0,Math.min(1,Number(cur.volume)||0))};
+  try{
+    const result=await post("/api/player/session",{device_id:DEVICE_SYNC.id,state});
+    DEVICE_SYNC.session=result.session||{owner_device_id:DEVICE_SYNC.id,state,updated_at:new Date().toISOString()};
+    return true;
+  }catch(e){
+    console.warn("MusicLSP session claim failed",e);
+    return false;
+  }
+}
+function clearLocalDeviceIdentity(){
+  try{
+    localStorage.removeItem("mlsp_device_id");
+    localStorage.removeItem("mlsp_device_cursor");
+    localStorage.removeItem("mlsp_remote_target");
+  }catch(e){}
+}
+async function resetDeviceLinks(){
+  if(!confirm("Очистити всі пристрої та сесію відтворення цього Telegram-акаунта? Плейлисти й бібліотека залишаться.")) return;
+  try{
+    await post("/api/devices/reset",{});
+    clearLocalDeviceIdentity();
+    location.reload();
+  }catch(e){toast(e.message||"Не вдалося очистити прив’язки");}
+}
 async function openDevices(){
   showModal('<div class="spotify-connect-head"><span>Пристрої</span><button class="connect-close" onclick="closeModal()">×</button></div><div id="devicesList"><div class="skel"></div></div>');
   try{
@@ -2686,6 +2720,12 @@ async function openDevices(){
     $("devicesList").querySelectorAll("[data-device-cmd]").forEach(b=>b.onclick=()=>sendDeviceCommand(b.dataset.id,b.dataset.deviceCmd));
     $("devicesList").querySelectorAll("[data-device-volume]").forEach(el=>el.onchange=()=>sendDeviceCommand(el.dataset.deviceVolume,"volume",{volume:Number(el.value)/100}));
     $("devicesList").querySelectorAll("[data-device-seek]").forEach(el=>el.onchange=()=>sendDeviceCommand(el.dataset.deviceSeek,"seek",{position:Number(el.value)}));
+    const reset=document.createElement("button");
+    reset.className="btn ghost";
+    reset.textContent="Очистити всі прив’язки пристроїв";
+    reset.style.cssText="width:100%;margin-top:12px;color:#ff9b9b";
+    reset.onclick=resetDeviceLinks;
+    $("devicesList").appendChild(reset);
   }catch(e){ $("devicesList").innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
 }
 async function getTransferSnapshot(){
@@ -2881,6 +2921,7 @@ function play(t){
     reportPlay(t); // історія лише після фактичного старту аудіо
     paintPlayState();
     publishDeviceState();
+    await claimLocalPlayback();
     return true;
   }).catch(()=>{
     S.playing = false; paintPlayState();
