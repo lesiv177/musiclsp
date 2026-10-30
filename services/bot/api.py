@@ -19,7 +19,7 @@ import asyncio
 import urllib.parse
 
 import requests
-from aiohttp import web
+from aiohttp import WSMsgType, web
 
 from core import db
 from core import runtime as RT
@@ -33,6 +33,29 @@ from core.config import (
 )
 
 logger = logging.getLogger(__name__)
+
+_DEVICE_SOCKETS = {}
+
+
+async def broadcast_device_event(uid, event):
+    """Broadcast one event to all live sessions belonging to a Telegram user."""
+    uid = int(uid)
+    sockets = tuple(_DEVICE_SOCKETS.get(uid, ()))
+    stale = []
+    for socket in sockets:
+        if socket.closed:
+            stale.append(socket)
+            continue
+        try:
+            await socket.send_json(event)
+        except Exception:
+            stale.append(socket)
+    bucket = _DEVICE_SOCKETS.get(uid)
+    if bucket is not None:
+        for socket in stale:
+            bucket.discard(socket)
+        if not bucket:
+            _DEVICE_SOCKETS.pop(uid, None)
 
 CORS = {
     "Access-Control-Allow-Origin": "*",
@@ -294,6 +317,7 @@ async def h_device_state(request, u):
                               json.dumps(safe, ensure_ascii=False))
     if not updated:
         return fail("Пристрій не зареєстрований", 404)
+    await broadcast_device_event(int(u["uid"]), {"type": "state", "device_id": device_id, "state": safe})
     return ok({"ok": True})
 
 
@@ -314,12 +338,27 @@ async def h_device_command(request, u):
         return fail("Невідома команда")
     if not valid_device_id(device_id) or not isinstance(payload, dict):
         return fail("Некоректна команда")
+    uid = int(u["uid"])
+    devices = await to_thread(db.device_list, uid)
+    target = next((item for item in devices if item.get("device_id") == device_id), None)
+    if not target or not target.get("active"):
+        return fail("Пристрій зараз не в мережі", 404)
+    if action == "play" and not payload:
+        state = target.get("state") or {}
+        queue = state.get("queue") if isinstance(state.get("queue"), list) else []
+        if not queue and state.get("track"):
+            queue = [state["track"]]
+        if not queue:
+            return fail("На пристрої немає треку для відновлення", 409)
+        payload = {"queue": queue[:30], "index": state.get("index", 0), "position": state.get("position", 0)}
     encoded = json.dumps(payload, ensure_ascii=False)
     if len(encoded) > 30000:
         return fail("Завелика команда")
-    command_id = await to_thread(db.device_command_add, int(u["uid"]), device_id, action, encoded)
+    command_id = await to_thread(db.device_command_add, uid, device_id, action, encoded)
     if command_id is None:
         return fail("Пристрій не знайдено або вже не в мережі", 404)
+    command = {"id": command_id, "action": action, "payload": payload}
+    await broadcast_device_event(uid, {"type": "command", "device_id": device_id, "command": command})
     return ok({"ok": True, "command_id": command_id})
 
 
@@ -331,6 +370,46 @@ async def h_device_commands(request, u):
         return fail("Некоректний запит")
     commands = await to_thread(db.device_commands_get, int(u["uid"]), device_id, after)
     return ok({"ok": True, "commands": commands})
+
+
+async def h_devices_ws(request):
+    """Authenticated low-latency event channel for this user's devices."""
+    user = auth_user(request)
+    if not user:
+        return fail("Потрібен вхід через Telegram", 401)
+    uid = int(user["uid"])
+    device_id = str(request.query.get("device_id") or "")
+    after = bounded_int(request.query.get("after"), 0, 0, 2147483647)
+    if not valid_device_id(device_id) or after is None:
+        return fail("Некоректний запит")
+    devices = await to_thread(db.device_list, uid)
+    if not any(item.get("device_id") == device_id for item in devices):
+        return fail("Пристрій не зареєстрований", 404)
+    ws = web.WebSocketResponse(heartbeat=25, max_msg_size=4096, compress=False)
+    if not ws.can_prepare(request).ok:
+        return fail("Очікується WebSocket-з’єднання", 400)
+    await ws.prepare(request)
+    bucket = _DEVICE_SOCKETS.setdefault(uid, set())
+    bucket.add(ws)
+    try:
+        await ws.send_json({"type": "ready", "device_id": device_id})
+        for item in devices:
+            await ws.send_json({"type": "state", "device_id": item.get("device_id"), "state": item.get("state") or {}})
+        pending = await to_thread(db.device_commands_get, uid, device_id, after)
+        for command in pending:
+            await ws.send_json({"type": "command", "device_id": device_id, "command": command})
+        async for message in ws:
+            if message.type == WSMsgType.TEXT and message.data == "ping":
+                await ws.send_str("pong")
+            elif message.type in (WSMsgType.ERROR, WSMsgType.CLOSE, WSMsgType.CLOSED):
+                break
+    except (ConnectionError, RuntimeError, asyncio.CancelledError):
+        pass
+    finally:
+        bucket.discard(ws)
+        if not bucket:
+            _DEVICE_SOCKETS.pop(uid, None)
+    return ws
 
 
 # ─── Каталог ─────────────────────────────────────────────────────────────────
@@ -1272,6 +1351,7 @@ def build_app():
     r.add_post("/api/devices/state", h_device_state)
     r.add_post("/api/devices/command", h_device_command)
     r.add_get("/api/devices/commands", h_device_commands)
+    r.add_get("/api/devices/ws", h_devices_ws)
     r.add_get("/api/search", h_search)
     r.add_get("/api/home", h_home)
     r.add_get("/api/collections", h_collections)

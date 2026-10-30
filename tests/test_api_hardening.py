@@ -92,12 +92,42 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(saved["index"], 0)
         self.assertNotIn("duration", saved["track"])
 
+    async def test_device_command_is_pushed_to_connected_sessions(self):
+        request = SimpleNamespace(
+            headers={}, query={},
+            json=AsyncMock(return_value={"device_id": "pc-1", "action": "next", "payload": {}}),
+        )
+        with patch.object(api, "auth_user", return_value={"uid": 42}), \
+             patch.object(api, "to_thread", new=AsyncMock(side_effect=[
+                 [{"device_id": "pc-1", "active": True, "state": {}}], 77
+             ])), \
+             patch.object(api, "broadcast_device_event", new=AsyncMock()) as broadcast:
+            response = await api.h_device_command(request)
+        self.assertEqual(response.status, 200)
+        broadcast.assert_awaited_once_with(42, {
+            "type": "command", "device_id": "pc-1",
+            "command": {"id": 77, "action": "next", "payload": {}},
+        })
+
+    async def test_device_command_rejects_offline_target(self):
+        request = SimpleNamespace(
+            headers={}, query={},
+            json=AsyncMock(return_value={"device_id": "pc-1", "action": "next", "payload": {}}),
+        )
+        with patch.object(api, "auth_user", return_value={"uid": 42}), \
+             patch.object(api, "to_thread", new=AsyncMock(return_value=[
+                 {"device_id": "pc-1", "active": False, "state": {}}
+             ])) as run_thread:
+            response = await api.h_device_command(request)
+        self.assertEqual(response.status, 404)
+        self.assertEqual(run_thread.await_count, 1)
+
     def test_device_routes_are_registered(self):
         app = api.build_app()
         paths = {route.resource.canonical for route in app.router.routes()}
         self.assertTrue({
             "/api/devices", "/api/devices/register", "/api/devices/state",
-            "/api/devices/command", "/api/devices/commands",
+            "/api/devices/command", "/api/devices/commands", "/api/devices/ws",
         }.issubset(paths))
 
     def test_bounded_offline_download(self):

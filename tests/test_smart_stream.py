@@ -24,11 +24,11 @@ class StreamValidationTests(unittest.TestCase):
             self.assertTrue(smart.check_url("https://audio.example.test/unique-range-check"))
             session.return_value.get.assert_called_once()
 
-    def test_soundcloud_signed_stream_is_not_rejected_by_head_probe(self):
+    def test_unverified_soundcloud_stream_is_rejected(self):
         url = "https://cf-media.sndcdn.com/signed-stream-regression-test"
         with patch.object(smart.P, "resolve_stream", return_value=url), \
              patch.object(smart, "check_url", return_value=False):
-            self.assertEqual(smart._resolve_checked("sc:regression-test-unique", "mp32"), url)
+            self.assertEqual(smart._resolve_checked("sc:regression-test-unique", "mp32"), "")
 
 
     def test_force_refresh_bypasses_cached_stream_url(self):
@@ -36,7 +36,8 @@ class StreamValidationTests(unittest.TestCase):
         quality = "mp32"
         fresh_url = "https://cf-media.sndcdn.com/fresh-force-refresh-regression"
         smart.cache_put(("stream", track_id, quality), "https://old.example.test/stale", 300)
-        with patch.object(smart.P, "resolve_stream", return_value=fresh_url):
+        with patch.object(smart.P, "resolve_stream", return_value=fresh_url), \
+             patch.object(smart, "check_url", return_value=True):
             result = smart.resolve_stream_robust(
                 track_id, quality, "Regression title", "Regression artist", force=True
             )
