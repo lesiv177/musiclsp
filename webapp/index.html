@@ -763,6 +763,49 @@ body{background:radial-gradient(120% 45% at 50% -10%,color-mix(in srgb,var(--acc
 #barRemote.on{color:#1ed760;border-color:#1ed760}
 
 </style>
+
+<style>
+/* MusicLSP polish pass: compact, aligned player and clearer library */
+.nav{grid-template-columns:repeat(5,minmax(0,1fr))!important}
+.bar{display:none;grid-template-columns:46px minmax(0,1fr) 32px 32px 36px 32px;align-items:center;gap:7px;padding:8px 9px;min-height:64px}
+.bar.on{display:grid}
+.bar .art{width:46px;height:46px;min-width:46px;object-fit:cover;display:block;align-self:center}
+.bar .meta{min-width:0;align-self:center;display:flex;flex-direction:column;justify-content:center;gap:2px;line-height:1.2}
+.bar .iconbtn{width:32px;height:36px;min-width:0;min-height:36px;padding:0;margin:0;display:grid;place-items:center;align-self:center;justify-self:center;line-height:0;border:0}
+.bar .iconbtn.main{width:36px;height:36px}
+.bar .iconbtn .icon{display:block;width:19px;height:19px;vertical-align:middle;margin:0}
+.bar .iconbtn.main .icon{width:22px;height:22px;transform:translateX(1px)}
+.bar .iconbtn.like .icon{width:18px;height:18px}
+#libTabs{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding:7px;margin:0 0 18px;border:1px solid var(--line);border-radius:17px;background:color-mix(in srgb,var(--panel) 82%,transparent)}
+#libTabs::-webkit-scrollbar{display:none}
+#libTabs .tab{flex:1 0 auto;min-height:38px;padding:0 13px;border:0;border-radius:12px;background:transparent;color:var(--muted);font-size:12px;font-weight:650;white-space:nowrap}
+#libTabs .tab.on{background:var(--panel-2);color:var(--ink);box-shadow:0 3px 12px rgba(0,0,0,.14)}
+#libBody{min-height:180px;padding:2px 1px 16px}
+#libBody>.rows{padding:4px 0}
+#libBody .row{padding:10px 9px;border:1px solid color-mix(in srgb,var(--line) 70%,transparent)!important;border-radius:16px;margin-bottom:6px;background:color-mix(in srgb,var(--panel) 54%,transparent)!important}
+#libBody .row .art{width:50px;height:50px;border-radius:12px}
+#libBody .btn{width:100%;min-height:48px;font-weight:700;box-shadow:0 8px 24px color-mix(in srgb,var(--accent) 15%,transparent)}
+#libBody .empty{margin-top:10px;padding:28px 20px;border:1px dashed var(--line);border-radius:20px;background:color-mix(in srgb,var(--panel) 55%,transparent)}
+@media(max-width:380px){.bar{grid-template-columns:42px minmax(0,1fr) 28px 28px 34px 28px;gap:5px;padding:7px 7px}.bar .art{width:42px;height:42px;min-width:42px}.bar .iconbtn{width:28px}.bar .iconbtn.main{width:34px}}
+
+/* MusicLSP platform refresh */
+#barRemote,#deviceChip{display:grid;place-items:center;min-width:38px;width:38px;height:38px;padding:0;border-radius:13px;font-size:0}
+#barRemote .icon,#deviceChip .icon{width:20px;height:20px}
+#barRemote.on{color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.player-volume{display:flex;align-items:center;gap:12px;margin:18px 2px 22px;padding:14px 16px;border:1px solid var(--line);border-radius:18px;background:color-mix(in srgb,var(--panel) 88%,transparent)}
+.player-volume .icon{width:20px;height:20px;color:var(--muted);flex:0 0 auto}
+.player-volume input{appearance:none;-webkit-appearance:none;flex:1;min-width:0;height:5px;border-radius:99px;background:linear-gradient(90deg,var(--accent) var(--volume-progress,100%),var(--panel-2) var(--volume-progress,100%));outline:none;touch-action:pan-y}
+.player-volume input::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:17px;height:17px;border-radius:50%;background:var(--ink);border:3px solid var(--accent);box-shadow:0 2px 9px #0005}
+.player-volume input::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--ink);border:3px solid var(--accent)}
+.player-volume output{width:38px;text-align:right;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+.connect-device{border:1px solid var(--line);border-radius:18px;background:var(--panel);padding:14px;margin:10px 0;transition:border-color .18s,background .18s}
+.connect-device.selected{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--panel))}
+.device-platform{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;font-size:22px;background:var(--panel-2)}
+.device-connect{border-radius:999px;padding:8px 12px;font-size:11px;font-weight:700;background:var(--panel-2);color:var(--ink);border:1px solid var(--line)}
+.device-connect:active{transform:scale(.97)}
+.device-volume input{accent-color:var(--accent);min-width:90px}
+@media(max-width:380px){.player-volume{margin:14px 0 18px;padding:12px}.device-connect{padding:7px 9px}}
+</style>
 </head>
 <body>
 <div id="splash">
@@ -918,6 +961,7 @@ body{background:radial-gradient(120% 45% at 50% -10%,color-mix(in srgb,var(--acc
     <button class="iconbtn sm" id="btnRepeat" onclick="toggleRepeat()"><span data-icon="repeat"></span></button>
   </div>
 
+  <div class="player-volume" id="playerVolume" aria-label="Гучність плеєра"><span data-icon="volume"></span><input id="volumeSlider" type="range" min="0" max="100" value="100" aria-label="Гучність"><output id="volumeValue">100%</output></div>
   <div class="sheetacts">
     <button class="pill" id="pillLike" onclick="toggleLike()"><span data-icon="heart"></span>Зберегти</button>
     <button class="pill" onclick="openAddToPlaylist()"><span data-icon="playlist-add"></span>У плейлист</button>
@@ -2335,11 +2379,12 @@ function deviceId(){
   }catch(e){ return "mlsp-"+Date.now()+"-"+Math.random().toString(36).slice(2); }
 }
 function deviceLabel(){
-  const ua=navigator.userAgent||"";
-  if(/iPhone|iPad|iPod/i.test(ua)) return "iPhone / iPad";
+  const ua=navigator.userAgent||"", platform=navigator.platform||"";
+  if(/iPhone|iPod/i.test(ua)) return "iPhone";
+  if(/iPad/i.test(ua) || (/MacIntel/i.test(platform)&&navigator.maxTouchPoints>1)) return "iPad";
   if(/Android/i.test(ua)) return "Android";
-  if(/Macintosh|Mac OS/i.test(ua)) return "Mac";
-  if(/Windows/i.test(ua)) return "Windows";
+  if(/Windows/i.test(ua)||/Win32/i.test(platform)) return "Windows PC";
+  if(/Macintosh|Mac OS|MacIntel/i.test(ua+" "+platform)) return "Mac";
   return "Web player";
 }
 async function startDeviceSync(){
@@ -2353,12 +2398,39 @@ async function startDeviceSync(){
     const deviceChip=$("deviceChip");if(deviceChip)deviceChip.textContent=DEVICE_SYNC.remoteTarget?"ПК ✓":"ПК";
   }catch(e){}
   try{
-    await post("/api/devices/register",{device_id:DEVICE_SYNC.id,name:deviceLabel(),platform:navigator.platform||"web"});
+    await post("/api/devices/register",{device_id:DEVICE_SYNC.id,name:deviceLabel(),platform:(navigator.userAgent||"")+" "+(navigator.platform||"web")});
     publishDeviceState();
-    setInterval(publishDeviceState,7000);
-    setInterval(pollDeviceCommands,8000);
+    await autoConnectActiveDevice();
+    setInterval(publishDeviceState,3000);
+    setInterval(pollDeviceCommands,4000);
     connectDeviceSocket();
+    document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"){publishDeviceState();connectDeviceSocket();pollDeviceCommands();}});
   }catch(e){ DEVICE_SYNC.started=false; }
+}
+function isLocalPlaybackActive(){return !!(current()&&cur&&!cur.paused&&!cur.ended);}
+function devicePriority(x){
+  const s=((x.platform||"")+" "+(x.name||"")).toLowerCase();
+  return /windows|mac|linux|desktop|pc/.test(s)?3:(/ipad|tablet/.test(s)?2:1);
+}
+async function autoConnectActiveDevice(){
+  try{
+    const d=await get("/api/devices"), devices=d.devices||[];
+    devices.forEach(x=>{DEVICE_SYNC.remoteStates[x.device_id]=x.state||{};});
+    if(isLocalPlaybackActive()) return;
+    const active=devices.filter(x=>x.device_id!==DEVICE_SYNC.id&&x.active&&x.state&&x.state.playing&&x.state.track);
+    active.sort((a,b)=>devicePriority(b)-devicePriority(a));
+    const saved=devices.find(x=>x.device_id===DEVICE_SYNC.remoteTarget&&x.active);
+    const target=active[0]||saved;
+    if(target){setRemoteTarget(target.device_id);renderRemoteBar(DEVICE_SYNC.remoteStates[target.device_id]||target.state||{});}
+    else if(DEVICE_SYNC.remoteTarget){setRemoteTarget("");}
+  }catch(e){}
+}
+function deviceGlyph(deviceId){
+  const state=DEVICE_SYNC.remoteStates[deviceId]||{}, label=((state.platform||"")+" "+(state.name||"")).toLowerCase();
+  if(/iphone|ipad|ios/.test(label))return "smartphone";
+  if(/android/.test(label))return "smartphone";
+  if(/mac/.test(label))return "laptop";
+  return "monitor";
 }
 function connectDeviceSocket(){
   if(!DEVICE_SYNC.id || !S.me || !API || (DEVICE_SYNC.socket && [WebSocket.OPEN,WebSocket.CONNECTING].includes(DEVICE_SYNC.socket.readyState))) return;
@@ -2385,8 +2457,13 @@ function connectDeviceSocket(){
         try{localStorage.setItem("mlsp_device_cursor",String(DEVICE_SYNC.cursor));}catch(e){}
         applyDeviceCommand(command);
       }else if(data.type==="state" && data.device_id){
-        DEVICE_SYNC.remoteStates[data.device_id]=data.state||{};
-        if(data.device_id===DEVICE_SYNC.remoteTarget)renderRemoteBar(data.state||{});
+        const state={...(data.state||{}),_receivedAt:Date.now()};
+        DEVICE_SYNC.remoteStates[data.device_id]=state;
+        if(data.device_id===DEVICE_SYNC.remoteTarget)renderRemoteBar(state);
+        else if(state.playing&&state.track&&!DEVICE_SYNC.remoteTarget&&!isLocalPlaybackActive()){
+          setRemoteTarget(data.device_id);
+          renderRemoteBar(state);
+        }
       }
     };
     socket.onerror=()=>{try{socket.close();}catch(e){}};
@@ -2462,7 +2539,7 @@ async function openDevices(){
       const status=state.playing?"Зараз відтворюється":(track.title?"Призупинено":"Очікує відтворення");
       const platform=String((x.platform||"")+" "+(x.name||"")).toLowerCase();
       const deviceIcon=/mac|macintosh|mac os/.test(platform)?"apple":/windows|win32/.test(platform)?"windows":/iphone|ipad|ios/.test(platform)?"phone":/android/.test(platform)?"android":"monitor";
-      const icon=deviceIcon==="apple"?'':deviceIcon==="windows"?'⊞':deviceIcon==="phone"?'▯':deviceIcon==="android"?'◉':'▣';
+      const icon=deviceIcon==="apple"?'🍎':deviceIcon==="windows"?'🖥️':deviceIcon==="phone"?'📱':deviceIcon==="android"?'🤖':'💻';
       const controls=isOwn?"":'<div class="device-remote">'
         +'<button class="device-control" data-device-cmd="previous" data-id="'+esc(x.device_id)+'" aria-label="Попередній">⏮</button>'
         +'<button class="device-control primary" data-device-cmd="'+(state.playing?"pause":"play")+'" data-id="'+esc(x.device_id)+'">'+(state.playing?"Ⅱ":"▶")+'</button>'
@@ -2470,7 +2547,7 @@ async function openDevices(){
         +'<label class="device-volume">Гучність <input data-device-volume="'+esc(x.device_id)+'" type="range" min="0" max="100" value="'+Math.round((Number(state.volume)||0)*100)+'"></label>'
         +'</div>';
       const nowPlaying=track.title?'<div class="device-now"><span class="device-live '+(state.playing?"is-playing":"")+'"></span><span class="device-track">'+esc(track.title)+'</span><span class="device-artist">'+esc(track.artist||"")+'</span></div>':'<div class="device-now"><span class="device-track muted">Нічого не відтворюється</span></div>';
-      return '<div class="connect-device '+(DEVICE_SYNC.remoteTarget===x.device_id?"selected":"")+'"><div class="connect-device-head"><div class="device-platform '+deviceIcon+'">'+icon+'</div><div class="device-info"><div class="device-name">'+esc(x.name||"Пристрій")+(isOwn?' · '+esc(t("devices_this")):'')+'</div><div class="device-status"><i class="'+(x.active?"online":"offline")+'"></i>'+esc(x.active?(state.playing?"Відтворюється":status):t("devices_offline"))+'</div></div>'+(isOwn?'<span class="device-you">ЦЕЙ ПРИСТРІЙ</span>':'<button class="device-connect" data-remote-select="'+esc(x.device_id)+'">'+(DEVICE_SYNC.remoteTarget===x.device_id?"Підключено":"Підключити")+'</button>')+'</div>'+nowPlaying+controls+'</div>';
+      return '<div class="connect-device '+(DEVICE_SYNC.remoteTarget===x.device_id?"selected":"")+'"><div class="connect-device-head"><div class="device-platform '+deviceIcon+'">'+icon+'</div><div class="device-info"><div class="device-name">'+esc(x.name||"Пристрій")+(isOwn?' · '+esc(t("devices_this")):'')+'</div><div class="device-status"><i class="'+(x.active?"online":"offline")+'"></i>'+esc(x.active?(state.playing?"Відтворюється":status):t("devices_offline"))+'</div></div>'+(isOwn?'<span class="device-you">ЦЕЙ ПРИСТРІЙ</span>':'<button class="device-connect" data-remote-select="'+esc(x.device_id)+'">'+(DEVICE_SYNC.remoteTarget===x.device_id?"Керується":"Керувати")+'</button>')+'</div>'+nowPlaying+controls+'</div>';
     };    $("devicesList").innerHTML=(own?card(own,true):"")+(other.length?other.map(x=>card(x,false)).join(""):'<div class="empty">'+esc(t("devices_empty"))+'</div>');
     $("devicesList").querySelectorAll("[data-device-target]").forEach(b=>b.onclick=()=>handoffToDevice(b.dataset.deviceTarget));
     $("devicesList").querySelectorAll("[data-remote-select]").forEach(b=>b.onclick=()=>setRemoteTarget(DEVICE_SYNC.remoteTarget===b.dataset.remoteSelect?"":b.dataset.remoteSelect));
@@ -2482,8 +2559,9 @@ function setRemoteTarget(targetId){
   DEVICE_SYNC.remoteTarget=targetId||"";
   try{if(DEVICE_SYNC.remoteTarget)localStorage.setItem("mlsp_remote_target",DEVICE_SYNC.remoteTarget);else localStorage.removeItem("mlsp_remote_target");}catch(e){}
   const button=$("barRemote");
-  if(button){button.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);button.innerHTML=ICON("monitor","sm")+(DEVICE_SYNC.remoteTarget?" ПК":"");}
-  const deviceChip=$("deviceChip");if(deviceChip)deviceChip.innerHTML=ICON("monitor","sm")+" ПК";
+  const glyph=deviceGlyph(DEVICE_SYNC.remoteTarget);
+  if(button){button.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);button.innerHTML=ICON(glyph,"sm");button.title=DEVICE_SYNC.remoteTarget?"Керування активним пристроєм":"Вибір пристрою";button.setAttribute("aria-label",button.title);}
+  const deviceChip=$("deviceChip");if(deviceChip){deviceChip.innerHTML=ICON(glyph,"sm");deviceChip.title=DEVICE_SYNC.remoteTarget?"Активний пристрій":"Мої пристрої";}
   const state=DEVICE_SYNC.remoteStates[DEVICE_SYNC.remoteTarget];
   if(state)renderRemoteBar(state);
   else if(DEVICE_SYNC.remoteTarget)renderRemoteBar({playing:false,track:null});
@@ -3832,30 +3910,43 @@ async function prefetchNext(){
 }
 
 paintStaticIcons();
+
+// ── Player volume: visible, accessible and synchronized with remote playback.
+(function initPlayerVolume(){
+  const slider=$("volumeSlider"), output=$("volumeValue");
+  if(!slider||!output)return;
+  const initial=Number(localStorage.getItem("mlsp_volume"));
+  const value=Number.isFinite(initial)?Math.max(0,Math.min(1,initial)):(cur.volume||1);
+  slider.value=String(Math.round(value*100)); output.value=slider.value+"%";
+  const paintVolume=()=>{const n=Number(slider.value);slider.style.setProperty("--volume-progress",n+"%");output.value=n+"%";};
+  paintVolume();
+  slider.addEventListener("input",()=>{
+    const value=Math.max(0,Math.min(1,Number(slider.value)/100));paintVolume();
+    try{localStorage.setItem("mlsp_volume",String(value));}catch(e){}
+    if(DEVICE_SYNC.remoteTarget)sendDeviceCommand(DEVICE_SYNC.remoteTarget,"volume",{volume:value});
+    else cur.volume=value;
+  });
+  [A,B].forEach(audio=>audio.addEventListener("volumechange",()=>{
+    if(DEVICE_SYNC.remoteTarget)return;
+    const n=Math.round((audio.volume||0)*100);
+    if(document.activeElement!==slider){slider.value=String(n);paintVolume();}
+  }));
+})();
+setInterval(()=>{
+  if(!DEVICE_SYNC.remoteTarget)return;
+  const state=DEVICE_SYNC.remoteStates[DEVICE_SYNC.remoteTarget];if(!state)return;
+  const track=state.track||{}, duration=Number(track.duration)||0;
+  const pos=Math.max(0,Number(state.position)||0)+(state.playing?Math.max(0,Date.now()-(state._receivedAt||Date.now()))/1000:0);
+  if(duration>0){
+    const pct=Math.min(100,pos/duration*100);
+    $("npSeek").value=String(Math.round(pct*10));$("npCur").textContent=fmt(pos);$("npDur").textContent=fmt(duration);
+    $("barLine").style.width=pct+"%";
+  }
+  const slider=$("volumeSlider"),out=$("volumeValue");
+  if(slider&&document.activeElement!==slider&&Number.isFinite(Number(state.volume))){
+    slider.value=String(Math.round(state.volume*100));slider.style.setProperty("--volume-progress",slider.value+"%");if(out)out.value=slider.value+"%";
+  }
+},1000);
 </script>
 </body>
 </html>
-
-
-/* MusicLSP polish pass: compact, aligned player and clearer library */
-.nav{grid-template-columns:repeat(5,minmax(0,1fr))!important}
-.bar{display:none;grid-template-columns:46px minmax(0,1fr) 32px 32px 36px 32px;align-items:center;gap:7px;padding:8px 9px;min-height:64px}
-.bar.on{display:grid}
-.bar .art{width:46px;height:46px;min-width:46px;object-fit:cover;display:block;align-self:center}
-.bar .meta{min-width:0;align-self:center;display:flex;flex-direction:column;justify-content:center;gap:2px;line-height:1.2}
-.bar .iconbtn{width:32px;height:36px;min-width:0;min-height:36px;padding:0;margin:0;display:grid;place-items:center;align-self:center;justify-self:center;line-height:0;border:0}
-.bar .iconbtn.main{width:36px;height:36px}
-.bar .iconbtn .icon{display:block;width:19px;height:19px;vertical-align:middle;margin:0}
-.bar .iconbtn.main .icon{width:22px;height:22px;transform:translateX(1px)}
-.bar .iconbtn.like .icon{width:18px;height:18px}
-#libTabs{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding:7px;margin:0 0 18px;border:1px solid var(--line);border-radius:17px;background:color-mix(in srgb,var(--panel) 82%,transparent)}
-#libTabs::-webkit-scrollbar{display:none}
-#libTabs .tab{flex:1 0 auto;min-height:38px;padding:0 13px;border:0;border-radius:12px;background:transparent;color:var(--muted);font-size:12px;font-weight:650;white-space:nowrap}
-#libTabs .tab.on{background:var(--panel-2);color:var(--ink);box-shadow:0 3px 12px rgba(0,0,0,.14)}
-#libBody{min-height:180px;padding:2px 1px 16px}
-#libBody>.rows{padding:4px 0}
-#libBody .row{padding:10px 9px;border:1px solid color-mix(in srgb,var(--line) 70%,transparent)!important;border-radius:16px;margin-bottom:6px;background:color-mix(in srgb,var(--panel) 54%,transparent)!important}
-#libBody .row .art{width:50px;height:50px;border-radius:12px}
-#libBody .btn{width:100%;min-height:48px;font-weight:700;box-shadow:0 8px 24px color-mix(in srgb,var(--accent) 15%,transparent)}
-#libBody .empty{margin-top:10px;padding:28px 20px;border:1px dashed var(--line);border-radius:20px;background:color-mix(in srgb,var(--panel) 55%,transparent)}
-@media(max-width:380px){.bar{grid-template-columns:42px minmax(0,1fr) 28px 28px 34px 28px;gap:5px;padding:7px 7px}.bar .art{width:42px;height:42px;min-width:42px}.bar .iconbtn{width:28px}.bar .iconbtn.main{width:34px}}
