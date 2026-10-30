@@ -263,6 +263,14 @@ async def h_devices_get(request, u):
 
 
 @require_auth
+async def h_devices_reset(request, u):
+    """Reset only the authenticated Telegram user's Connect-style device state."""
+    result = await to_thread(db.playback_reset, int(u["uid"]))
+    await broadcast_device_event(int(u["uid"]), {"type": "reset"})
+    return ok({"ok": True, "reset": result})
+
+
+@require_auth
 async def h_device_register(request, u):
     try:
         body = await json_object(request)
@@ -1446,6 +1454,7 @@ def build_app():
     r.add_get("/api/resolve", h_resolve)
     r.add_post("/api/settings", h_settings)
     r.add_get("/api/devices", h_devices_get)
+    r.add_post("/api/devices/reset", h_devices_reset)
     r.add_get("/api/player/session", h_player_session_get)
     r.add_post("/api/player/session", h_player_session_claim)
     r.add_post("/api/devices/register", h_device_register)
