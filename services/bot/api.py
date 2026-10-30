@@ -82,9 +82,7 @@ async def to_thread(fn, *a, **kw):
 async def json_object(request):
     """Читає JSON-об'єкт; некоректне тіло не повинно перетворюватися на 500."""
     try:
-        body = await json_object(request)
-        if body is None:
-            return fail("Некоректний JSON або очікувався JSON-об’єкт")
+        body = await request.json()
     except (ValueError, web.HTTPException, UnicodeDecodeError):
         return None
     return body if isinstance(body, dict) else None
@@ -225,8 +223,11 @@ def safe_device_track(track):
         if isinstance(value, str):
             safe[key] = value[:2000 if key in ("cover", "source_url") else 240]
         elif isinstance(value, (int, float)) and not isinstance(value, bool):
-            if math.isfinite(float(value)):
-                safe[key] = value
+            try:
+                if math.isfinite(float(value)):
+                    safe[key] = value
+            except (OverflowError, ValueError):
+                continue
     safe["id"] = str(safe["id"])[:160]
     return safe if safe["id"] else None
 
