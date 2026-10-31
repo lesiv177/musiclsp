@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="./legacy.css?v=1">
 <link rel="stylesheet" href="./v2.css?v=4">
-<link rel="stylesheet" href="./redesign.css?v=8">
+<link rel="stylesheet" href="./redesign.css?v=9">
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
 </head>
 <body>
@@ -221,24 +221,26 @@ const API      = (params.get("api") || "").replace(/\/$/, "");
 const INIT     = tg?.initData || "";
 const START    = params.get("start") || tg?.initDataUnsafe?.start_param || "";
 
-function applyTelegramAvatar(){
+function applyTelegramAvatar(profile){
   const button=document.getElementById("topProfile");
   if(!button) return;
-  const user=tg?.initDataUnsafe?.user;
+  const tgUser=tg?.initDataUnsafe?.user || {};
+  const user=profile || {};
   const fallback=button.querySelector(".avatar-fallback");
-  if(fallback) fallback.textContent=(user?.first_name||"M").trim().slice(0,1).toUpperCase();
-  const photo=typeof user?.photo_url==="string" ? user.photo_url : "";
-  if(!photo || !/^https:\/\//i.test(photo)) return;
+  if(fallback) fallback.textContent=(tgUser.first_name||user.name||"").trim().slice(0,1).toUpperCase() || "♪";
+  const photo=[tgUser.photo_url,user.photo_url,user.avatar_url,user.photo].find(v=>typeof v==="string" && /^https:\/\//i.test(v)) || "";
+  if(!photo) return;
   let img=button.querySelector("img.telegram-avatar");
   if(!img){
     img=document.createElement("img");
     img.className="telegram-avatar";
     img.alt="";
     img.referrerPolicy="no-referrer";
+    img.decoding="async";
     img.onerror=()=>{ img.remove(); button.classList.remove("has-avatar"); };
     button.prepend(img);
   }
-  img.src=photo;
+  if(img.src!==photo) img.src=photo;
   button.classList.add("has-avatar");
 }
 const S = {
@@ -906,6 +908,7 @@ function revealApp(){
   try{
     const me = await get("/api/me");
     S.me = me.user; S.limits = me.limits; S.features = me.features;
+    applyTelegramAvatar(S.me);
     applyTheme(S.me.theme);
     S.crossfade = S.me.crossfade || 0;
     S.eq = S.me.eq || null;
