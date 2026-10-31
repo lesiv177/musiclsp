@@ -29,7 +29,7 @@ jobs:
           import pathlib, re
           html = pathlib.Path("webapp/index.html").read_text(encoding="utf-8")
           scripts = []
-          for match in re.finditer(r'<script\b([^>]*)>(.*?)</script>', html, flags=re.I|re.S):
+          for match in re.finditer(r'<script\b(?![^>]*\bsrc\s*=)([^>]*)>(.*?)</script>', html, flags=re.I|re.S):
               attrs, body = match.groups()
               kind = re.search(r"""\btype\s*=\s*["']([^"']+)["']""", attrs, flags=re.I)
               if kind is None or "javascript" in kind.group(1).lower():
