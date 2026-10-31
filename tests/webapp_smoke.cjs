@@ -59,10 +59,11 @@ const { spawn } = require("node:child_process");
   });
     await page.goto("http://127.0.0.1:8765/?api=https%3A%2F%2Fmock-api.local", { waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => document.querySelector("#appRoot")?.classList.contains("ready"), null, { timeout: 15000 });
+    await page.evaluate(() => { applyI18n(); applyI18n(); applyI18n(); });
     const navLabels = await page.locator(".nav.app-nav .nav-label").allTextContents();
     if (navLabels.length !== 4 || new Set(navLabels).size !== 4 ||
         navLabels.some(label => !label.trim())) {
-      throw new Error("Bottom navigation labels are missing or duplicated: " + JSON.stringify(navLabels));
+      throw new Error("Bottom navigation labels are missing or duplicated after repeated translations: " + JSON.stringify(navLabels));
     }
     if ((await page.locator("#topTitle").innerText()).trim() !== "MusicLSP") {
       throw new Error("Top header must show the brand, not repeat the current screen title");
