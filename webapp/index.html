@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="./legacy.css?v=1">
 <link rel="stylesheet" href="./v2.css?v=4">
-<link rel="stylesheet" href="./redesign.css?v=9">
+<link rel="stylesheet" href="./redesign.css?v=10">
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
 </head>
 <body>
@@ -1145,69 +1145,116 @@ async function loadHome(){
       loadDaily()
     ]);
     const sections=(homeData.sections||[]).filter(x=>Array.isArray(x.tracks)&&x.tracks.length);
+    const byId=Object.fromEntries(sections.map(s=>[s.id,s]));
+    const recent=byId.recent?.tracks||[];
+    const popular=byId.popular?.tracks||[];
+    const fresh=byId.fresh?.tracks||[];
+    const trending=byId.trending?.tracks||[];
     const moods=moodsData.moods||[];
     window.__moods=moods;
+
+    const featureItems=[
+      {id:"mix",title:"Мій мікс",sub:"На основі твоїх вподобань",tracks:recent.length?recent:(popular.length?popular:trending),tone:"mix"},
+      {id:"new",title:"Новинки",sub:"Найсвіжіші релізи",tracks:fresh.length?fresh:trending,tone:"new"},
+      {id:"popular",title:"Популярне",sub:"Тренди зараз",tracks:popular.length?popular:fresh,tone:"popular"},
+      {id:"relax",title:"Релакс",sub:"Спокійна музика",tracks:trending.length?trending:popular,tone:"relax"}
+    ].filter(item=>item.tracks?.length);
+    featureItems.forEach((item,i)=>CTX["feature"+i]=item.tracks);
+
     let out=`
       <section class="welcome-block">
-        <div class="welcome-copy"><span class="welcome-kicker">MUSICLSP • ТВОЯ МУЗИКА</span>
+        <div class="welcome-copy">
+          <span class="welcome-kicker">MUSICLSP <i></i> ТВОЯ МУЗИКА</span>
           <h1>Привіт!</h1>
           <p class="home-greeting-sub">Що будемо слухати сьогодні?</p>
-          <div class="searchbar home-searchbar" id="homeSearchBar">
-            <span data-icon="search" class="icon"></span>
-            <input id="homeSearchInput" type="search" placeholder="Пошук треків, виконавців, альбомів…" autocomplete="off">
-            <button class="act" id="welcomeSearch" type="button" aria-label="Пошук"><span data-icon="sort"></span></button>
-          </div>
         </div>
-        <div class="welcome-art" aria-hidden="true"><span>♫</span><i></i><b></b></div>
+        <svg class="welcome-wave" viewBox="0 0 520 190" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="mlWaveGradient" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stop-color="var(--accent)"/>
+              <stop offset=".52" stop-color="var(--accent-2)"/>
+              <stop offset="1" stop-color="var(--accent)"/>
+            </linearGradient>
+            <filter id="mlWaveGlow" x="-30%" y="-60%" width="160%" height="220%">
+              <feGaussianBlur stdDeviation="4"/>
+            </filter>
+          </defs>
+          <g fill="none" stroke="url(#mlWaveGradient)" stroke-linecap="round">
+            <path d="M-10 132 C75 28 105 28 180 102 S295 180 360 92 S455 12 540 66" stroke-width="4" opacity=".26" filter="url(#mlWaveGlow)"/>
+            <path d="M-10 120 C70 34 112 42 180 105 S292 172 360 91 S455 18 540 58" stroke-width="1.8" opacity=".95"/>
+            <path d="M-10 130 C70 44 112 52 180 115 S292 182 360 101 S455 28 540 68" stroke-width="1.2" opacity=".8"/>
+            <path d="M-10 140 C70 54 112 62 180 125 S292 192 360 111 S455 38 540 78" stroke-width="1.2" opacity=".72"/>
+            <path d="M-10 110 C70 24 112 32 180 95 S292 162 360 81 S455 8 540 48" stroke-width="1" opacity=".66"/>
+            <path d="M-10 150 C70 64 112 72 180 135 S292 202 360 121 S455 48 540 88" stroke-width="1" opacity=".56"/>
+            <path d="M-10 100 C70 14 112 22 180 85 S292 152 360 71 S455 -2 540 38" stroke-width="1" opacity=".48"/>
+          </g>
+        </svg>
+        <div class="searchbar home-searchbar" id="homeSearchBar">
+          <span data-icon="search" class="icon"></span>
+          <input id="homeSearchInput" type="search" placeholder="Пошук треків, виконавців, альбомів…" autocomplete="off">
+          <button class="act" id="welcomeSearch" type="button" aria-label="Пошук"><span data-icon="sort"></span></button>
+        </div>
+      </section>
+      <div class="home-category-row" role="tablist" aria-label="Категорії музики">
+        <button class="home-category on" type="button" data-home-category="all">Усе</button>
+        <button class="home-category" type="button" data-home-category="music">Музика</button>
+        <button class="home-category" type="button" data-home-category="playlists">Плейлисти</button>
+        <button class="home-category" type="button" data-home-category="podcasts">Подкасти</button>
+        <button class="home-category" type="button" data-home-category="audiobooks">Аудіокниги</button>
+      </div>
+      <section class="home-section home-feature-section">
+        <div class="section-head"><div><h2>Для тебе</h2></div><button class="home-section-arrow" type="button" data-home-category="music" aria-label="Більше рекомендацій">›</button></div>
+        <div class="home-feature-grid">
+          ${featureItems.map((item,i)=>`
+            <button class="home-feature-card tone-${item.tone}" type="button" data-home-feature="${i}">
+              ${item.tracks[0]?.cover?`<img class="feature-cover" src="${esc(item.tracks[0].cover)}" alt="" loading="lazy" onerror="this.style.display='none'">`:''}
+              <span class="feature-shade"></span><span class="feature-play">${ICON("play","sm")}</span>
+              <span class="feature-copy"><b>${esc(item.title)}</b><small>${esc(item.sub)}</small></span>
+            </button>`).join("")}
+        </div>
       </section>`;
-    if(moods.length){
-      out+=`<section class="home-section mood-section"><div class="section-head"><div><small>ОБЕРИ НАСТРІЙ</small><h2>Що слухаємо?</h2></div><button class="text-action" id="allMoods">Усі жанри ↗</button></div><div class="mood-pills">`+
-      moods.slice(0,8).map((m,i)=>`<button class="mood-pill mood-pill-${i%6}" data-home-mood="${i}">${esc(m.label)}${m.locked?' <small>✦</small>':''}</button>`).join("")+`</div></section>`;
+    if(recent.length){
+      CTX.homeRecent=recent;
+      out+=`<section class="home-section" data-home-section="recent">
+        <div class="section-head"><div><h2>Нещодавно прослухано</h2></div><button class="home-section-arrow" type="button" data-home-category="playlists" aria-label="Відкрити бібліотеку">›</button></div>
+        ${rowsHtml(recent.slice(0,8),"homeRecent")}
+      </section>`;
     }
-    if(dailyHtml) out+=dailyHtml;
-    if(sections.length){
-      sections.forEach((sec,i)=>{
-        const key="home"+i;
-        if(sec.id==="recent"){
-          CTX[key]=sec.tracks;
-          out+=`<section class="home-section" data-home-section="recent"><div class="section-head"><div><small>ПОВЕРНИСЯ ДО МУЗИКИ</small><h2>${esc(sec.title||"Нещодавнє")}</h2></div></div>${rowsHtml(sec.tracks.slice(0,5),key)}</section>`;
-        }else{
-          out+=`<section class="home-section"><div class="section-head"><div><small>${i===0?"ПІДІБРАНО ДЛЯ ТЕБЕ":"ВІДКРИВАЙ НОВЕ"}</small><h2>${esc(sec.title||"Для тебе")}</h2></div><span class="section-mark">0${i+1}</span></div>${cardsHtml(sec.tracks,key)}</section>`;
-        }
-      });
-    }else{
-      out+=`<section class="home-section"><div class="section-head"><div><small>ПОЧНИ З ПОШУКУ</small><h2>Для тебе</h2></div></div><div class="empty">Поки немає рекомендацій. Знайди улюбленого виконавця або трек — і ми підберемо музику.</div></section>`;
+    if(collectionsHtml) out+=`<section class="home-section home-playlists-section"><div class="section-head"><div><h2>Твої плейлисти</h2></div><button class="home-section-arrow" type="button" data-home-category="playlists" aria-label="Усі плейлисти">›</button></div>${collectionsHtml}</section>`;
+    if(dailyHtml) out+=`<section class="home-daily-section">${dailyHtml}</section>`;
+    if(!featureItems.length&&!recent.length){
+      out+=`<div class="empty"><b>Поки немає рекомендацій</b><span>Знайди улюбленого виконавця або трек — і ми підберемо музику.</span></div>`;
     }
-    out+=collectionsHtml;
     root.innerHTML=out;
     const homeSearch=$("homeSearchInput");
     if(homeSearch){
-      homeSearch.oninput=()=>{ if($("qInput")) $("qInput").value=homeSearch.value; };
-      homeSearch.onfocus=()=>{ homeSearch.setAttribute("aria-label","Пошук музики"); };
-      homeSearch.onkeydown=e=>{ if(e.key==="Enter"){ go("Search"); $("qInput").value=homeSearch.value.trim(); runSearch(); } };
+      homeSearch.oninput=()=>{if($("qInput"))$("qInput").value=homeSearch.value;};
+      homeSearch.onfocus=()=>homeSearch.setAttribute("aria-label","Пошук музики");
+      homeSearch.onkeydown=e=>{if(e.key==="Enter"){go("Search");$("qInput").value=homeSearch.value.trim();runSearch();}};
     }
-    const homeFilters=$("welcomeSearch"); if(homeFilters) homeFilters.onclick=()=>go("Search");
-    const all=$("allMoods"); if(all) all.onclick=()=>go("Explore");
-    root.querySelectorAll("[data-home-mood]").forEach(b=>b.onclick=()=>{
-      const m=moods[+b.dataset.homeMood]; if(!m)return;
-      if(m.locked)return openPlan();
-      openMood(m.key,m.label);
+    const homeFilters=$("welcomeSearch"); if(homeFilters)homeFilters.onclick=()=>{go("Search");$("qInput").value=$("homeSearchInput")?.value||"";runSearch();};
+    root.querySelectorAll("[data-home-feature]").forEach(b=>b.onclick=()=>{
+      const list=CTX["feature"+(+b.dataset.homeFeature)]||[];
+      if(list.length){setQueue(list,0);tap();}
+    });
+    root.querySelectorAll("[data-home-category]").forEach(b=>b.onclick=()=>{
+      const category=b.dataset.homeCategory;
+      if(category==="all"){root.querySelectorAll(".home-category").forEach(x=>x.classList.toggle("on",x===b));return;}
+      if(category==="music"){root.querySelectorAll(".home-category").forEach(x=>x.classList.toggle("on",x===b));root.querySelector(".home-feature-section")?.scrollIntoView({behavior:"smooth",block:"start"});return;}
+      if(category==="playlists"){go("Lib");$("libTabs")?.querySelector('[data-view="playlists"]')?.click();return;}
+      if(category==="podcasts")return toast("Каталог подкастів поки не підключений");
+      if(category==="audiobooks")return toast("Каталог аудіокниг поки не підключений");
     });
     bindHome();
     applyI18n();
-    const seedTrack=sections.find(sec=>sec.id==="recent")?.tracks?.[0];
+    const seedTrack=recent[0];
     if(seedTrack?.id){
       get("/api/radio?seed="+encodeURIComponent(seedTrack.id)).then(d=>{
         const tracks=Array.isArray(d.tracks)?d.tracks:[];
-        if(!tracks.length || !root.isConnected) return;
-        const section=document.createElement("section");
-        section.className="home-section";
-        section.dataset.personalRadio="true";
-        section.innerHTML='<div class="section-head"><div><small>НА ОСНОВІ ТВОГО ПРОСЛУХОВУВАННЯ</small><h2>Схоже на те, що ти слухаєш</h2></div></div>'+cardsHtml(tracks.slice(0,12),"personalRadio");
-        const recentSection=root.querySelector('[data-home-section="recent"]');
-        if(recentSection) root.insertBefore(section,recentSection);
-        else root.appendChild(section);
-        bindHome();
+        if(!tracks.length||!root.isConnected)return;
+        CTX.feature0=tracks;
+        const mix=root.querySelector('[data-home-feature="0"]');
+        if(mix){mix.dataset.radioReady="1";mix.querySelector("small").textContent="Персональна радіостанція";}
       }).catch(()=>{});
     }
   }catch(e){
