@@ -1148,20 +1148,24 @@ async function loadHome(){
 async function loadCollections(){
   try{
     const d = await get("/api/collections");
-    if(!d.playlists?.length) return "";
-    window.__homePlaylists = d.playlists;
+    const playlists = Array.isArray(d.playlists) ? d.playlists : [];
+    if(!playlists.length) return "";
+    window.__homePlaylists = playlists;
     return `<div class="sect"><h2 data-i18n="home_collections">Добірки</h2><div class="reel">` +
-      d.playlists.map((p,i)=>`
+      playlists.map((p,i)=>`
       <div class="card" data-pl="${i}">
-        ${p.cover?`<img src="${esc(p.cover)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph'}))">`:`<div class="ph"></div>`}
-        <div class="t">${esc(p.title)}</div>
-
+        ${p.cover?`<img src="${esc(p.cover)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'collection-art'}))">`:`<div class="collection-art" data-tone="${i%6}">${esc((p.title||"♫").trim().slice(0,1).toUpperCase())}</div>`}
+        <div class="t">${esc(p.title||"Добірка")}</div>
+        <div class="s">${esc(p.subtitle||p.source_label||"Підбірка MusicLSP")}</div>
       </div>`).join("") + `</div></div>`;
-  }catch(e){ return ""; }
+  }catch(e){
+    console.warn("Collections unavailable",e);
+    return `<div class="sect"><h2 data-i18n="home_collections">Добірки</h2><div class="empty"><b>Не вдалося завантажити добірки</b><span>Спробуй оновити головну сторінку трохи пізніше.</span></div></div>`;
+  }
 }
 
 function bindHome(){
-  if($("heroExplore")) $("heroExplore").onclick = () => { go("Search"); $("qInput")?.focus(); };
+  if($("heroExplore")) $("heroExplore").onclick = () => { go("Explore"); };
   if($("onboardHintClose")){
     $("onboardHintClose").onclick = () => {
       try{ localStorage.setItem("hideOnboardHint", "1"); }catch(e){}
@@ -3033,10 +3037,10 @@ function openPlan(){
   const rows = features.length ? features.map((f,i)=>[f.title||"Можливість "+(i+1),f.description||"Доступно з Premium"]) : defaults;
   showModal(`<div class="plan-modal-head"><div class="explore-kicker">MUSICLSP MEMBERSHIP</div><h2>${premium?"Твій Premium":"Обери свій рівень"}</h2><p>${premium?"Дякуємо, що слухаєш із повним доступом.":"Порівняй можливості та обери комфортний формат."}</p></div>
     <div class="plan-compare">
-      <div class="plan-tier ${!premium?"selected":""}"><small>БАЗОВИЙ ДОСТУП</small><b>Free</b><span>Основні функції MusicLSP</span></div>
-      <div class="plan-tier premium ${premium?"selected":""}"><small>ПОВНИЙ ДОСТУП</small><b>✦ Premium</b><span>Розширені можливості платформи</span></div>
+      <div class="plan-tier ${!premium?"selected":""}"><small>БЕЗКОШТОВНО</small><b>Free</b><span>Каталог відкритої музики, пошук, базове відтворення та особиста колекція. Деякі розширені функції мають обмеження.</span></div>
+      <div class="plan-tier premium ${premium?"selected":""}"><small>ПОВНИЙ ДОСТУП</small><b>✦ Premium</b><span>Hi‑Fi там, де підтримує джерело, розширені налаштування звуку, додаткові можливості та вищі ліміти.</span></div>
     </div>
-    <h3 class="plan-list-title">Що входить у Premium</h3>
+    <h3 class="plan-list-title">Можливості Premium</h3>
     <div class="plan-feature-list">${rows.map(([title,desc],i)=>`<div class="plan-feature"><span>${["♫","◉","↝","◷","✧","＋"][i%6]}</span><div><b>${esc(title)}</b><small>${esc(desc)}</small></div><i>✓</i></div>`).join("")}</div>
     ${premium?"":`<button class="btn plan-promo" onclick="openPromo()">Ввести промокод</button>`}
     <button class="pill plan-close" onclick="closeModal()">Закрити</button>`);
