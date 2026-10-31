@@ -360,3 +360,8 @@ body{background:var(--ml-bg)!important;color:var(--ml-text)}
 #scLib .library-next-step p{margin:4px 0 0;font-size:11px;color:var(--muted);line-height:1.4}
 #scLib .library-next-step button{flex:none;border:0;border-radius:99px;padding:10px 14px;background:linear-gradient(110deg,#56c5ff,#79e4df);color:#061522;font-size:11px;font-weight:800}
 @media(max-height:740px){#scLib #libBody{min-height:0}}
+
+#scLib .library-empty{display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:22px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(125deg,#11283a,#151d31);text-align:left}
+#scLib .library-empty b{font-size:15px}
+#scLib .library-empty span{font-size:12px;line-height:1.5;color:var(--muted)}
+#scLib .library-empty .btn{margin-top:4px}
