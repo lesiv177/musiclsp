@@ -112,19 +112,19 @@ const { spawn } = require("node:child_process");
 
     // Queue controls: reorder, keep current-track index consistent, remove a queued item.
     await page.evaluate(() => {
-      window.S.queue = [
+      S.queue = [
         {id:"qa-1",title:"Current",artist:"QA"},
         {id:"qa-2",title:"Second",artist:"QA"},
         {id:"qa-3",title:"Third",artist:"QA"}
       ];
-      window.S.index = 0;
+      S.index = 0;
       window.openQueue();
     });
     await page.locator('#qModal [data-down="1"]').click();
-    const reordered = await page.evaluate(() => window.S.queue.map(t => t.id));
+    const reordered = await page.evaluate(() => S.queue.map(t => t.id));
     if (reordered.join(",") !== "qa-1,qa-3,qa-2") throw new Error("Queue reorder failed: " + reordered.join(","));
     await page.locator('#qModal [data-rm="2"]').click();
-    const afterRemove = await page.evaluate(() => ({ids:window.S.queue.map(t=>t.id),index:window.S.index}));
+    const afterRemove = await page.evaluate(() => ({ids:S.queue.map(t=>t.id),index:S.index}));
     if (afterRemove.ids.join(",") !== "qa-1,qa-3" || afterRemove.index !== 0) throw new Error("Queue remove failed");
     await page.locator("#modal").evaluate(el => el.classList.remove("on"));
 
