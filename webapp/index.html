@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="./legacy.css?v=1">
 <link rel="stylesheet" href="./v2.css?v=4">
-<link rel="stylesheet" href="./redesign.css?v=5">
+<link rel="stylesheet" href="./redesign.css?v=6">
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
 </head>
 <body>
@@ -37,7 +37,7 @@
 <div class="app" id="appRoot">
 
   <header class="top app-top">
-    <button class="top-avatar" id="topProfile" type="button" onclick="go('Me')" aria-label="Відкрити профіль">M</button>
+    <button class="top-avatar" id="topProfile" type="button" onclick="go('Me')" aria-label="Відкрити профіль"><span class="avatar-fallback">M</span></button>
     <div class="top-heading">
       <div class="top-eyebrow" id="topSub">ТВОЯ МУЗИКА ЩОДНЯ</div>
       <div class="name dspl" id="topTitle">MusicLSP</div>
@@ -221,6 +221,26 @@ const API      = (params.get("api") || "").replace(/\/$/, "");
 const INIT     = tg?.initData || "";
 const START    = params.get("start") || tg?.initDataUnsafe?.start_param || "";
 
+function applyTelegramAvatar(){
+  const button=document.getElementById("topProfile");
+  if(!button) return;
+  const user=tg?.initDataUnsafe?.user;
+  const fallback=button.querySelector(".avatar-fallback");
+  if(fallback) fallback.textContent=(user?.first_name||"M").trim().slice(0,1).toUpperCase();
+  const photo=typeof user?.photo_url==="string" ? user.photo_url : "";
+  if(!photo || !/^https:\/\//i.test(photo)) return;
+  let img=button.querySelector("img.telegram-avatar");
+  if(!img){
+    img=document.createElement("img");
+    img.className="telegram-avatar";
+    img.alt="";
+    img.referrerPolicy="no-referrer";
+    img.onerror=()=>{ img.remove(); button.classList.remove("has-avatar"); };
+    button.prepend(img);
+  }
+  img.src=photo;
+  button.classList.add("has-avatar");
+}
 const S = {
   me:null, limits:null, features:[],
   queue:[], index:-1, playing:false, shuffle:false, repeat:"off",
@@ -870,6 +890,7 @@ function revealApp(){
 }
 (async function boot(){
   startSplashShow();
+  applyTelegramAvatar();
   if(!INIT && !API){
     $("homeBody").innerHTML =
       `<div class="empty"><b>Відкрийте через Telegram</b>Плеєр працює всередині бота —
@@ -885,7 +906,7 @@ function revealApp(){
   try{
     const me = await get("/api/me");
     S.me = me.user; S.limits = me.limits; S.features = me.features;
-    applyTheme(S.me.theme, S.me.accent);
+    applyTheme(S.me.theme);
     S.crossfade = S.me.crossfade || 0;
     S.eq = S.me.eq || null;
     $("planChip").textContent = S.me.premium ? "Premium" : "Free";
@@ -1126,9 +1147,13 @@ async function loadHome(){
     let out=`
       <section class="welcome-block">
         <div class="welcome-copy"><span class="welcome-kicker">MUSICLSP • ТВОЯ МУЗИКА</span>
-          <h1>Знайди свій<br><em>наступний трек.</em></h1>
-          <p>Музика, яка пасує твоєму настрою — зібрана в одному місці.</p>
-          <button class="welcome-search" id="welcomeSearch"><span data-icon="search"></span> Знайти музику <b>↗</b></button>
+          <h1>Привіт!</h1>
+          <p class="home-greeting-sub">Що будемо слухати сьогодні?</p>
+          <div class="searchbar home-searchbar" id="homeSearchBar">
+            <span data-icon="search" class="icon"></span>
+            <input id="homeSearchInput" type="search" placeholder="Пошук треків, виконавців, альбомів…" autocomplete="off">
+            <button class="act" id="homeSearchFilters" type="button" aria-label="Фільтри"><span data-icon="sort"></span></button>
+          </div>
         </div>
         <div class="welcome-art" aria-hidden="true"><span>♫</span><i></i><b></b></div>
       </section>`;
@@ -1152,7 +1177,12 @@ async function loadHome(){
     }
     out+=collectionsHtml;
     root.innerHTML=out;
-    const search=$("welcomeSearch"); if(search) search.onclick=()=>go("Search");
+    const homeSearch=$("homeSearchInput");
+    if(homeSearch){
+      homeSearch.onfocus=()=>{ go("Search"); $("qInput").value=homeSearch.value; if(homeSearch.value.trim()) runSearch(); };
+      homeSearch.onkeydown=e=>{ if(e.key==="Enter"){ go("Search"); $("qInput").value=homeSearch.value.trim(); runSearch(); } };
+    }
+    const homeFilters=$("homeSearchFilters"); if(homeFilters) homeFilters.onclick=()=>go("Search");
     const all=$("allMoods"); if(all) all.onclick=()=>go("Explore");
     root.querySelectorAll("[data-home-mood]").forEach(b=>b.onclick=()=>{
       const m=moods[+b.dataset.homeMood]; if(!m)return;
@@ -2771,9 +2801,6 @@ function renderProfile(){
           `<button class="fchip ${(S.me.lang||"uk")===k?"on":""}" data-lang="${k}">${esc(label)}</button>`
         ).join("")}
       </div>
-      <div style="font-size:12px;color:var(--muted);margin-top:9px" data-i18n="pr_lang_hint">
-        Перекладено весь основний інтерфейс.
-      </div>
     </div>
 
     <div class="sect"><h2 data-i18n="pr_ambient">Жива обкладинка</h2>
@@ -2920,9 +2947,13 @@ async function saveSettings(fields){
   try{ await post("/api/settings", fields); }catch(e){ toast(e.message); throw e; }
 }
 
-function applyTheme(theme, accent){
-  document.documentElement.dataset.theme = theme || "midnight";
-  if(accent) document.documentElement.style.setProperty("--accent", accent);
+function applyTheme(theme){
+  const root=document.documentElement;
+  const allowed=["midnight","ember","aurora","neon","paper"];
+  root.dataset.theme = allowed.includes(theme) ? theme : "midnight";
+  root.style.removeProperty("--accent");
+  root.style.removeProperty("--accent-2");
+  root.style.removeProperty("--accent-ink");
 }
 
 function setSleep(min){
