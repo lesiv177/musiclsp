@@ -112,12 +112,7 @@ const { spawn } = require("node:child_process");
 
     // Queue ordering and removal: exercise the actual rendered controls.
     await page.evaluate(() => {
-      S.queue = [
-        { id: "qa-1", title: "Track One", artist: "Artist", cover: "" },
-        { id: "qa-2", title: "Track Two", artist: "Artist", cover: "" },
-        { id: "qa-3", title: "Track Three", artist: "Artist", cover: "" }
-      ];
-      S.index = 0;
+      window.eval('S.queue = [{id:"qa-1",title:"Track One",artist:"Artist",cover:""},{id:"qa-2",title:"Track Two",artist:"Artist",cover:""},{id:"qa-3",title:"Track Three",artist:"Artist",cover:""}]; S.index = 0;');
       openQueue();
     });
     await page.locator('#qModal [data-down="0"]').click();
@@ -134,12 +129,7 @@ const { spawn } = require("node:child_process");
 
     // Queue controls: reorder, keep current-track index consistent, remove a queued item.
     await page.evaluate(() => {
-      S.queue = [
-        {id:"qa-1",title:"Current",artist:"QA"},
-        {id:"qa-2",title:"Second",artist:"QA"},
-        {id:"qa-3",title:"Third",artist:"QA"}
-      ];
-      S.index = 0;
+      window.eval('S.queue = [{id:"qa-1",title:"Current",artist:"QA"},{id:"qa-2",title:"Second",artist:"QA"},{id:"qa-3",title:"Third",artist:"QA"}]; S.index = 0;');
       window.openQueue();
     });
     await page.locator('#qModal [data-down="1"]').click();
