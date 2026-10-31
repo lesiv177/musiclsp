@@ -8,7 +8,9 @@ class MobileAppContractTests(unittest.TestCase):
         self.assertIn('id="scExplore"', html)
         self.assertIn("async function loadExplore()", html)
         self.assertIn('onclick="openCreateMenu()"', html)
-        self.assertIn('grid-template-columns:repeat(4,minmax(0,1fr))', html)
+        css = Path("webapp/redesign.css").read_text(encoding="utf-8")
+        self.assertIn('class="nav app-nav"', html)
+        self.assertIn('grid-template-columns:repeat(4,minmax(0,1fr))', css)
         self.assertNotIn('data-go="Explore"', html)
 
     def test_playback_always_uses_server_stream_resolver(self):
