@@ -29,7 +29,7 @@ const { spawn } = require("node:child_process");
     } else if (path === "/api/home") data = { ok: true, sections: [] };
     else if (path === "/api/moods") data = { ok: true, moods: [] };
     else if (path === "/api/collections") data = { ok: true, playlists: [] };
-    else if (path === "/api/library") data = { ok: true, tracks: [] };
+    else if (path === "/api/library") data = { ok: true, tracks: [{ id: "qa-liked", title: "Saved track", artist: "QA Artist", cover: "", duration: 180, duration_str: "3:00", source_label: "QA" }] };
     else if (path === "/api/playlists") data = { ok: true, playlists: [] };
     else if (path === "/api/history") data = { ok: true, tracks: [] };
     else if (path === "/api/genres") data = { ok: true, genres: [] };
@@ -94,6 +94,12 @@ const { spawn } = require("node:child_process");
       await page.waitForTimeout(80);
     }
 
+    await page.locator('.nav button[data-go="Lib"]').click();
+    await page.waitForSelector("#libBody .library-next-step");
+    await page.locator("#libBody .library-next-step button").click();
+    if (!await page.locator("#scSearch").evaluate(el => el.classList.contains("on"))) {
+      throw new Error("Library discovery CTA did not open Search");
+    }
     await page.locator('.nav button[data-go="Lib"]').click();
     for (const view of ["liked", "playlists", "history", "moments"]) {
       await page.locator('#libTabs [data-view="' + view + '"]').click();
