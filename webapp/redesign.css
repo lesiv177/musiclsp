@@ -899,3 +899,26 @@ html[data-theme] .swatch.on{outline-color:var(--accent)!important}
  #homeBody .home-feature-card .feature-copy small{font-size:11px}
  #homeBody [data-home-section="recent"] .rows{gap:12px!important}
 }
+
+
+/* Mini player transport: shuffle / previous / play / next / repeat */
+#bar{
+ grid-template-columns:52px minmax(0,1fr) 32px 32px 44px 32px 32px!important;
+ gap:7px!important;
+}
+#bar #barLike,#bar #barRemote{display:none!important}
+#bar #barShuffle,#bar #barPrev,#bar #barPlay,#bar #barNext,#bar #barRepeat{
+ display:grid!important;visibility:visible!important;opacity:1!important;
+}
+#bar #barShuffle,#bar #barRepeat{width:30px;height:34px;min-width:30px;border-radius:10px}
+#bar #barPrev,#bar #barNext{width:30px;height:34px;min-width:30px;border-radius:10px}
+#bar #barPlay{width:42px;height:42px;min-width:42px;border-radius:50%}
+#bar .iconbtn.on{color:var(--accent)!important;background:color-mix(in srgb,var(--accent) 12%,transparent)!important}
+#bar .iconbtn.one:after{content:"1";position:absolute;font-size:8px;font-weight:800;right:4px;top:3px;color:var(--accent)}
+#bar .iconbtn{position:relative}
+@media(max-width:420px){
+ #bar{grid-template-columns:46px minmax(0,1fr) 25px 25px 38px 25px 25px!important;gap:4px!important;padding:8px!important}
+ #bar .art{width:46px!important;height:46px!important}
+ #bar #barShuffle,#bar #barRepeat,#bar #barPrev,#bar #barNext{width:24px;min-width:24px;height:30px}
+ #bar #barPlay{width:36px;min-width:36px;height:36px}
+}
