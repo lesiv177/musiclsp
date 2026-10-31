@@ -9,8 +9,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="./legacy.css?v=1">
 <link rel="stylesheet" href="./v2.css?v=4">
-<link rel="stylesheet" href="./redesign.css?v=1">
-<style id="v2-critical-nav">.nav{grid-template-columns:repeat(5,minmax(0,1fr))}</style>
+<link rel="stylesheet" href="./redesign.css?v=2">
+<style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
 </head>
 <body>
 <div id="splash">
@@ -40,7 +40,7 @@
     <button class="top-avatar" id="topProfile" type="button" onclick="go('Me')" aria-label="Відкрити профіль">M</button>
     <div class="top-heading">
       <div class="top-eyebrow" id="topSub">ТВОЯ МУЗИКА ЩОДНЯ</div>
-      <div class="name dspl" id="topTitle">Головна</div>
+      <div class="name dspl" id="topTitle">MusicLSP</div>
     </div>
     <div class="spacer"></div>
     <button class="chip plan-chip" id="planChip" type="button" onclick="openPlan()">Free</button>
@@ -129,10 +129,10 @@
 
 <!-- bottom nav -->
 <nav class="nav app-nav" aria-label="Основна навігація">
-  <button class="on" data-go="Home"><span class="ic" data-icon="home"></span><span>Головна</span></button>
-  <button data-go="Search"><span class="ic" data-icon="search"></span><span>Пошук</span></button>
-  <button data-go="Lib"><span class="ic" data-icon="library"></span><span>Бібліотека</span></button>
-  <button type="button" onclick="openCreateMenu()"><span class="ic" data-icon="plus"></span><span>Створити</span></button>
+  <button class="on" data-go="Home"><span class="ic" data-icon="home"></span><span class="nav-label">Головна</span></button>
+  <button data-go="Search"><span class="ic" data-icon="search"></span><span class="nav-label">Пошук</span></button>
+  <button data-go="Lib"><span class="ic" data-icon="library"></span><span class="nav-label">Бібліотека</span></button>
+  <button type="button" data-nav-key="create" onclick="openCreateMenu()"><span class="ic" data-icon="plus"></span><span class="nav-label">Створити</span></button>
 </nav>
 
 <!-- now playing -->
@@ -265,7 +265,7 @@ const I18N = {
     hero_cta:"Знайти музику",
     hero_footer:"ПЛЕЙЛИСТИ · АРТИСТИ · ВІДКРИТТЯ",
 
-    nav_home:"Головна", nav_search:"Пошук", nav_lib:"Бібліотека", nav_me:"Профіль",
+    nav_home:"Головна", nav_search:"Пошук", nav_lib:"Бібліотека", nav_me:"Профіль", nav_create:"Створити",
     sub_free:"Музика з відкритих ліцензій", sub_premium:"Hi-Fi · без лімітів",
     h_mood:"Настрій", onboard_title:"Як почати",
     onboard_body:"Напишіть назву пісні чи артиста в пошуку, або оберіть настрій нижче — і музика підбереться сама.",
@@ -712,11 +712,11 @@ function translateUiText(root){
 }
 function applyI18n(){
   document.documentElement.lang = S.me?.lang || "uk";
+  const navKeys = {Home:"nav_home", Search:"nav_search", Lib:"nav_lib", Me:"nav_me", create:"nav_create"};
   document.querySelectorAll(".nav button").forEach(b=>{
-    const key = {Home:"nav_home", Search:"nav_search", Lib:"nav_lib", Me:"nav_me"}[b.dataset.go];
-    if(!key) return;
-    [...b.childNodes].forEach(n => { if(n.nodeType===3) n.remove(); });
-    b.appendChild(document.createTextNode(t(key)));
+    const key = navKeys[b.dataset.go] || navKeys[b.dataset.navKey];
+    const label = b.querySelector(".nav-label") || b.querySelector("span:last-child");
+    if(key && label) label.textContent = t(key);
   });
   document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
   document.querySelectorAll("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
@@ -952,7 +952,7 @@ function go(name){
     b.classList.toggle("on", becomesOn);
   });
   if(name==="Me"){ refreshMe().then(renderProfile); renderProfile(); }
-  const topTitle=$("topTitle"); if(topTitle) topTitle.textContent=({Home:"Головна",Search:"Пошук",Lib:"Моя бібліотека",Me:"Профіль",Explore:"Відкривай"}[name]||"MusicLSP");
+  const topTitle=$("topTitle"); if(topTitle) topTitle.textContent="MusicLSP";
   if(name==="Lib") renderLibrary();
   if(name==="Explore") loadExplore();
   if(name==="Search"){ setTimeout(()=>$("qInput").focus(), 120); if(!$("qInput").value.trim()) renderRecentSearches(); }
@@ -1114,10 +1114,11 @@ async function loadHome(){
   const root=$("homeBody");
   root.innerHTML='<div class="home-loading"><div class="skel"></div><div class="skel"></div></div>';
   try{
-    const [homeData,moodsData,collectionsHtml]=await Promise.all([
+    const [homeData,moodsData,collectionsHtml,dailyHtml]=await Promise.all([
       get("/api/home").catch(()=>({sections:[]})),
       get("/api/moods").catch(()=>({moods:[]})),
-      loadCollections()
+      loadCollections(),
+      loadDaily()
     ]);
     const sections=(homeData.sections||[]).filter(x=>Array.isArray(x.tracks)&&x.tracks.length);
     const moods=moodsData.moods||[];
@@ -1135,12 +1136,13 @@ async function loadHome(){
       out+=`<section class="home-section mood-section"><div class="section-head"><div><small>ОБЕРИ НАСТРІЙ</small><h2>Що слухаємо?</h2></div><button class="text-action" id="allMoods">Усі жанри ↗</button></div><div class="mood-pills">`+
       moods.slice(0,8).map((m,i)=>`<button class="mood-pill mood-pill-${i%6}" data-home-mood="${i}">${esc(m.label)}${m.locked?' <small>✦</small>':''}</button>`).join("")+`</div></section>`;
     }
+    if(dailyHtml) out+=dailyHtml;
     if(sections.length){
       sections.forEach((sec,i)=>{
         const key="home"+i;
         if(sec.id==="recent"){
           CTX[key]=sec.tracks;
-          out+=`<section class="home-section"><div class="section-head"><div><small>ПОВЕРНИСЯ ДО МУЗИКИ</small><h2>${esc(sec.title||"Нещодавнє")}</h2></div></div>${rowsHtml(sec.tracks.slice(0,5),key)}</section>`;
+          out+=`<section class="home-section" data-home-section="recent"><div class="section-head"><div><small>ПОВЕРНИСЯ ДО МУЗИКИ</small><h2>${esc(sec.title||"Нещодавнє")}</h2></div></div>${rowsHtml(sec.tracks.slice(0,5),key)}</section>`;
         }else{
           out+=`<section class="home-section"><div class="section-head"><div><small>${i===0?"ПІДІБРАНО ДЛЯ ТЕБЕ":"ВІДКРИВАЙ НОВЕ"}</small><h2>${esc(sec.title||"Для тебе")}</h2></div><span class="section-mark">0${i+1}</span></div>${cardsHtml(sec.tracks,key)}</section>`;
         }
@@ -1159,6 +1161,21 @@ async function loadHome(){
     });
     bindHome();
     applyI18n();
+    const seedTrack=sections.find(sec=>sec.id==="recent")?.tracks?.[0];
+    if(seedTrack?.id){
+      get("/api/radio?seed="+encodeURIComponent(seedTrack.id)).then(d=>{
+        const tracks=Array.isArray(d.tracks)?d.tracks:[];
+        if(!tracks.length || !root.isConnected) return;
+        const section=document.createElement("section");
+        section.className="home-section";
+        section.dataset.personalRadio="true";
+        section.innerHTML='<div class="section-head"><div><small>НА ОСНОВІ ТВОГО ПРОСЛУХОВУВАННЯ</small><h2>Схоже на те, що ти слухаєш</h2></div></div>'+cardsHtml(tracks.slice(0,12),"personalRadio");
+        const recentSection=root.querySelector('[data-home-section="recent"]');
+        if(recentSection) root.insertBefore(section,recentSection);
+        else root.appendChild(section);
+        bindHome();
+      }).catch(()=>{});
+    }
   }catch(e){
     root.innerHTML=`<div class="empty"><b>Не вдалося завантажити головну</b><span>${esc(e.message)}</span><button class="btn" onclick="loadHome()">Спробувати ще раз</button></div>`;
   }
@@ -1543,9 +1560,10 @@ async function renderLibrary(){
   if(S.libView === "liked"){
     await loadLiked();
     if(!likedTracks.length){ box.innerHTML =
-      `<div class="empty"><b data-i18n="lib_liked_empty_title">Збережене порожнє</b>Тисніть ${ICON("heart","sm")} <span data-i18n="lib_liked_empty_body">у плеєрі — трек буде тут.</span></div>`;
+      `<div class="empty library-empty"><b data-i18n="lib_liked_empty_title">Збережене порожнє</b><span data-i18n="lib_liked_empty_body">Зберігай улюблені треки — вони будуть тут.</span><button class="btn" type="button" onclick="go('Search')">Знайти музику</button></div>`;
       applyI18n(); return; }
     mountRows(box, likedTracks, "liked");
+    box.insertAdjacentHTML("beforeend", `<aside class="library-next-step"><div><b>Знайди наступний улюблений трек</b><p>Відкрий рекомендації та поповни свою колекцію.</p></div><button type="button" onclick="go('Search')">Знайти музику</button></aside>`);
     applyI18n();
     return;
   }

@@ -26,10 +26,12 @@ const { spawn } = require("node:child_process");
         theme: "midnight", accent: "violet", lang: "uk", crossfade: 0, eq: null,
         is_admin: false
       }, limits: { playlists: 5, offline_pack: false, ambient_styles: [] }, features: [] };
-    } else if (path === "/api/home") data = { ok: true, sections: [] };
+    } else if (path === "/api/home") data = { ok: true, sections: [{ id: "recent", title: "Нещодавнє", tracks: [{ id: "qa-seed", title: "Recent track", artist: "QA Artist", cover: "", duration: 180, duration_str: "3:00" }] }] };
     else if (path === "/api/moods") data = { ok: true, moods: [] };
+    else if (path === "/api/daily") data = { ok: true, track: { id: "qa-daily", title: "Daily track", artist: "QA Artist", cover: "", duration: 180 } };
+    else if (path === "/api/radio") data = { ok: true, tracks: [{ id: "qa-radio", title: "Radio track", artist: "QA Artist", cover: "", duration: 180 }] };
     else if (path === "/api/collections") data = { ok: true, playlists: [] };
-    else if (path === "/api/library") data = { ok: true, tracks: [] };
+    else if (path === "/api/library") data = { ok: true, tracks: [{ id: "qa-liked", title: "Saved track", artist: "QA Artist", cover: "", duration: 180, duration_str: "3:00", source_label: "QA" }] };
     else if (path === "/api/playlists") data = { ok: true, playlists: [] };
     else if (path === "/api/history") data = { ok: true, tracks: [] };
     else if (path === "/api/genres") data = { ok: true, genres: [] };
@@ -57,6 +59,20 @@ const { spawn } = require("node:child_process");
   });
     await page.goto("http://127.0.0.1:8765/?api=https%3A%2F%2Fmock-api.local", { waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => document.querySelector("#appRoot")?.classList.contains("ready"), null, { timeout: 15000 });
+    await page.evaluate(() => { applyI18n(); applyI18n(); applyI18n(); });
+    const navLabels = await page.locator(".nav.app-nav .nav-label").allTextContents();
+    if (navLabels.length !== 4 || new Set(navLabels).size !== 4 ||
+        navLabels.some(label => !label.trim())) {
+      throw new Error("Bottom navigation labels are missing or duplicated after repeated translations: " + JSON.stringify(navLabels));
+    }
+    if ((await page.locator("#topTitle").innerText()).trim() !== "MusicLSP") {
+      throw new Error("Top header must show the brand, not repeat the current screen title");
+    }
+    await page.waitForSelector("#dailyCard");
+    await page.waitForSelector("#homeBody [data-personal-radio]");
+    if (!apiCalls.includes("/api/daily") || !apiCalls.includes("/api/radio")) {
+      throw new Error("Daily track or personalized radio was not requested");
+    }
 
     for (const target of ["Search", "Lib", "Home"]) {
       await page.locator('.nav button[data-go="' + target + '"]').click();
@@ -86,6 +102,12 @@ const { spawn } = require("node:child_process");
       await page.waitForTimeout(80);
     }
 
+    await page.locator('.nav button[data-go="Lib"]').click();
+    await page.waitForSelector("#libBody .library-next-step");
+    await page.locator("#libBody .library-next-step button").click();
+    if (!await page.locator("#scSearch").evaluate(el => el.classList.contains("on"))) {
+      throw new Error("Library discovery CTA did not open Search");
+    }
     await page.locator('.nav button[data-go="Lib"]').click();
     for (const view of ["liked", "playlists", "history", "moments"]) {
       await page.locator('#libTabs [data-view="' + view + '"]').click();
