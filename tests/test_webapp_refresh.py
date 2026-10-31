@@ -3,12 +3,13 @@ from pathlib import Path
 
 
 class MobileAppContractTests(unittest.TestCase):
-    def test_discovery_screen_is_connected_to_five_item_navigation(self):
+    def test_discovery_and_create_are_available_without_extra_navigation_tabs(self):
         html = Path("webapp/index.html").read_text(encoding="utf-8")
         self.assertIn('id="scExplore"', html)
-        self.assertIn('data-go="Explore"', html)
         self.assertIn("async function loadExplore()", html)
-        self.assertIn('grid-template-columns:repeat(5,minmax(0,1fr))', html)
+        self.assertIn('onclick="openCreateMenu()"', html)
+        self.assertIn('grid-template-columns:repeat(4,minmax(0,1fr))', html)
+        self.assertNotIn('data-go="Explore"', html)
 
     def test_playback_always_uses_server_stream_resolver(self):
         html = Path("webapp/index.html").read_text(encoding="utf-8")
