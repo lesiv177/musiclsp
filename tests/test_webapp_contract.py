@@ -88,6 +88,30 @@ class MiniAppContractTests(unittest.TestCase):
                          "startRadio", "shareCurrentTrack", "downloadCurrent"):
             self.assertIn(function, self.functions, f"Missing player action: {function}")
 
+    def test_player_transition_regressions_are_guarded(self):
+        self.assertIn("let fadeInProgress = false;", JS,
+                      "Crossfade needs a lock to prevent duplicate next-track transitions")
+        self.assertIn("!fadeTimer && !fadeInProgress", JS,
+                      "Progress updates must not trigger overlapping crossfades")
+        next_track = re.search(r"function nextTrack\\(auto\\)\\s*\\{(.*?)\\n\\}", JS, re.S)
+        self.assertIsNotNone(next_track, "nextTrack implementation is missing")
+        self.assertIn("cur.pause();", next_track.group(1),
+                      "Reaching the end of the queue must stop the audio element")
+        self.assertIn("publishDeviceState();", next_track.group(1),
+                      "Queue-end state must be published to connected devices")
+
+    def test_resume_playback_reclaims_shared_session(self):
+        toggle = re.search(r"function togglePlay\\(\\)\\s*\\{(.*?)\\n\\}", JS, re.S)
+        self.assertIsNotNone(toggle, "togglePlay implementation is missing")
+        self.assertIn("claimLocalPlayback()", toggle.group(1),
+                      "Resuming locally must reclaim the shared playback session")
+        self.assertIn("publishDeviceState()", toggle.group(1),
+                      "Resuming locally must publish its playback state")
+        pending = re.search(r"async function startPending\\(\\)\\s*\\{(.*?)\\n\\}", JS, re.S)
+        self.assertIsNotNone(pending, "startPending implementation is missing")
+        self.assertIn("claimLocalPlayback()", pending.group(1),
+                      "Restoring a saved track must reclaim the shared playback session")
+
     def test_profile_and_admin_actions_have_implementations(self):
         for function in ("saveSettings", "loadStats", "loadReferral", "openWrapped",
                          "openPromo", "openReportTrack", "submitReport", "redeem",
