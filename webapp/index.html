@@ -1114,10 +1114,11 @@ async function loadHome(){
   const root=$("homeBody");
   root.innerHTML='<div class="home-loading"><div class="skel"></div><div class="skel"></div></div>';
   try{
-    const [homeData,moodsData,collectionsHtml]=await Promise.all([
+    const [homeData,moodsData,collectionsHtml,dailyHtml]=await Promise.all([
       get("/api/home").catch(()=>({sections:[]})),
       get("/api/moods").catch(()=>({moods:[]})),
-      loadCollections()
+      loadCollections(),
+      loadDaily()
     ]);
     const sections=(homeData.sections||[]).filter(x=>Array.isArray(x.tracks)&&x.tracks.length);
     const moods=moodsData.moods||[];
@@ -1135,12 +1136,13 @@ async function loadHome(){
       out+=`<section class="home-section mood-section"><div class="section-head"><div><small>ОБЕРИ НАСТРІЙ</small><h2>Що слухаємо?</h2></div><button class="text-action" id="allMoods">Усі жанри ↗</button></div><div class="mood-pills">`+
       moods.slice(0,8).map((m,i)=>`<button class="mood-pill mood-pill-${i%6}" data-home-mood="${i}">${esc(m.label)}${m.locked?' <small>✦</small>':''}</button>`).join("")+`</div></section>`;
     }
+    if(dailyHtml) out+=dailyHtml;
     if(sections.length){
       sections.forEach((sec,i)=>{
         const key="home"+i;
         if(sec.id==="recent"){
           CTX[key]=sec.tracks;
-          out+=`<section class="home-section"><div class="section-head"><div><small>ПОВЕРНИСЯ ДО МУЗИКИ</small><h2>${esc(sec.title||"Нещодавнє")}</h2></div></div>${rowsHtml(sec.tracks.slice(0,5),key)}</section>`;
+          out+=`<section class="home-section" data-home-section="recent"><div class="section-head"><div><small>ПОВЕРНИСЯ ДО МУЗИКИ</small><h2>${esc(sec.title||"Нещодавнє")}</h2></div></div>${rowsHtml(sec.tracks.slice(0,5),key)}</section>`;
         }else{
           out+=`<section class="home-section"><div class="section-head"><div><small>${i===0?"ПІДІБРАНО ДЛЯ ТЕБЕ":"ВІДКРИВАЙ НОВЕ"}</small><h2>${esc(sec.title||"Для тебе")}</h2></div><span class="section-mark">0${i+1}</span></div>${cardsHtml(sec.tracks,key)}</section>`;
         }
@@ -1159,6 +1161,21 @@ async function loadHome(){
     });
     bindHome();
     applyI18n();
+    const seedTrack=sections.find(sec=>sec.id==="recent")?.tracks?.[0];
+    if(seedTrack?.id){
+      get("/api/radio?seed="+encodeURIComponent(seedTrack.id)).then(d=>{
+        const tracks=Array.isArray(d.tracks)?d.tracks:[];
+        if(!tracks.length || !root.isConnected) return;
+        const section=document.createElement("section");
+        section.className="home-section";
+        section.dataset.personalRadio="true";
+        section.innerHTML='<div class="section-head"><div><small>НА ОСНОВІ ТВОГО ПРОСЛУХОВУВАННЯ</small><h2>Схоже на те, що ти слухаєш</h2></div></div>'+cardsHtml(tracks.slice(0,12),"personalRadio");
+        const recentSection=root.querySelector('[data-home-section="recent"]');
+        if(recentSection) root.insertBefore(section,recentSection);
+        else root.appendChild(section);
+        bindHome();
+      }).catch(()=>{});
+    }
   }catch(e){
     root.innerHTML=`<div class="empty"><b>Не вдалося завантажити головну</b><span>${esc(e.message)}</span><button class="btn" onclick="loadHome()">Спробувати ще раз</button></div>`;
   }
