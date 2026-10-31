@@ -365,3 +365,65 @@ body{background:var(--ml-bg)!important;color:var(--ml-text)}
 #scLib .library-empty b{font-size:15px}
 #scLib .library-empty span{font-size:12px;line-height:1.5;color:var(--muted)}
 #scLib .library-empty .btn{margin-top:4px}
+
+
+/* MusicLSP fix: working theme palettes + compact transport controls */
+:root[data-theme="midnight"]{
+  --bg:#080d14;--panel:#101a27;--panel-2:#142235;--panel-3:#1a2b40;
+  --accent:#56c8f5;--accent-2:#72dfdc;
+  --ml-bg:#090b10;--ml-surface:#111722;--ml-surface2:#182332;--ml-line:#273648;
+  --ml-text:#f4f7fb;--ml-muted:#9ba9b9;
+}
+:root[data-theme="ember"]{
+  --bg:#130d0b;--panel:#211713;--panel-2:#302019;--panel-3:#442b20;
+  --accent:#ff9e4a;--accent-2:#ffc078;
+  --ml-bg:#130d0b;--ml-surface:#211713;--ml-surface2:#302019;--ml-line:#573a2b;
+  --ml-text:#fff5ed;--ml-muted:#c9a895;
+}
+:root[data-theme="aurora"]{
+  --bg:#071411;--panel:#0e211d;--panel-2:#143129;--panel-3:#1b4035;
+  --accent:#5be3c6;--accent-2:#8cf0d8;
+  --ml-bg:#071411;--ml-surface:#0e211d;--ml-surface2:#143129;--ml-line:#245346;
+  --ml-text:#effff9;--ml-muted:#9fc9bc;
+}
+:root[data-theme="neon"]{
+  --bg:#160b17;--panel:#251226;--panel-2:#351832;--panel-3:#482044;
+  --accent:#ff5fc8;--accent-2:#ff91dc;
+  --ml-bg:#160b17;--ml-surface:#251226;--ml-surface2:#351832;--ml-line:#593052;
+  --ml-text:#fff3fc;--ml-muted:#c9a3c0;
+}
+:root[data-theme="paper"]{
+  --bg:#111027;--panel:#1b1940;--panel-2:#29265a;--panel-3:#383477;
+  --accent:#8d80ff;--accent-2:#b4aaff;
+  --ml-bg:#111027;--ml-surface:#1b1940;--ml-surface2:#29265a;--ml-line:#454078;
+  --ml-text:#f7f5ff;--ml-muted:#b5b0d5;
+}
+:root[data-theme] body{background:var(--ml-bg)!important;color:var(--ml-text)}
+:root[data-theme] #appRoot{background:radial-gradient(ellipse at 82% 0%,color-mix(in srgb,var(--accent) 17%,transparent),transparent 38%),var(--ml-bg)}
+:root[data-theme] .app-top,:root[data-theme] .top{border-color:var(--ml-line)}
+:root[data-theme] .nav{border-color:var(--ml-line)}
+:root[data-theme] .nav button.on{color:var(--accent);background:color-mix(in srgb,var(--accent) 13%,var(--ml-surface))}
+:root[data-theme] .chip,:root[data-theme] .plan-chip{border-color:var(--ml-line);background:var(--ml-surface2);color:var(--ml-text)}
+:root[data-theme] .plan-chip.pro{background:color-mix(in srgb,var(--accent) 20%,var(--ml-surface));border-color:var(--accent)}
+:root[data-theme] #bar{border-color:color-mix(in srgb,var(--accent) 45%,var(--ml-line));background:color-mix(in srgb,var(--ml-surface) 96%,transparent)}
+:root[data-theme] #bar .iconbtn.main{background:var(--accent);color:#071522}
+:root[data-theme] .tab.on,:root[data-theme] .fchip.on,:root[data-theme] .hero-cta{background:var(--accent)!important;color:#071522!important;border-color:var(--accent)!important}
+:root[data-theme] .swatch.on{outline-color:var(--accent)!important}
+
+/* Previous/next were accidentally hidden by the compact mobile override. */
+#bar{
+  grid-template-columns:42px minmax(0,1fr) 34px 34px 40px 34px!important;
+}
+#bar #barLike{display:none!important}
+#bar #barRemote,#bar #barPrev,#bar #barPlay,#bar #barNext{
+  display:grid!important;visibility:visible!important;opacity:1!important;
+}
+#bar #barPrev,#bar #barNext{width:32px;height:34px;min-width:32px;border-radius:10px}
+#bar #barPlay{width:38px;height:38px;min-width:38px;border-radius:50%}
+#bar #barRemote{width:34px;height:34px;min-width:34px}
+@media(max-width:380px){
+  #bar{grid-template-columns:38px minmax(0,1fr) 30px 30px 36px 30px!important;gap:4px!important}
+  #bar #barPrev,#bar #barNext{width:28px;min-width:28px}
+  #bar #barRemote{width:30px;min-width:30px}
+  #bar #barPlay{width:34px;min-width:34px;height:34px}
+}
