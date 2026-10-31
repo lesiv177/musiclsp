@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="./legacy.css?v=1">
 <link rel="stylesheet" href="./v2.css?v=4">
-<link rel="stylesheet" href="./redesign.css?v=3">
+<link rel="stylesheet" href="./redesign.css?v=4">
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
 </head>
 <body>
@@ -121,9 +121,9 @@
   </div>
   <button class="iconbtn like" id="barLike" onclick="toggleLike()" aria-label="Улюблене"><span data-icon="heart"></span></button>
   <button class="iconbtn" id="barRemote" onclick="openDevices()" aria-label="Керувати пристроями"><span data-icon="devices"></span></button>
-  <button class="iconbtn" onclick="barPrev()"><span data-icon="prev"></span></button>
+  <button class="iconbtn" id="barPrev" onclick="barPrev()" aria-label="Попередній трек"><span data-icon="prev"></span></button>
   <button class="iconbtn main" id="barPlay" onclick="barTogglePlay()"><span data-icon="play"></span></button>
-  <button class="iconbtn" onclick="barNext()"><span data-icon="next"></span></button>
+  <button class="iconbtn" id="barNext" onclick="barNext()" aria-label="Наступний трек"><span data-icon="next"></span></button>
   <div class="barline" id="barLine"></div>
 </div>
 
