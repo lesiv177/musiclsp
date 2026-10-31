@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="./legacy.css?v=1">
 <link rel="stylesheet" href="./v2.css?v=4">
+<link rel="stylesheet" href="./redesign.css?v=1">
 <style id="v2-critical-nav">.nav{grid-template-columns:repeat(5,minmax(0,1fr))}</style>
 </head>
 <body>
@@ -42,7 +43,7 @@
       <div class="sub" id="topSub">Музика з відкритих ліцензій</div>
     </div>
     <div class="spacer"></div>
-    <div class="chip" id="planChip">Free</div>
+    <button class="chip plan-chip" id="planChip" type="button" onclick="openPlan()">Free</button>
     <button class="chip device-chip" id="deviceChip" onclick="openDevices()" aria-label="Керування пристроями"><span data-icon="devices"></span></button>
   </header>
 
@@ -94,11 +95,12 @@
 
   <!-- LIBRARY -->
   <section class="screen" id="scLib">
-    <div class="tabs" id="libTabs">
-      <button class="tab on" data-view="liked" data-i18n="lib_liked">Збережене</button>
-      <button class="tab" data-view="playlists" data-i18n="lib_playlists">Плейлисти</button>
-      <button class="tab" data-view="history" data-i18n="lib_history">Історія</button>
-      <button class="tab" data-view="moments" data-i18n="lib_moments">Моменти</button>
+    <div class="library-heading"><div class="explore-kicker">YOUR SOUND / COLLECTION</div><h1>Твоя колекція</h1><p>Усе, що хочеш зберегти поруч.</p></div>
+    <div class="tabs library-tabs" id="libTabs">
+      <button class="tab on" data-view="liked">❤️ Збережене</button>
+      <button class="tab" data-view="playlists">▤ Плейлисти</button>
+      <button class="tab" data-view="history">◷ Прослухано</button>
+      <button class="tab" data-view="moments">✦ Моменти</button>
     </div>
     <div id="libBody"></div>
   </section>
@@ -130,7 +132,7 @@
   <button class="on" data-go="Home"><span class="ic" data-icon="home"></span><span>Головна</span></button>
   <button data-go="Explore"><span class="ic" data-icon="compass"></span><span>Огляд</span></button>
   <button data-go="Search"><span class="ic" data-icon="search"></span><span>Пошук</span></button>
-  <button data-go="Lib"><span class="ic" data-icon="library"></span><span>Музика</span></button>
+  <button data-go="Lib"><span class="ic" data-icon="library"></span><span>Колекція</span></button>
   <button data-go="Me"><span class="ic" data-icon="profile"></span><span>Профіль</span></button>
 </nav>
 
@@ -2697,11 +2699,9 @@ function renderProfile(){
       </div>
     </div>
 
-    <div class="sect"><h2 data-i18n="pr_premium">Premium</h2>
-      ${S.features.map((f,i)=>`<div class="feat"><div class="n">${i+1}</div>
-        <div><b>${esc(f.title)}</b><span>${esc(f.description)}</span></div></div>`).join("")}
-      ${p?"":`<button class="btn" style="margin-top:14px" onclick="openPromo()" data-i18n="pr_promo_btn">Ввести промокод</button>`}
-    </div>
+    <button class="plan-showcase" type="button" onclick="openPlan()">
+      <span class="plan-showcase-icon">✦</span><span class="plan-showcase-copy"><small>ТВІЙ ДОСТУП</small><b>${p?"MusicLSP Premium":"MusicLSP Free"}</b><span>${p?"Усі можливості вже відкриті":"Відкрий повний список можливостей"}</span></span><span class="plan-showcase-arrow">↗</span>
+    </button>
 
     <div class="sect"><h2 data-i18n="pr_licenses">Ліцензії</h2>
       <div style="font-size:12.5px;color:var(--muted);line-height:1.65" data-i18n="pr_licenses_body">
@@ -3017,6 +3017,29 @@ function shareWrapped(type, artist, hours){
   const text = `Мій тип слухача в MusicLSP — ${type}! ${hours} год музики цього року, улюблений артист — ${artist}.`;
   try{ tg?.openTelegramLink?.(`https://t.me/share/url?url=&text=${encodeURIComponent(text)}`); }
   catch(e){ toast(text); }
+}
+
+function openPlan(){
+  const premium = !!S.me?.premium;
+  const features = Array.isArray(S.features) ? S.features : [];
+  const defaults = [
+    ["Hi‑Fi звук","FLAC та 320 kbps там, де це дозволяє джерело."],
+    ["Еквалайзер","10 смуг, налаштування та збережені пресети."],
+    ["Кросфейд","Плавний перехід між треками."],
+    ["Таймер сну","Автоматичне завершення відтворення."],
+    ["Жива обкладинка","Додаткові стилі оформлення."],
+    ["Розширені можливості","Більше персональних налаштувань і лімітів."]
+  ];
+  const rows = features.length ? features.map((f,i)=>[f.title||"Можливість "+(i+1),f.description||"Доступно з Premium"]) : defaults;
+  showModal(`<div class="plan-modal-head"><div class="explore-kicker">MUSICLSP MEMBERSHIP</div><h2>${premium?"Твій Premium":"Обери свій рівень"}</h2><p>${premium?"Дякуємо, що слухаєш із повним доступом.":"Порівняй можливості та обери комфортний формат."}</p></div>
+    <div class="plan-compare">
+      <div class="plan-tier ${!premium?"selected":""}"><small>БАЗОВИЙ ДОСТУП</small><b>Free</b><span>Основні функції MusicLSP</span></div>
+      <div class="plan-tier premium ${premium?"selected":""}"><small>ПОВНИЙ ДОСТУП</small><b>✦ Premium</b><span>Розширені можливості платформи</span></div>
+    </div>
+    <h3 class="plan-list-title">Що входить у Premium</h3>
+    <div class="plan-feature-list">${rows.map(([title,desc],i)=>`<div class="plan-feature"><span>${["♫","◉","↝","◷","✧","＋"][i%6]}</span><div><b>${esc(title)}</b><small>${esc(desc)}</small></div><i>✓</i></div>`).join("")}</div>
+    ${premium?"":`<button class="btn plan-promo" onclick="openPromo()">Ввести промокод</button>`}
+    <button class="pill plan-close" onclick="closeModal()">Закрити</button>`);
 }
 
 function openPromo(){
