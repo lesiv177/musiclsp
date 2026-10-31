@@ -88,6 +88,12 @@ const { spawn } = require("node:child_process");
     // Profile: settings switches, speed control, Premium gates and device manager.
     await page.locator('.nav button[data-go="Me"]').click();
     await page.waitForTimeout(180);
+    // Plan details are a dedicated modal, not a feature list embedded in the profile.
+    if (await page.locator("#meBody .feat").count()) throw new Error("Premium features leaked into profile layout");
+    await page.locator("#planChip").click();
+    await page.waitForSelector("#modal.on .plan-feature-list .plan-feature", { timeout: 3000 });
+    if (!await page.locator("#modal.on .plan-modal-head").count()) throw new Error("Plan details modal did not open");
+    await page.locator("#modal").evaluate(el => el.classList.remove("on"));
     for (const id of ["swAutoplay", "swDataSaver", "swNight", "speedBtn", "devicesBtn", "swEq", "sleepBtn"]) {
       if (!await page.locator("#" + id).count()) throw new Error("Profile control missing: " + id);
     }
