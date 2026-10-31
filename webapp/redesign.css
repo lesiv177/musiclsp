@@ -937,3 +937,161 @@ html[data-theme] .swatch.on{outline-color:var(--accent)!important}
 #homeBody .home-user-playlist small{font-size:10px;color:var(--muted)}
 #homeBody .home-playlist-empty{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 13px;border:1px solid var(--line);border-radius:13px;background:var(--surface);color:var(--muted);font-size:11px}
 #homeBody .home-playlist-empty button{border:0;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-size:11px;font-weight:700;padding:8px 12px;white-space:nowrap}
+
+
+/* MusicLSP theme system v2 — one palette drives the entire interface */
+:root[data-theme]{
+ color-scheme:dark;
+ --accent-soft:color-mix(in srgb,var(--accent) 15%,transparent);
+ --accent-border:color-mix(in srgb,var(--accent) 42%,var(--line));
+ --surface-glass:color-mix(in srgb,var(--surface) 88%,transparent);
+ --surface-hover:color-mix(in srgb,var(--surface) 78%,var(--accent) 22%);
+ --text-on-accent:var(--accent-ink);
+}
+:root[data-theme] body,
+:root[data-theme] #appRoot,
+:root[data-theme] .app,
+:root[data-theme] .screen,
+:root[data-theme] .screen.on{
+ color:var(--text)!important;
+}
+:root[data-theme] .app,
+:root[data-theme] #appRoot{background:transparent!important}
+:root[data-theme] .top,
+:root[data-theme] .app-top{
+ background:color-mix(in srgb,var(--bg) 92%,transparent)!important;
+ border-color:var(--line)!important;
+}
+:root[data-theme] .welcome-block,
+:root[data-theme] .welcome-block h1,
+:root[data-theme] .home-section .section-head h2,
+:root[data-theme] .sect h2,
+:root[data-theme] .section h2,
+:root[data-theme] .library-heading h1,
+:root[data-theme] .explore-head h1,
+:root[data-theme] #meBody,
+:root[data-theme] #libBody,
+:root[data-theme] #scSearch,
+:root[data-theme] #scExplore,
+:root[data-theme] #scHome{color:var(--text)!important}
+:root[data-theme] .welcome-block p,
+:root[data-theme] .welcome-kicker,
+:root[data-theme] .home-section .section-head small,
+:root[data-theme] .sect small,
+:root[data-theme] .opt span,
+:root[data-theme] .muted,
+:root[data-theme] .sub{color:var(--muted)!important}
+:root[data-theme] .welcome-wave{filter:drop-shadow(0 0 10px color-mix(in srgb,var(--accent) 42%,transparent))!important}
+:root[data-theme] .home-searchbar,
+:root[data-theme] .searchbar,
+:root[data-theme] .field,
+:root[data-theme] input,
+:root[data-theme] textarea,
+:root[data-theme] select{
+ background:var(--surface)!important;color:var(--text)!important;border-color:var(--line)!important;
+}
+:root[data-theme] input::placeholder,
+:root[data-theme] textarea::placeholder{color:var(--muted)!important}
+:root[data-theme] .home-category,
+:root[data-theme] .tab,
+:root[data-theme] .fchip,
+:root[data-theme] .pill,
+:root[data-theme] .chip,
+:root[data-theme] .genre-tile,
+:root[data-theme] .mood-tile{
+ background:var(--surface)!important;color:var(--text)!important;border-color:var(--line)!important;
+}
+:root[data-theme] .home-category.on,
+:root[data-theme] .tab.on,
+:root[data-theme] .fchip.on,
+:root[data-theme] .btn.primary,
+:root[data-theme] .home-category.active{
+ background:var(--accent)!important;color:var(--accent-ink)!important;border-color:var(--accent)!important;
+}
+:root[data-theme] .btn,
+:root[data-theme] button.btn,
+:root[data-theme] .iconbtn{
+ color:var(--text)!important;border-color:var(--line)!important;
+}
+:root[data-theme] .btn.primary,
+:root[data-theme] button.primary,
+:root[data-theme] .hero-cta{
+ background:var(--accent)!important;color:var(--accent-ink)!important;border-color:var(--accent)!important;
+}
+:root[data-theme] .home-feature-card,
+:root[data-theme] .home-user-playlist,
+:root[data-theme] .home-playlist-empty,
+:root[data-theme] #libBody .row,
+:root[data-theme] #meBody>.sect,
+:root[data-theme] .refcard,
+:root[data-theme] .empty,
+:root[data-theme] .card,
+:root[data-theme] .plan-tier,
+:root[data-theme] .plan-feature{
+ background:var(--surface)!important;color:var(--text)!important;border-color:var(--line)!important;
+}
+:root[data-theme] .home-feature-card{
+ background:linear-gradient(145deg,var(--hero-a),var(--hero-b))!important;
+}
+:root[data-theme] .home-feature-card.tone-mix,
+:root[data-theme] .home-feature-card.tone-new,
+:root[data-theme] .home-feature-card.tone-popular,
+:root[data-theme] .home-feature-card.tone-relax{
+ background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 56%,var(--surface)),var(--surface))!important;
+}
+:root[data-theme] .home-user-playlist img,
+:root[data-theme] .home-user-playlist .playlist-placeholder,
+:root[data-theme] .plan-feature>span,
+:root[data-theme] .plan-showcase-icon{
+ background:var(--accent-soft)!important;color:var(--accent)!important;
+}
+:root[data-theme] .plan-showcase,
+:root[data-theme] .plan-tier.premium{
+ background:linear-gradient(125deg,var(--hero-a),var(--hero-b))!important;
+ border-color:var(--accent-border)!important;color:var(--text)!important;
+}
+:root[data-theme] .nav{
+ background:var(--surface-glass)!important;border-color:var(--line)!important;
+}
+:root[data-theme] .nav button{color:var(--muted)!important}
+:root[data-theme] .nav button.on{
+ color:var(--accent)!important;background:var(--accent-soft)!important;
+ box-shadow:inset 0 0 0 1px var(--accent-border)!important;
+}
+:root[data-theme] #bar{
+ background:var(--surface-glass)!important;border-color:var(--accent-border)!important;color:var(--text)!important;
+}
+:root[data-theme] #bar .t{color:var(--text)!important}
+:root[data-theme] #bar .s{color:var(--muted)!important}
+:root[data-theme] #bar .iconbtn{color:var(--text)!important}
+:root[data-theme] #bar .iconbtn.on{color:var(--accent)!important;background:var(--accent-soft)!important}
+:root[data-theme] #bar .iconbtn.main{
+ background:var(--accent)!important;color:var(--accent-ink)!important;
+}
+:root[data-theme] #bar .barline{background:var(--accent)!important}
+:root[data-theme] .modal,
+:root[data-theme] #modal,
+:root[data-theme] #modal .box,
+:root[data-theme] .modalBox,
+:root[data-theme] #devicesList .connect-device,
+:root[data-theme] #devicesList .device-now{
+ background:var(--surface)!important;color:var(--text)!important;border-color:var(--line)!important;
+}
+:root[data-theme] #devicesList .device-platform{background:var(--accent-soft)!important;color:var(--accent)!important}
+:root[data-theme] #devicesList .device-live.is-playing{background:var(--accent)!important;box-shadow:0 0 12px var(--accent)!important}
+:root[data-theme] #meBody .sw{background:var(--panel-3)!important}
+:root[data-theme] #meBody .sw.on{background:var(--accent)!important}
+:root[data-theme] #meBody input[type=range],
+:root[data-theme] input[type=range]{accent-color:var(--accent)!important}
+:root[data-theme] #meBody .swatch.on{outline-color:var(--accent)!important}
+:root[data-theme] .plan-chip.pro{background:var(--accent-soft)!important;color:var(--text)!important;border-color:var(--accent)!important}
+:root[data-theme] .icon,
+:root[data-theme] [data-icon]{color:inherit}
+:root[data-theme] ::selection{background:var(--accent);color:var(--accent-ink)}
+@media(prefers-reduced-motion:no-preference){
+ :root[data-theme] .home-category,
+ :root[data-theme] .tab,
+ :root[data-theme] .btn,
+ :root[data-theme] .nav button,
+ :root[data-theme] #bar .iconbtn{transition:background .18s ease,color .18s ease,border-color .18s ease}
+}
