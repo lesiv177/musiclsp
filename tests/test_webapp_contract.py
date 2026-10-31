@@ -93,19 +93,19 @@ class MiniAppContractTests(unittest.TestCase):
                       "Crossfade needs a lock to prevent duplicate next-track transitions")
         self.assertIn("!fadeTimer && !fadeInProgress", JS,
                       "Progress updates must not trigger overlapping crossfades")
-        next_track = JS.split("function nextTrack(auto)", 1)[1].split("\\n}", 1)[0]
+        next_track = JS.split("function nextTrack(auto)", 1)[1].split("\n}", 1)[0]
         self.assertIn("cur.pause();", next_track,
                       "Reaching the end of the queue must stop the audio element")
         self.assertIn("publishDeviceState();", next_track,
                       "Queue-end state must be published to connected devices")
 
     def test_resume_playback_reclaims_shared_session(self):
-        toggle = JS.split("function togglePlay()", 1)[1].split("\\n}", 1)[0]
+        toggle = JS.split("function togglePlay()", 1)[1].split("\n}", 1)[0]
         self.assertIn("claimLocalPlayback()", toggle,
                       "Resuming locally must reclaim the shared playback session")
         self.assertIn("publishDeviceState()", toggle,
                       "Resuming locally must publish its playback state")
-        pending = JS.split("async function startPending()", 1)[1].split("\\n}", 1)[0]
+        pending = JS.split("async function startPending()", 1)[1].split("\n}", 1)[0]
         self.assertIn("claimLocalPlayback()", pending,
                       "Restoring a saved track must reclaim the shared playback session")
 
