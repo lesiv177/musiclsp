@@ -11,12 +11,14 @@ const { spawn } = require("node:child_process");
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const pageErrors = [];
   const apiCalls = [];
+  const apiRequests = [];
   page.on("pageerror", error => pageErrors.push(error.message));
 
   await page.route("https://mock-api.local/**", async route => {
     const url = new URL(route.request().url());
     const path = url.pathname;
     apiCalls.push(path);
+    apiRequests.push({ path, method: route.request().method(), body: route.request().postDataJSON() });
     let data = { ok: true };
     if (path === "/api/me") {
       data = { ok: true, user: {
@@ -110,6 +112,19 @@ const { spawn } = require("node:child_process");
     await page.waitForTimeout(100);
     await page.locator("#modal").evaluate(el => el.classList.remove("on"));
 
+    // Playlist creation must send the exact form values to the API.
+    await page.locator('.nav button[data-go="Lib"]').click();
+    await page.locator('#libTabs [data-view="playlists"]').click();
+    await page.locator('#libBody button[onclick="openCreatePlaylist()"]').click();
+    await page.locator("#plName").fill("QA playlist");
+    await page.locator("#plDesc").fill("Created by browser smoke test");
+    await page.locator('#modalBox button[onclick="createPlaylist()"]').click();
+    await page.waitForFunction(() => document.querySelector("#modal")?.classList.contains("on") === false);
+    const createRequest = apiRequests.find(x => x.path === "/api/playlists" && x.method === "POST" && x.body?.action === "create");
+    if (!createRequest || createRequest.body.name !== "QA playlist" || createRequest.body.description !== "Created by browser smoke test") {
+      throw new Error("Playlist creation did not send expected API payload");
+    }
+
     // Queue ordering and removal: exercise the actual rendered controls.
     await page.evaluate(() => {
       window.eval('S.queue = [{id:"qa-1",title:"Track One",artist:"Artist",cover:""},{id:"qa-2",title:"Track Two",artist:"Artist",cover:""},{id:"qa-3",title:"Track Three",artist:"Artist",cover:""}]; S.index = 0;');
@@ -144,7 +159,7 @@ const { spawn } = require("node:child_process");
     const required = ["/api/me", "/api/home", "/api/library", "/api/playlists", "/api/search", "/api/genres", "/api/history"];
     const missing = required.filter(path => !apiCalls.includes(path));
     if (missing.length) throw new Error("Expected API calls missing: " + missing.join(", "));
-    console.log("Mini App browser smoke passed: boot, 5 navigation actions, 6 search tabs, 3 sort controls, 4 library tabs; no page errors.");
+    console.log("Mini App browser smoke passed: navigation, search, sorting, library tabs, profile settings, device manager, playlist creation, queue reorder/removal; no page errors.");
   } finally {
     await browser.close();
     server.kill();
