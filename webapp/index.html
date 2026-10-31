@@ -8,8 +8,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="./legacy.css?v=1">
-<link rel="stylesheet" href="./v2.css?v=4">
-<link rel="stylesheet" href="./redesign.css?v=18">
+<link rel="stylesheet" href="./v2.css?v=5">
+<link rel="stylesheet" href="./redesign.css?v=19">
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
 </head>
 <body>
@@ -1985,7 +1985,9 @@ async function applyDeviceCommand(command){
         position:Math.floor(cur.currentTime||target),duration:Math.floor(cur.duration||0),
         playing:!cur.paused,volume:Math.max(0,Math.min(1,Number(cur.volume)||0))};
       try{
-        await post("/api/player/session",{device_id:DEVICE_SYNC.id,state});
+        const expectedOwner=DEVICE_SYNC.session&&DEVICE_SYNC.session.owner_device_id
+          ? DEVICE_SYNC.session.owner_device_id : "";
+        await post("/api/player/session",{device_id:DEVICE_SYNC.id,expected_owner_id:expectedOwner,state});
       }catch(e){
         cur.pause();S.playing=false;paintPlayState();
         toast("Не вдалося підтвердити перемикання. Попередній пристрій продовжить грати");
@@ -1997,7 +1999,7 @@ async function applyDeviceCommand(command){
     }
     if(current()){
       if(!cur.src){const started=await play(current());if(started)await post("/api/player/session",{device_id:DEVICE_SYNC.id,state:{track:current(),queue:S.queue.slice(0,30),index:S.index,position:0,playing:true,volume:cur.volume||1}});}
-      else {try{await cur.play();S.playing=true;paintPlayState();publishDeviceState();}catch(e){toast("Натисни відтворення на цьому пристрої");}}
+      else {try{await cur.play();S.playing=true;paintPlayState();claimLocalPlayback();publishDeviceState();}catch(e){toast("Натисни відтворення на цьому пристрої");}}
     }
     return true;
   }
@@ -2123,7 +2125,9 @@ async function selectPlaybackDevice(targetId, devices){
         position:Math.floor(cur.currentTime||snapshot.position),duration:Math.floor(cur.duration||0),
         playing:!cur.paused,volume:cur.volume||1};
       try{
-        await post("/api/player/session",{device_id:DEVICE_SYNC.id,state});
+        const expectedOwner=DEVICE_SYNC.session&&DEVICE_SYNC.session.owner_device_id
+          ? DEVICE_SYNC.session.owner_device_id : "";
+        await post("/api/player/session",{device_id:DEVICE_SYNC.id,expected_owner_id:expectedOwner,state});
       }catch(e){
         cur.pause();S.playing=false;paintPlayState();
         toast("Не вдалося підтвердити перемикання. Попередній пристрій продовжить грати");
@@ -2148,11 +2152,6 @@ async function selectPlaybackDevice(targetId, devices){
     // Keep the current speaker playing until the target confirms successful start.
   }catch(e){toast(e.message||"Не вдалося перемкнути пристрій");}
 }
-async function handoffToDevice(targetId){
-  const devices=(await get("/api/devices")).devices||[];
-  await selectPlaybackDevice(targetId,devices);
-}
-
 async function resumeOnThisDevice(){
   if(!DEVICE_SYNC.id) return;
   try{
