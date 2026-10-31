@@ -23,7 +23,7 @@ const { spawn } = require("node:child_process");
         id: 7, first_name: "QA", username: "qa", premium: false,
         theme: "midnight", accent: "violet", lang: "uk", crossfade: 0, eq: null,
         is_admin: false
-      }, limits: { playlists: 5, offline_pack: false }, features: [] };
+      }, limits: { playlists: 5, offline_pack: false, ambient_styles: [] }, features: [] };
     } else if (path === "/api/home") data = { ok: true, sections: [] };
     else if (path === "/api/moods") data = { ok: true, moods: [] };
     else if (path === "/api/collections") data = { ok: true, playlists: [] };
