@@ -65,11 +65,14 @@ const { spawn } = require("node:child_process");
         throw new Error("Navigation did not open screen: " + target);
       }
     }
-    await page.locator("#heroExplore").click();
+    await page.locator("#welcomeSearch").click();
     await page.waitForTimeout(120);
-    if (!await page.locator("#scExplore").evaluate(el => el.classList.contains("on"))) {
-      throw new Error("Home discovery CTA did not open Explore screen");
+    if (!await page.locator("#scSearch").evaluate(el => el.classList.contains("on"))) {
+      throw new Error("Home search CTA did not open Search screen");
     }
+    await page.locator('.nav button[data-go="Create"]').click();
+    await page.waitForSelector("#modal.on .create-action");
+    await page.locator("#modal").evaluate(el => el.classList.remove("on"));
 
     await page.locator('.nav button[data-go="Search"]').click();
     await page.locator("#qInput").fill("test artist");
@@ -90,13 +93,15 @@ const { spawn } = require("node:child_process");
     }
 
     // Profile: settings switches, speed control, Premium gates and device manager.
-    await page.locator('.nav button[data-go="Me"]').click();
+    await page.locator("#topProfile").click();
     await page.waitForTimeout(180);
     // Plan details are a dedicated modal, not a feature list embedded in the profile.
     if (await page.locator("#meBody .feat").count()) throw new Error("Premium features leaked into profile layout");
     await page.locator("#planChip").click();
-    await page.waitForSelector("#modal.on .plan-feature-list .plan-feature", { timeout: 3000 });
-    if (!await page.locator("#modal.on .plan-modal-head").count()) throw new Error("Plan details modal did not open");
+    await page.waitForSelector("#modal.on .plan-choice", { timeout: 3000 });
+    if (!await page.locator("#modal.on .plan-modal-head").count()) throw new Error("Plan chooser modal did not open");
+    await page.locator("#modal.on .plan-choice").first().click();
+    await page.waitForSelector("#modal.on .plan-detail-row", { timeout: 3000 });
     await page.locator("#modal").evaluate(el => el.classList.remove("on"));
     for (const id of ["swAutoplay", "swDataSaver", "swNight", "speedBtn", "devicesBtn", "swEq", "sleepBtn"]) {
       if (!await page.locator("#" + id).count()) throw new Error("Profile control missing: " + id);
