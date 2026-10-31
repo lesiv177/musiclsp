@@ -70,7 +70,7 @@ const { spawn } = require("node:child_process");
     if (!await page.locator("#scSearch").evaluate(el => el.classList.contains("on"))) {
       throw new Error("Home search CTA did not open Search screen");
     }
-    await page.locator('.nav button[data-go="Create"]').click();
+    await page.locator('.nav button[onclick="openCreateMenu()"]').click();
     await page.waitForSelector("#modal.on .create-action");
     await page.locator("#modal").evaluate(el => el.classList.remove("on"));
 
