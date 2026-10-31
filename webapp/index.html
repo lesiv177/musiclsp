@@ -1560,7 +1560,7 @@ async function renderLibrary(){
   if(S.libView === "liked"){
     await loadLiked();
     if(!likedTracks.length){ box.innerHTML =
-      `<div class="empty"><b data-i18n="lib_liked_empty_title">Збережене порожнє</b>Тисніть ${ICON("heart","sm")} <span data-i18n="lib_liked_empty_body">у плеєрі — трек буде тут.</span></div>`;
+      `<div class="empty library-empty"><b data-i18n="lib_liked_empty_title">Збережене порожнє</b><span data-i18n="lib_liked_empty_body">Зберігай улюблені треки — вони будуть тут.</span><button class="btn" type="button" onclick="go('Search')">Знайти музику</button></div>`;
       applyI18n(); return; }
     mountRows(box, likedTracks, "liked");
     box.insertAdjacentHTML("beforeend", `<aside class="library-next-step"><div><b>Знайди наступний улюблений трек</b><p>Відкрий рекомендації та поповни свою колекцію.</p></div><button type="button" onclick="go('Search')">Знайти музику</button></aside>`);
