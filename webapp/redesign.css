@@ -345,3 +345,18 @@ body{background:var(--ml-bg)!important;color:var(--ml-text)}
 .create-action b{display:block;font-size:13px}.create-action small{display:block;color:#9bafbf;font-size:10px;margin-top:3px}.create-action i{font-style:normal;color:#80d8f3}
 @media(min-width:600px){.screen{padding-left:26px;padding-right:26px}.welcome-block{min-height:260px;padding:30px}.welcome-block h1{font-size:36px}.welcome-art{right:35px;width:220px;height:220px}}
 @media(max-width:390px){.app-top{padding-left:13px;padding-right:13px}.screen{padding-left:14px;padding-right:14px}.welcome-block{padding:19px 16px}.welcome-block h1{font-size:27px}.plan-choice-grid{grid-template-columns:1fr}.plan-choice{min-height:130px}.bar{left:7px!important;right:7px!important}}
+
+/* Navigation label regression: one label node per destination, never appended text. */
+.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.nav.app-nav button{min-height:58px;white-space:nowrap}
+.nav.app-nav .nav-label{display:block;line-height:1.15;white-space:nowrap}
+.app-top .name{font-size:19px}
+.library-heading{padding:20px 2px 16px}
+#scLib .library-tabs{margin-bottom:12px}
+#scLib #libBody{min-height:calc(100dvh - 390px)}
+#scLib #libBody .rows{padding-bottom:12px}
+#scLib .library-next-step{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:22px 0 18px;padding:16px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(120deg,#11283a,#151d31)}
+#scLib .library-next-step b{display:block;font-size:13px}
+#scLib .library-next-step p{margin:4px 0 0;font-size:11px;color:var(--muted);line-height:1.4}
+#scLib .library-next-step button{flex:none;border:0;border-radius:99px;padding:10px 14px;background:linear-gradient(110deg,#56c5ff,#79e4df);color:#061522;font-size:11px;font-weight:800}
+@media(max-height:740px){#scLib #libBody{min-height:0}}
