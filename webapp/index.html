@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="./legacy.css?v=1">
 <link rel="stylesheet" href="./v2.css?v=4">
-<link rel="stylesheet" href="./redesign.css?v=13">
+<link rel="stylesheet" href="./redesign.css?v=14">
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
 </head>
 <body>
@@ -1138,12 +1138,13 @@ async function loadHome(){
   const root=$("homeBody");
   root.innerHTML='<div class="home-loading"><div class="skel"></div><div class="skel"></div></div>';
   try{
-    const [homeData,moodsData,collectionsHtml,dailyHtml]=await Promise.all([
+    const [homeData,moodsData,playlistData,dailyHtml]=await Promise.all([
       get("/api/home").catch(()=>({sections:[]})),
       get("/api/moods").catch(()=>({moods:[]})),
-      loadCollections(),
+      get("/api/playlists").catch(()=>({playlists:[]})),
       loadDaily()
     ]);
+    S.playlists=Array.isArray(playlistData.playlists)?playlistData.playlists:[];
     const sections=(homeData.sections||[]).filter(x=>Array.isArray(x.tracks)&&x.tracks.length);
     const byId=Object.fromEntries(sections.map(s=>[s.id,s]));
     const recent=byId.recent?.tracks||[];
@@ -1220,7 +1221,14 @@ async function loadHome(){
         ${rowsHtml(recent.slice(0,8),"homeRecent")}
       </section>`;
     }
-    if(collectionsHtml) out+=`<section class="home-section home-playlists-section"><div class="section-head"><div><h2>Твої плейлисти</h2></div><button class="home-section-arrow" type="button" data-home-category="playlists" aria-label="Усі плейлисти">›</button></div>${collectionsHtml}</section>`;
+    out+=`<section class="home-section home-playlists-section">
+      <div class="section-head"><div><h2>Твої плейлисти</h2></div><button class="home-section-arrow" type="button" data-home-category="playlists" aria-label="Усі плейлисти">›</button></div>
+      ${S.playlists.length?`<div class="home-user-playlists">${S.playlists.slice(0,8).map(p=>`
+        <button class="home-user-playlist" type="button" data-home-playlist="${p.id}">
+          ${p.cover?`<img src="${esc(p.cover)}" alt="" loading="lazy" onerror="this.style.display='none'">`:`<span class="playlist-placeholder">${ICON("library")}</span>`}
+          <span><b>${esc(p.name||"Плейлист")}</b><small>${Number(p.count)||0} треків</small></span>
+        </button>`).join("")}</div>`:`<div class="home-playlist-empty"><span>Тут будуть твої власні добірки</span><button type="button" onclick="openCreatePlaylist()">＋ Створити плейлист</button></div>`}
+    </section>`;
     if(dailyHtml) out+=`<section class="home-daily-section">${dailyHtml}</section>`;
     if(!featureItems.length&&!recent.length){
       out+=`<div class="empty"><b>Поки немає рекомендацій</b><span>Знайди улюбленого виконавця або трек — і ми підберемо музику.</span></div>`;
@@ -1237,6 +1245,7 @@ async function loadHome(){
       const list=CTX["feature"+(+b.dataset.homeFeature)]||[];
       if(list.length){setQueue(list,0);tap();}
     });
+    root.querySelectorAll("[data-home-playlist]").forEach(b=>b.onclick=()=>openPlaylist(+b.dataset.homePlaylist));
     root.querySelectorAll("[data-home-category]").forEach(b=>b.onclick=()=>{
       const category=b.dataset.homeCategory;
       if(category==="all"){root.querySelectorAll(".home-category").forEach(x=>x.classList.toggle("on",x===b));return;}
