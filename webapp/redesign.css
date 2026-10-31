@@ -203,3 +203,50 @@
  #bar #barRemote{display:none}
  .nav button{font-size:8px}
 }
+
+/* MusicLSP mobile repair pass */
+*,*::before,*::after{box-sizing:border-box}
+#appRoot{overflow-x:hidden}.screen{min-width:0;overflow-x:hidden}
+#meBody,.sect,.opt,.opt .lbl,.frow,.tabs,.reel,.card{min-width:0}
+#meBody .sect{overflow:visible}
+#meBody .opt{display:flex;align-items:center;flex-wrap:nowrap;min-height:54px}
+#meBody .opt .lbl{flex:1 1 auto;width:1%;min-width:0}
+#meBody .opt .lbl b,#meBody .opt .lbl span{white-space:normal;overflow-wrap:anywhere;word-break:normal}
+#meBody .frow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+#meBody .frow .fchip{flex:0 0 auto;max-width:100%;white-space:normal;line-height:1.25}
+#meBody input[type=range]{max-width:100%}#meBody .swatches{align-items:center}
+#modal .box{width:min(100% - 24px,560px);max-height:min(82dvh,760px);overflow-y:auto;overflow-x:hidden;padding:20px 16px}
+#modal .spotify-connect-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;font-size:21px;font-weight:750}
+#devicesList{display:grid;gap:12px;min-width:0}
+#devicesList .connect-device{display:grid;gap:12px;min-width:0;padding:14px;border:1px solid #35516a;border-radius:20px;background:linear-gradient(145deg,#14263a,#0d1927)}
+#devicesList .connect-device.selected{border-color:#54bdff;box-shadow:inset 0 0 0 1px #54bdff55}
+#devicesList .connect-device-head{display:grid;grid-template-columns:42px minmax(0,1fr);align-items:center;gap:10px;min-width:0}
+#devicesList .device-platform{grid-row:1;grid-column:1;width:42px;height:42px;display:grid;place-items:center;border-radius:14px;background:#203c57;color:#8fd3ff;font-size:20px}
+#devicesList .device-info{grid-row:1;grid-column:2;min-width:0}
+#devicesList .device-name{font-size:14px;font-weight:700;line-height:1.3;overflow-wrap:anywhere}
+#devicesList .device-status{font-size:11px;color:var(--muted);line-height:1.35;margin-top:4px}
+#devicesList .device-connect{grid-column:1/-1;width:100%;min-height:42px;white-space:normal;line-height:1.25;border-radius:13px}
+#devicesList .device-now{display:grid;grid-template-columns:8px minmax(0,1fr);align-items:center;column-gap:9px;row-gap:3px;min-width:0;padding:11px;border-radius:14px;background:#0a1725}
+#devicesList .device-live{grid-column:1;grid-row:1/3;width:7px;height:7px;border-radius:50%;background:#75889a}
+#devicesList .device-live.is-playing{background:#54c7ff;box-shadow:0 0 12px #54c7ff}
+#devicesList .device-track{grid-column:2;grid-row:1;min-width:0;font-size:13px;font-weight:650;line-height:1.3;white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#devicesList .device-artist{grid-column:2;grid-row:2;min-width:0;font-size:11px;color:var(--muted);line-height:1.3;white-space:normal;overflow-wrap:anywhere}
+#devicesList .device-remote{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#devicesList .device-volume{flex:1 1 100%;display:flex;align-items:center;gap:10px;font-size:11px;color:var(--muted)}
+#devicesList .device-volume input{flex:1;min-width:80px}
+#devicesList .device-seek{min-width:0}#devicesList .device-seek-times{display:flex;justify-content:space-between;font-size:10px;color:var(--muted)}
+#devicesList .empty{padding:20px 14px;text-align:center;line-height:1.55;border:1px dashed #35516a;border-radius:18px;background:#0d1a28}
+#devicesList>.btn{min-height:44px;white-space:normal;line-height:1.3}
+#homeBody .reel{gap:12px;padding-bottom:5px}
+#homeBody .card{width:clamp(132px,39vw,176px);flex:0 0 clamp(132px,39vw,176px);min-width:0}
+#homeBody .card .collection-art,#homeBody .card .ph{width:100%;aspect-ratio:1/1;border-radius:18px;overflow:hidden}
+#homeBody .card .collection-art{display:grid;place-items:center;position:relative;color:#eaf7ff;font-size:42px;font-weight:800;letter-spacing:-2px;background:linear-gradient(145deg,#24506a,#162b48)}
+#homeBody .card .collection-art:after{content:"♫";position:absolute;right:12px;bottom:0;font-size:54px;line-height:1;color:#ffffff24}
+#homeBody .card .collection-art[data-tone="1"]{background:linear-gradient(145deg,#5b3b70,#243b5b)}
+#homeBody .card .collection-art[data-tone="2"]{background:linear-gradient(145deg,#8b583f,#3c2d49)}
+#homeBody .card .collection-art[data-tone="3"]{background:linear-gradient(145deg,#246c68,#17354d)}
+#homeBody .card .collection-art[data-tone="4"]{background:linear-gradient(145deg,#6652a3,#263c66)}
+#homeBody .card .collection-art[data-tone="5"]{background:linear-gradient(145deg,#8a466b,#422d56)}
+#homeBody .card .t{font-size:13px;line-height:1.3;white-space:normal;overflow-wrap:anywhere;margin-top:8px}
+#homeBody .card .s{font-size:11px;line-height:1.3;white-space:normal;overflow-wrap:anywhere}
+@media(max-width:420px){#modal .box{padding:17px 13px;border-radius:20px}#devicesList .connect-device{padding:12px;border-radius:17px}#meBody .opt{gap:8px}#meBody .opt .lbl{width:auto}}
