@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="./legacy.css?v=1">
 <link rel="stylesheet" href="./v2.css?v=4">
-<link rel="stylesheet" href="./redesign.css?v=7">
+<link rel="stylesheet" href="./redesign.css?v=8">
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
 </head>
 <body>
@@ -1152,7 +1152,7 @@ async function loadHome(){
           <div class="searchbar home-searchbar" id="homeSearchBar">
             <span data-icon="search" class="icon"></span>
             <input id="homeSearchInput" type="search" placeholder="Пошук треків, виконавців, альбомів…" autocomplete="off">
-            <button class="act" id="homeSearchFilters" type="button" aria-label="Фільтри"><span data-icon="sort"></span></button>
+            <button class="act" id="welcomeSearch" type="button" aria-label="Пошук"><span data-icon="sort"></span></button>
           </div>
         </div>
         <div class="welcome-art" aria-hidden="true"><span>♫</span><i></i><b></b></div>
@@ -1183,7 +1183,7 @@ async function loadHome(){
       homeSearch.onfocus=()=>{ homeSearch.setAttribute("aria-label","Пошук музики"); };
       homeSearch.onkeydown=e=>{ if(e.key==="Enter"){ go("Search"); $("qInput").value=homeSearch.value.trim(); runSearch(); } };
     }
-    const homeFilters=$("homeSearchFilters"); if(homeFilters) homeFilters.onclick=()=>go("Search");
+    const homeFilters=$("welcomeSearch"); if(homeFilters) homeFilters.onclick=()=>go("Search");
     const all=$("allMoods"); if(all) all.onclick=()=>go("Explore");
     root.querySelectorAll("[data-home-mood]").forEach(b=>b.onclick=()=>{
       const m=moods[+b.dataset.homeMood]; if(!m)return;
@@ -2791,8 +2791,8 @@ function renderProfile(){
             style="background:${{midnight:"#C6A1FF",ember:"#FF9E4A",aurora:"#5BE3C6",
                                 neon:"#FF5FC8",paper:"#5A4BD6"}[t]}"></button>`).join("")}
       </div>
-      <div style="font-size:12px;color:var(--muted);margin-top:9px" data-i18n="${p?"pr_theme_all":"pr_theme_free"}">
-        ${p?"Усі теми відкриті":"У Free доступна лише перша тема"}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:9px" data-i18n="pr_theme_all">
+        Усі теми відкриті</div>
     </div>
 
     <div class="sect"><h2 data-i18n="pr_lang">Мова</h2>
@@ -2918,7 +2918,6 @@ function bindProfile(){
 
   $("themeRow").querySelectorAll(".swatch").forEach(b => b.onclick = async () => {
     const t = b.dataset.theme;
-    if(!S.me.premium && t !== "midnight") return toast("Ця тема доступна у Premium");
     try{
       await saveSettings({theme:t});
       S.me.theme = t; applyTheme(t); renderProfile(); tap();
