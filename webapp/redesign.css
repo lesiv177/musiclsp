@@ -1095,3 +1095,12 @@ html[data-theme] .swatch.on{outline-color:var(--accent)!important}
  :root[data-theme] .nav button,
  :root[data-theme] #bar .iconbtn{transition:background .18s ease,color .18s ease,border-color .18s ease}
 }
+
+/* ── фікс кнопок Mini App: прибираємо 300мс ghost-click і виділення ── */
+button,.btn,[role="button"],.nav-item,.card,.device-remote button,.connect-close{
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+  user-select:none;
+  -webkit-user-select:none;
+  cursor:pointer;
+}
