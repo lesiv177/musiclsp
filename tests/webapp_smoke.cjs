@@ -58,13 +58,17 @@ const { spawn } = require("node:child_process");
     await page.goto("http://127.0.0.1:8765/?api=https%3A%2F%2Fmock-api.local", { waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => document.querySelector("#appRoot")?.classList.contains("ready"), null, { timeout: 15000 });
 
-    const nav = page.locator(".nav button");
-    for (const target of ["Explore", "Search", "Lib", "Home"]) {
+    for (const target of ["Search", "Lib", "Home"]) {
       await page.locator('.nav button[data-go="' + target + '"]').click();
       await page.waitForTimeout(120);
       if (!await page.locator("#sc" + target).evaluate(el => el.classList.contains("on"))) {
         throw new Error("Navigation did not open screen: " + target);
       }
+    }
+    await page.locator("#heroExplore").click();
+    await page.waitForTimeout(120);
+    if (!await page.locator("#scExplore").evaluate(el => el.classList.contains("on"))) {
+      throw new Error("Home discovery CTA did not open Explore screen");
     }
 
     await page.locator('.nav button[data-go="Search"]').click();
