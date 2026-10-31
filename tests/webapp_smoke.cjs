@@ -110,6 +110,28 @@ const { spawn } = require("node:child_process");
     await page.waitForTimeout(100);
     await page.locator("#modal").evaluate(el => el.classList.remove("on"));
 
+    // Queue ordering and removal: exercise the actual rendered controls.
+    await page.evaluate(() => {
+      S.queue = [
+        { id: "qa-1", title: "Track One", artist: "Artist", cover: "" },
+        { id: "qa-2", title: "Track Two", artist: "Artist", cover: "" },
+        { id: "qa-3", title: "Track Three", artist: "Artist", cover: "" }
+      ];
+      S.index = 0;
+      openQueue();
+    });
+    await page.locator('#qModal [data-down="0"]').click();
+    let queueOrder = await page.locator("#qModal .row .t").allTextContents();
+    if (queueOrder.join("|") !== "Track Two|Track One|Track Three") {
+      throw new Error("Queue reorder failed: " + queueOrder.join("|"));
+    }
+    await page.locator('#qModal [data-rm="2"]').click();
+    queueOrder = await page.locator("#qModal .row .t").allTextContents();
+    if (queueOrder.join("|") !== "Track Two|Track One") {
+      throw new Error("Queue removal failed: " + queueOrder.join("|"));
+    }
+    await page.locator("#modal").evaluate(el => el.classList.remove("on"));
+
     // Queue controls: reorder, keep current-track index consistent, remove a queued item.
     await page.evaluate(() => {
       S.queue = [
