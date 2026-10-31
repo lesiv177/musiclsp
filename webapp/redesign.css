@@ -680,96 +680,96 @@ html[data-theme] .swatch.on{outline-color:var(--accent)!important}
 
 
 /* REFERENCE HOME / PALETTE SYSTEM v1 */
-html[data-theme="midnight"]{
+:root[data-theme="midnight"]{
  --bg:#080d17;--panel:#111a2b;--panel-2:#17233a;--panel-3:#202d48;
  --surface:#101827;--surface-raised:#141e32;--card:#121b2e;
  --text:#f4f6ff;--ink:#f4f6ff;--muted:#a1abc5;--line:rgba(153,166,255,.18);
  --accent:#8e65ff;--accent-2:#32c9ff;--accent-ink:#fff;
  --hero-a:#11182d;--hero-b:#0a1220;--ml-bg:#080d17;--ml-surface:#101827;--ml-surface2:#17233a;--ml-line:rgba(153,166,255,.18);--ml-text:#f4f6ff;--ml-muted:#a1abc5;
 }
-html[data-theme="ember"]{
+:root[data-theme="ember"]{
  --bg:#140d0a;--panel:#21150f;--panel-2:#332116;--panel-3:#472b1d;
  --surface:#21150f;--surface-raised:#2a1b13;--card:#24170f;
  --text:#fff4eb;--ink:#fff4eb;--muted:#d0ad96;--line:rgba(255,164,92,.22);
  --accent:#ff9c45;--accent-2:#ffd17b;--accent-ink:#2b1305;
  --hero-a:#351b10;--hero-b:#1a100d;--ml-bg:#140d0a;--ml-surface:#21150f;--ml-surface2:#332116;--ml-line:rgba(255,164,92,.22);--ml-text:#fff4eb;--ml-muted:#d0ad96;
 }
-html[data-theme="aurora"]{
+:root[data-theme="aurora"]{
  --bg:#061512;--panel:#0d2420;--panel-2:#14352e;--panel-3:#1d493d;
  --surface:#0d2420;--surface-raised:#123029;--card:#102a24;
  --text:#effff9;--ink:#effff9;--muted:#9fc9bc;--line:rgba(91,227,198,.22);
  --accent:#5be3c6;--accent-2:#77cfff;--accent-ink:#05241b;
  --hero-a:#0b2929;--hero-b:#071a18;--ml-bg:#061512;--ml-surface:#0d2420;--ml-surface2:#14352e;--ml-line:rgba(91,227,198,.22);--ml-text:#effff9;--ml-muted:#9fc9bc;
 }
-html[data-theme="neon"]{
+:root[data-theme="neon"]{
  --bg:#160b18;--panel:#28132a;--panel-2:#3a1b3d;--panel-3:#50234f;
  --surface:#28132a;--surface-raised:#321936;--card:#2a142d;
  --text:#fff2fc;--ink:#fff2fc;--muted:#d0a4c8;--line:rgba(255,95,200,.23);
  --accent:#ff5fc8;--accent-2:#8e7bff;--accent-ink:#2b0420;
  --hero-a:#351139;--hero-b:#1b0d21;--ml-bg:#160b18;--ml-surface:#28132a;--ml-surface2:#3a1b3d;--ml-line:rgba(255,95,200,.23);--ml-text:#fff2fc;--ml-muted:#d0a4c8;
 }
-html[data-theme="paper"]{
+:root[data-theme="paper"]{
  --bg:#111027;--panel:#1c1942;--panel-2:#29265a;--panel-3:#3b3675;
  --surface:#1c1942;--surface-raised:#24204f;--card:#201d49;
  --text:#f8f6ff;--ink:#f8f6ff;--muted:#b9b4dc;--line:rgba(180,170,255,.24);
  --accent:#a096ff;--accent-2:#6fcfff;--accent-ink:#fff;
  --hero-a:#29245b;--hero-b:#15132e;--ml-bg:#111027;--ml-surface:#1c1942;--ml-surface2:#29265a;--ml-line:rgba(180,170,255,.24);--ml-text:#f8f6ff;--ml-muted:#b9b4dc;
 }
-html[data-theme] body{
+:root[data-theme] body{
  background:
   radial-gradient(ellipse at 88% 8%,color-mix(in srgb,var(--accent) 15%,transparent),transparent 38%),
   radial-gradient(ellipse at 4% 54%,color-mix(in srgb,var(--accent-2) 7%,transparent),transparent 44%),
   var(--bg)!important;color:var(--text)!important;
 }
-html[data-theme] #appRoot{background:transparent!important;color:var(--text)!important}
-html[data-theme] .top.app-top{
+:root[data-theme] #appRoot{background:transparent!important;color:var(--text)!important}
+:root[data-theme] .top.app-top{
  background:color-mix(in srgb,var(--bg) 90%,transparent)!important;
  border-color:var(--line)!important;color:var(--text)!important;
 }
-html[data-theme] .top-eyebrow{color:var(--muted)!important}
-html[data-theme] .top .name{color:var(--text)!important}
-html[data-theme] .plan-chip,html[data-theme] .device-chip{
+:root[data-theme] .top-eyebrow{color:var(--muted)!important}
+:root[data-theme] .top .name{color:var(--text)!important}
+:root[data-theme] .plan-chip,:root[data-theme] .device-chip{
  background:var(--surface)!important;border-color:var(--line)!important;color:var(--text)!important;
 }
-html[data-theme] .plan-chip.pro{background:color-mix(in srgb,var(--accent) 20%,var(--surface))!important;border-color:var(--accent)!important;color:var(--text)!important}
-html[data-theme] .searchbar,html[data-theme] .home-searchbar{
+:root[data-theme] .plan-chip.pro{background:color-mix(in srgb,var(--accent) 20%,var(--surface))!important;border-color:var(--accent)!important;color:var(--text)!important}
+:root[data-theme] .searchbar,:root[data-theme] .home-searchbar{
  background:var(--surface)!important;border-color:var(--line)!important;color:var(--text)!important;
 }
-html[data-theme] .searchbar input{color:var(--text)!important}
-html[data-theme] .searchbar input::placeholder{color:var(--muted)!important}
-html[data-theme] .home-category{background:var(--surface)!important;border-color:var(--line)!important;color:var(--muted)!important}
-html[data-theme] .home-category.on{background:var(--accent)!important;border-color:var(--accent)!important;color:var(--accent-ink)!important}
-html[data-theme] .home-feature-card{border-color:var(--line)!important}
-html[data-theme] .home-feature-card .feature-play{background:color-mix(in srgb,var(--surface) 75%,transparent)!important;color:var(--text)!important}
-html[data-theme] .home-section .section-head h2{color:var(--text)!important}
-html[data-theme] .home-section-arrow{color:var(--muted)!important}
-html[data-theme] #homeBody [data-home-section="recent"] .row .t{color:var(--text)!important}
-html[data-theme] #homeBody [data-home-section="recent"] .row .s{color:var(--muted)!important}
-html[data-theme] .nav{background:color-mix(in srgb,var(--surface) 94%,transparent)!important;border-color:var(--line)!important}
-html[data-theme] .nav button{color:var(--muted)!important}
-html[data-theme] .nav button.on{color:var(--accent)!important;background:color-mix(in srgb,var(--accent) 13%,var(--surface))!important}
-html[data-theme] #bar{background:color-mix(in srgb,var(--surface) 96%,transparent)!important;border-color:color-mix(in srgb,var(--accent) 62%,var(--line))!important;color:var(--text)!important}
-html[data-theme] #bar .t,html[data-theme] #bar .s{color:var(--text)!important}
-html[data-theme] #bar .s{color:var(--muted)!important}
-html[data-theme] #bar .iconbtn{color:var(--text)!important}
-html[data-theme] #bar .iconbtn.main{background:var(--accent)!important;color:var(--accent-ink)!important}
-html[data-theme] #bar .barline{background:var(--accent)!important}
-html[data-theme] .tab,html[data-theme] .fchip,html[data-theme] .pill,html[data-theme] .btn{
+:root[data-theme] .searchbar input{color:var(--text)!important}
+:root[data-theme] .searchbar input::placeholder{color:var(--muted)!important}
+:root[data-theme] .home-category{background:var(--surface)!important;border-color:var(--line)!important;color:var(--muted)!important}
+:root[data-theme] .home-category.on{background:var(--accent)!important;border-color:var(--accent)!important;color:var(--accent-ink)!important}
+:root[data-theme] .home-feature-card{border-color:var(--line)!important}
+:root[data-theme] .home-feature-card .feature-play{background:color-mix(in srgb,var(--surface) 75%,transparent)!important;color:var(--text)!important}
+:root[data-theme] .home-section .section-head h2{color:var(--text)!important}
+:root[data-theme] .home-section-arrow{color:var(--muted)!important}
+:root[data-theme] #homeBody [data-home-section="recent"] .row .t{color:var(--text)!important}
+:root[data-theme] #homeBody [data-home-section="recent"] .row .s{color:var(--muted)!important}
+:root[data-theme] .nav{background:color-mix(in srgb,var(--surface) 94%,transparent)!important;border-color:var(--line)!important}
+:root[data-theme] .nav button{color:var(--muted)!important}
+:root[data-theme] .nav button.on{color:var(--accent)!important;background:color-mix(in srgb,var(--accent) 13%,var(--surface))!important}
+:root[data-theme] #bar{background:color-mix(in srgb,var(--surface) 96%,transparent)!important;border-color:color-mix(in srgb,var(--accent) 62%,var(--line))!important;color:var(--text)!important}
+:root[data-theme] #bar .t,:root[data-theme] #bar .s{color:var(--text)!important}
+:root[data-theme] #bar .s{color:var(--muted)!important}
+:root[data-theme] #bar .iconbtn{color:var(--text)!important}
+:root[data-theme] #bar .iconbtn.main{background:var(--accent)!important;color:var(--accent-ink)!important}
+:root[data-theme] #bar .barline{background:var(--accent)!important}
+:root[data-theme] .tab,:root[data-theme] .fchip,:root[data-theme] .pill,:root[data-theme] .btn{
  background:var(--surface)!important;border-color:var(--line)!important;color:var(--text)!important;
 }
-html[data-theme] .tab.on,html[data-theme] .fchip.on,html[data-theme] .btn.primary{
+:root[data-theme] .tab.on,:root[data-theme] .fchip.on,:root[data-theme] .btn.primary{
  background:var(--accent)!important;border-color:var(--accent)!important;color:var(--accent-ink)!important;
 }
-html[data-theme] #meBody>.sect,html[data-theme] #libBody .row,html[data-theme] .empty,html[data-theme] .refcard{
+:root[data-theme] #meBody>.sect,:root[data-theme] #libBody .row,:root[data-theme] .empty,:root[data-theme] .refcard{
  background:var(--surface)!important;border-color:var(--line)!important;color:var(--text)!important;
 }
-html[data-theme] #meBody .opt{border-color:var(--line)!important}
-html[data-theme] #meBody .sw{background:var(--panel-3)!important}
-html[data-theme] #meBody .sw.on{background:var(--accent)!important}
-html[data-theme] #meBody input[type=range]{accent-color:var(--accent)!important}
-html[data-theme] #meBody .swatch.on{outline-color:var(--accent)!important}
-html[data-theme] #meBody .plan-showcase{background:linear-gradient(115deg,var(--hero-a),var(--hero-b))!important;border-color:var(--accent)!important;color:var(--text)!important}
-html[data-theme] .modal,html[data-theme] #modal .box{background:var(--surface)!important;color:var(--text)!important;border-color:var(--line)!important}
+:root[data-theme] #meBody .opt{border-color:var(--line)!important}
+:root[data-theme] #meBody .sw{background:var(--panel-3)!important}
+:root[data-theme] #meBody .sw.on{background:var(--accent)!important}
+:root[data-theme] #meBody input[type=range]{accent-color:var(--accent)!important}
+:root[data-theme] #meBody .swatch.on{outline-color:var(--accent)!important}
+:root[data-theme] #meBody .plan-showcase{background:linear-gradient(115deg,var(--hero-a),var(--hero-b))!important;border-color:var(--accent)!important;color:var(--text)!important}
+:root[data-theme] .modal,:root[data-theme] #modal .box{background:var(--surface)!important;color:var(--text)!important;border-color:var(--line)!important}
 
 /* Screenshot-first home composition */
 #scHome{padding-top:9px!important}
