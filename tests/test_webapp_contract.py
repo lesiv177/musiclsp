@@ -93,23 +93,20 @@ class MiniAppContractTests(unittest.TestCase):
                       "Crossfade needs a lock to prevent duplicate next-track transitions")
         self.assertIn("!fadeTimer && !fadeInProgress", JS,
                       "Progress updates must not trigger overlapping crossfades")
-        next_track = re.search(r"function nextTrack\\(auto\\)\\s*\\{(.*?)\\n\\}", JS, re.S)
-        self.assertIsNotNone(next_track, "nextTrack implementation is missing")
-        self.assertIn("cur.pause();", next_track.group(1),
+        next_track = JS.split("function nextTrack(auto)", 1)[1].split("\\n}", 1)[0]
+        self.assertIn("cur.pause();", next_track,
                       "Reaching the end of the queue must stop the audio element")
-        self.assertIn("publishDeviceState();", next_track.group(1),
+        self.assertIn("publishDeviceState();", next_track,
                       "Queue-end state must be published to connected devices")
 
     def test_resume_playback_reclaims_shared_session(self):
-        toggle = re.search(r"function togglePlay\\(\\)\\s*\\{(.*?)\\n\\}", JS, re.S)
-        self.assertIsNotNone(toggle, "togglePlay implementation is missing")
-        self.assertIn("claimLocalPlayback()", toggle.group(1),
+        toggle = JS.split("function togglePlay()", 1)[1].split("\\n}", 1)[0]
+        self.assertIn("claimLocalPlayback()", toggle,
                       "Resuming locally must reclaim the shared playback session")
-        self.assertIn("publishDeviceState()", toggle.group(1),
+        self.assertIn("publishDeviceState()", toggle,
                       "Resuming locally must publish its playback state")
-        pending = re.search(r"async function startPending\\(\\)\\s*\\{(.*?)\\n\\}", JS, re.S)
-        self.assertIsNotNone(pending, "startPending implementation is missing")
-        self.assertIn("claimLocalPlayback()", pending.group(1),
+        pending = JS.split("async function startPending()", 1)[1].split("\\n}", 1)[0]
+        self.assertIn("claimLocalPlayback()", pending,
                       "Restoring a saved track must reclaim the shared playback session")
 
     def test_profile_and_admin_actions_have_implementations(self):
