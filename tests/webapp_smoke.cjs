@@ -26,8 +26,10 @@ const { spawn } = require("node:child_process");
         theme: "midnight", accent: "violet", lang: "uk", crossfade: 0, eq: null,
         is_admin: false
       }, limits: { playlists: 5, offline_pack: false, ambient_styles: [] }, features: [] };
-    } else if (path === "/api/home") data = { ok: true, sections: [] };
+    } else if (path === "/api/home") data = { ok: true, sections: [{ id: "recent", title: "Нещодавнє", tracks: [{ id: "qa-seed", title: "Recent track", artist: "QA Artist", cover: "", duration: 180, duration_str: "3:00" }] }] };
     else if (path === "/api/moods") data = { ok: true, moods: [] };
+    else if (path === "/api/daily") data = { ok: true, track: { id: "qa-daily", title: "Daily track", artist: "QA Artist", cover: "", duration: 180 } };
+    else if (path === "/api/radio") data = { ok: true, tracks: [{ id: "qa-radio", title: "Radio track", artist: "QA Artist", cover: "", duration: 180 }] };
     else if (path === "/api/collections") data = { ok: true, playlists: [] };
     else if (path === "/api/library") data = { ok: true, tracks: [{ id: "qa-liked", title: "Saved track", artist: "QA Artist", cover: "", duration: 180, duration_str: "3:00", source_label: "QA" }] };
     else if (path === "/api/playlists") data = { ok: true, playlists: [] };
@@ -64,6 +66,11 @@ const { spawn } = require("node:child_process");
     }
     if ((await page.locator("#topTitle").innerText()).trim() !== "MusicLSP") {
       throw new Error("Top header must show the brand, not repeat the current screen title");
+    }
+    await page.waitForSelector("#dailyCard");
+    await page.waitForSelector("#homeBody [data-personal-radio]");
+    if (!apiCalls.includes("/api/daily") || !apiCalls.includes("/api/radio")) {
+      throw new Error("Daily track or personalized radio was not requested");
     }
 
     for (const target of ["Search", "Lib", "Home"]) {
