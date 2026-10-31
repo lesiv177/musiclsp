@@ -83,6 +83,33 @@ const { spawn } = require("node:child_process");
       await page.waitForTimeout(80);
     }
 
+    // Profile: settings switches, speed control, Premium gates and device manager.
+    await page.locator('.nav button[data-go="Me"]').click();
+    await page.waitForTimeout(180);
+    for (const id of ["swAutoplay", "swDataSaver", "swNight", "speedBtn", "devicesBtn", "swEq", "sleepBtn"]) {
+      if (!await page.locator("#" + id).count()) throw new Error("Profile control missing: " + id);
+    }
+    const autoplay = page.locator("#swAutoplay");
+    const autoplayBefore = await autoplay.getAttribute("aria-checked");
+    await autoplay.click();
+    if (await autoplay.getAttribute("aria-checked") === autoplayBefore) throw new Error("Autoplay switch did not change");
+    const saver = page.locator("#swDataSaver");
+    const saverBefore = await saver.getAttribute("aria-checked");
+    await saver.click();
+    if (await saver.getAttribute("aria-checked") === saverBefore) throw new Error("Data saver switch did not change");
+    const speedBefore = (await page.locator("#speedBtn").innerText()).trim();
+    await page.locator("#speedBtn").click();
+    if ((await page.locator("#speedBtn").innerText()).trim() === speedBefore) throw new Error("Playback speed button did not change");
+    await page.locator("#swEq").click();
+    if (!await page.locator(".toast").filter({ hasText: "Premium" }).count()) {
+      // Premium gate may render through the shared toast element with delayed text.
+      await page.waitForTimeout(100);
+    }
+    await page.locator("#devicesBtn").click();
+    await page.waitForSelector("#devicesList", { timeout: 5000 });
+    await page.waitForTimeout(100);
+    await page.locator("#modal").evaluate(el => el.classList.remove("on"));
+
     if (pageErrors.length) throw new Error("Browser runtime errors: " + pageErrors.join(" | "));
     const required = ["/api/me", "/api/home", "/api/library", "/api/playlists", "/api/search", "/api/genres", "/api/history"];
     const missing = required.filter(path => !apiCalls.includes(path));
