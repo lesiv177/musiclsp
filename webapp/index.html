@@ -36,11 +36,11 @@
 </div>
 <div class="app" id="appRoot">
 
-  <header class="top">
-    <div class="mark" role="img" aria-label="MusicLSP"><span>M</span></div>
-    <div>
-      <div class="name dspl">MusicLSP</div>
-      <div class="sub" id="topSub">Музика з відкритих ліцензій</div>
+  <header class="top app-top">
+    <button class="top-avatar" id="topProfile" type="button" onclick="go('Me')" aria-label="Відкрити профіль">M</button>
+    <div class="top-heading">
+      <div class="top-eyebrow" id="topSub">ТВОЯ МУЗИКА ЩОДНЯ</div>
+      <div class="name dspl" id="topTitle">Головна</div>
     </div>
     <div class="spacer"></div>
     <button class="chip plan-chip" id="planChip" type="button" onclick="openPlan()">Free</button>
@@ -128,12 +128,11 @@
 </div>
 
 <!-- bottom nav -->
-<nav class="nav" aria-label="Основна навігація">
+<nav class="nav app-nav" aria-label="Основна навігація">
   <button class="on" data-go="Home"><span class="ic" data-icon="home"></span><span>Головна</span></button>
-  <button data-go="Explore"><span class="ic" data-icon="compass"></span><span>Огляд</span></button>
   <button data-go="Search"><span class="ic" data-icon="search"></span><span>Пошук</span></button>
-  <button data-go="Lib"><span class="ic" data-icon="library"></span><span>Колекція</span></button>
-  <button data-go="Me"><span class="ic" data-icon="profile"></span><span>Профіль</span></button>
+  <button data-go="Lib"><span class="ic" data-icon="library"></span><span>Бібліотека</span></button>
+  <button data-go="Create"><span class="ic" data-icon="plus"></span><span>Створити</span></button>
 </nav>
 
 <!-- now playing -->
@@ -941,6 +940,7 @@ document.querySelectorAll(".nav button").forEach(b =>
   b.onclick = () => { go(b.dataset.go); tap(); });
 
 function go(name){
+  if(name==="Create"){openCreateMenu();return;}
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("on"));
   $("sc"+name).classList.add("on");
   document.querySelectorAll(".nav button").forEach(b => {
@@ -952,6 +952,7 @@ function go(name){
     b.classList.toggle("on", becomesOn);
   });
   if(name==="Me"){ refreshMe().then(renderProfile); renderProfile(); }
+  const topTitle=$("topTitle"); if(topTitle) topTitle.textContent=({Home:"Головна",Search:"Пошук",Lib:"Моя бібліотека",Me:"Профіль",Explore:"Відкривай"}[name]||"MusicLSP");
   if(name==="Lib") renderLibrary();
   if(name==="Explore") loadExplore();
   if(name==="Search"){ setTimeout(()=>$("qInput").focus(), 120); if(!$("qInput").value.trim()) renderRecentSearches(); }
@@ -1110,41 +1111,58 @@ async function loadExplore(){
 }
 
 async function loadHome(){
-  let html = `<div class=\"home-hero\">\n      <div class=\"hero-orb hero-orb-a\"></div><div class=\"hero-orb hero-orb-b\"></div>\n      <div class=\"hero-copy\">\n        <div class=\"hero-eyebrow\"><span class=\"hero-live\"></span> ${esc(t("hero_kicker"))}</div>\n        <h1>${esc(t("hero_title_a"))}<br><em>${esc(t("hero_title_b"))}</em></h1>\n        <p>${esc(t("hero_desc"))}</p>\n        <button class=\"hero-cta\" id=\"heroExplore\"><span data-icon=\"search\" class=\"icon\"></span> ${esc(t("hero_cta"))} <span class=\"hero-arrow\">↗</span></button>\n      </div>\n      <div class=\"hero-disc\" aria-hidden=\"true\"><div class=\"hero-disc-core\"></div></div>\n      <div class=\"hero-foot\"><span>${esc(t("hero_footer"))}</span><span>01 / 04</span></div>\n    </div>` + onboardHintHtml();
+  const root=$("homeBody");
+  root.innerHTML='<div class="home-loading"><div class="skel"></div><div class="skel"></div></div>';
   try{
-    // Незалежні запити йдуть паралельно, кожен зі своїм запасним варіантом —
-    // одне повільне чи впале джерело більше не блокує весь екран.
-    const [moodsHtml, homeData, collectionsHtml] = await Promise.all([
-      loadMoodsRow(),
+    const [homeData,moodsData,collectionsHtml]=await Promise.all([
       get("/api/home").catch(()=>({sections:[]})),
-      loadCollections(),
+      get("/api/moods").catch(()=>({moods:[]})),
+      loadCollections()
     ]);
-    html += moodsHtml;
-    homeData.sections.forEach((sec,si)=>{
-      const key = "home"+si;
-      // Порожню секцію не показуємо взагалі (раніше лишався голий заголовок).
-      if(!sec.tracks || !sec.tracks.length) return;
-      if(sec.id==="recent"){
-        // Раніше рядки вставлялись через html.replace("</div>", …) — тобто в
-        // ПЕРШИЙ </div> сторінки, а це кінець ряду кнопок «Настрій». Через це
-        // список треків потрапляв усередину ряду й розтягував кнопки на пів
-        // екрана (на телефоні, де є історія). Тепер секція збирається цілою.
-        CTX[key]=sec.tracks;
-        html += `<div class="sect"><h2>${esc(sec.title)}</h2>${rowsHtml(sec.tracks.slice(0,5), key)}</div>`;
-      } else {
-        html += `<div class="sect"><h2>${esc(sec.title)}</h2>${cardsHtml(sec.tracks, key)}</div>`;
-      }
+    const sections=(homeData.sections||[]).filter(x=>Array.isArray(x.tracks)&&x.tracks.length);
+    const moods=moodsData.moods||[];
+    window.__moods=moods;
+    let out=`
+      <section class="welcome-block">
+        <div class="welcome-copy"><span class="welcome-kicker">MUSICLSP • ТВОЯ МУЗИКА</span>
+          <h1>Знайди свій<br><em>наступний трек.</em></h1>
+          <p>Музика, яка пасує твоєму настрою — зібрана в одному місці.</p>
+          <button class="welcome-search" id="welcomeSearch"><span data-icon="search"></span> Знайти музику <b>↗</b></button>
+        </div>
+        <div class="welcome-art" aria-hidden="true"><span>♫</span><i></i><b></b></div>
+      </section>`;
+    if(moods.length){
+      out+=`<section class="home-section mood-section"><div class="section-head"><div><small>ОБЕРИ НАСТРІЙ</small><h2>Що слухаємо?</h2></div><button class="text-action" id="allMoods">Усі жанри ↗</button></div><div class="mood-pills">`+
+      moods.slice(0,8).map((m,i)=>`<button class="mood-pill mood-pill-${i%6}" data-home-mood="${i}">${esc(m.label)}${m.locked?' <small>✦</small>':''}</button>`).join("")+`</div></section>`;
+    }
+    if(sections.length){
+      sections.forEach((sec,i)=>{
+        const key="home"+i;
+        if(sec.id==="recent"){
+          CTX[key]=sec.tracks;
+          out+=`<section class="home-section"><div class="section-head"><div><small>ПОВЕРНИСЯ ДО МУЗИКИ</small><h2>${esc(sec.title||"Нещодавнє")}</h2></div></div>${rowsHtml(sec.tracks.slice(0,5),key)}</section>`;
+        }else{
+          out+=`<section class="home-section"><div class="section-head"><div><small>${i===0?"ПІДІБРАНО ДЛЯ ТЕБЕ":"ВІДКРИВАЙ НОВЕ"}</small><h2>${esc(sec.title||"Для тебе")}</h2></div><span class="section-mark">0${i+1}</span></div>${cardsHtml(sec.tracks,key)}</section>`;
+        }
+      });
+    }else{
+      out+=`<section class="home-section"><div class="section-head"><div><small>ПОЧНИ З ПОШУКУ</small><h2>Для тебе</h2></div></div><div class="empty">Поки немає рекомендацій. Знайди улюбленого виконавця або трек — і ми підберемо музику.</div></section>`;
+    }
+    out+=collectionsHtml;
+    root.innerHTML=out;
+    const search=$("welcomeSearch"); if(search) search.onclick=()=>go("Search");
+    const all=$("allMoods"); if(all) all.onclick=()=>go("Explore");
+    root.querySelectorAll("[data-home-mood]").forEach(b=>b.onclick=()=>{
+      const m=moods[+b.dataset.homeMood]; if(!m)return;
+      if(m.locked)return openPlan();
+      openMood(m.key,m.label);
     });
-    html += collectionsHtml;
-    $("homeBody").innerHTML = html;
     bindHome();
     applyI18n();
   }catch(e){
-    $("homeBody").innerHTML = html || `<div class="empty"><b data-i18n="catalog_down_title">Каталог не відповідає</b>${esc(e.message)}</div>`;
-    applyI18n();
+    root.innerHTML=`<div class="empty"><b>Не вдалося завантажити головну</b><span>${esc(e.message)}</span><button class="btn" onclick="loadHome()">Спробувати ще раз</button></div>`;
   }
 }
-
 async function loadCollections(){
   try{
     const d = await get("/api/collections");
@@ -1642,6 +1660,13 @@ async function openShared(code){
 async function copyShared(pid){
   try{ await post("/api/playlists", {action:"copy", pid}); toast("Збережено в ваші плейлисти"); }
   catch(e){ toast(e.message); }
+}
+
+function openCreateMenu(){
+  showModal(`<div class="create-menu-head"><small>MUSICLSP</small><h2>Що створимо?</h2><p>Збери музику у власному форматі.</p></div>
+    <button class="create-action" onclick="openCreatePlaylist()"><span>＋</span><div><b>Новий плейлист</b><small>Збери улюблені треки в одному місці</small></div><i>↗</i></button>
+    <button class="create-action" onclick="closeModal();go('Explore')"><span>✦</span><div><b>Знайти нову музику</b><small>Жанри, настрої та рекомендації</small></div><i>↗</i></button>
+    <button class="pill plan-close" onclick="closeModal()">Закрити</button>`);
 }
 
 function openCreatePlaylist(){
@@ -3024,9 +3049,19 @@ function shareWrapped(type, artist, hours){
 }
 
 function openPlan(){
-  const premium = !!S.me?.premium;
-  const features = Array.isArray(S.features) ? S.features : [];
-  const defaults = [
+  const premium=!!S.me?.premium;
+  showModal(`
+    <div class="plan-modal-head"><div class="explore-kicker">MUSICLSP MEMBERSHIP</div><h2>Обери свій MusicLSP</h2><p>Натисни на тариф, щоб побачити, що входить до нього.</p></div>
+    <div class="plan-choice-grid">
+      <button class="plan-choice ${!premium?'active':''}" onclick="showPlanTier('free')"><span>БЕЗКОШТОВНО</span><b>Free</b><small>Усе необхідне для щоденного прослуховування</small><i>Переглянути можливості ↗</i></button>
+      <button class="plan-choice premium-choice ${premium?'active':''}" onclick="showPlanTier('premium')"><span>ПОВНИЙ ДОСТУП</span><b>✦ Premium</b><small>Більше контролю, персоналізації та звуку</small><i>Переглянути можливості ↗</i></button>
+    </div>
+    <button class="pill plan-close" onclick="closeModal()">Закрити</button>`);
+}
+function showPlanTier(tier){
+  const premium=tier==="premium";
+  const features=Array.isArray(S.features)?S.features:[];
+  const premiumDefaults=[
     ["Hi‑Fi звук","FLAC та 320 kbps там, де це дозволяє джерело."],
     ["Еквалайзер","10 смуг, налаштування та збережені пресети."],
     ["Кросфейд","Плавний перехід між треками."],
@@ -3034,16 +3069,20 @@ function openPlan(){
     ["Жива обкладинка","Додаткові стилі оформлення."],
     ["Розширені можливості","Більше персональних налаштувань і лімітів."]
   ];
-  const rows = features.length ? features.map((f,i)=>[f.title||"Можливість "+(i+1),f.description||"Доступно з Premium"]) : defaults;
-  showModal(`<div class="plan-modal-head"><div class="explore-kicker">MUSICLSP MEMBERSHIP</div><h2>${premium?"Твій Premium":"Обери свій рівень"}</h2><p>${premium?"Дякуємо, що слухаєш із повним доступом.":"Порівняй можливості та обери комфортний формат."}</p></div>
-    <div class="plan-compare">
-      <div class="plan-tier ${!premium?"selected":""}"><small>БЕЗКОШТОВНО</small><b>Free</b><span>Каталог відкритої музики, пошук, базове відтворення та особиста колекція. Деякі розширені функції мають обмеження.</span></div>
-      <div class="plan-tier premium ${premium?"selected":""}"><small>ПОВНИЙ ДОСТУП</small><b>✦ Premium</b><span>Hi‑Fi там, де підтримує джерело, розширені налаштування звуку, додаткові можливості та вищі ліміти.</span></div>
-    </div>
-    <h3 class="plan-list-title">Можливості Premium</h3>
-    <div class="plan-feature-list">${rows.map(([title,desc],i)=>`<div class="plan-feature"><span>${["♫","◉","↝","◷","✧","＋"][i%6]}</span><div><b>${esc(title)}</b><small>${esc(desc)}</small></div><i>✓</i></div>`).join("")}</div>
-    ${premium?"":`<button class="btn plan-promo" onclick="openPromo()">Ввести промокод</button>`}
-    <button class="pill plan-close" onclick="closeModal()">Закрити</button>`);
+  const rows=premium?(features.length?features.map((f,i)=>[f.title||"Можливість "+(i+1),f.description||"Доступно з Premium"]):premiumDefaults):[
+    ["Каталог і пошук","Шукай доступні треки та відкривай нову музику."],
+    ["Базове відтворення","Слухай музику й керуй чергою відтворення."],
+    ["Особиста бібліотека","Зберігай улюблені треки та створюй плейлисти."],
+    ["Рекомендації","Відкривай підбірки та музику за настроєм."],
+    ["Керування пристроями","Використовуй MusicLSP на своїх активних пристроях."]
+  ];
+  const limit=S.limits?.playlists;
+  showModal(`
+    <div class="plan-modal-head"><button class="plan-back" onclick="openPlan()">← Усі тарифи</button><div class="explore-kicker">${premium?"ПОВНИЙ ДОСТУП":"БЕЗКОШТОВНИЙ ПЛАН"}</div><h2>${premium?"✦ Premium":"Free"}</h2><p>${premium?"Усі можливості для комфортного прослуховування.":"Базові функції MusicLSP без оплати — щоб слухати, шукати й збирати свою музику."}</p></div>
+    <div class="plan-detail-list">${rows.map(([title,desc],i)=>`<div class="plan-detail-row"><span>${["♫","⌕","♡","✦","▣","◉"][i%6]}</span><div><b>${esc(title)}</b><small>${esc(desc)}</small></div><i>✓</i></div>`).join("")}</div>
+    ${!premium&&limit?'<p class="plan-limit">Ліміт плейлистів у твоєму плані: '+esc(String(limit))+'</p>':""}
+    ${premium&&!S.me?.premium?'<button class="btn plan-promo" onclick="openPromo()">Ввести промокод</button>':""}
+    <div class="plan-switch"><button onclick="showPlanTier('free')" class="${!premium?'active':''}">Free</button><button onclick="showPlanTier('premium')" class="${premium?'active':''}">Premium</button></div>`);
 }
 
 function openPromo(){
