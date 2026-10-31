@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="./legacy.css?v=1">
 <link rel="stylesheet" href="./v2.css?v=4">
-<link rel="stylesheet" href="./redesign.css?v=15">
+<link rel="stylesheet" href="./redesign.css?v=16">
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
 </head>
 <body>
@@ -1207,7 +1207,7 @@ async function loadHome(){
         <div class="section-head"><div><h2>Для тебе</h2></div><button class="home-section-arrow" type="button" data-home-category="music" aria-label="Більше рекомендацій">›</button></div>
         <div class="home-feature-grid">
           ${featureItems.map((item,i)=>`
-            <button class="home-feature-card tone-${item.tone}" type="button" data-home-feature="${i}">
+            <button class="home-feature-card tone-${item.tone}" type="button" data-home-feature="${i}" ${item.id==="mix"?"data-personal-radio=\"true\"":""}>
               ${item.tracks[0]?.cover?`<img class="feature-cover" src="${esc(item.tracks[0].cover)}" alt="" loading="lazy" onerror="this.style.display='none'">`:''}
               <span class="feature-shade"></span><span class="feature-play">${ICON("play","sm")}</span>
               <span class="feature-copy"><b>${esc(item.title)}</b><small>${esc(item.sub)}</small></span>
