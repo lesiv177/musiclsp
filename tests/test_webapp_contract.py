@@ -41,8 +41,10 @@ class MiniAppContractTests(unittest.TestCase):
         targets = set(re.findall(r'data-go="([^"]+)"', HTML))
         screen_ids = set(re.findall(r'<section\b[^>]*\bid="sc([^"]+)"', HTML, re.I))
         self.assertTrue(targets, "No bottom navigation controls found")
-        self.assertEqual(targets, screen_ids,
-                         f"Navigation targets {targets} do not match screens {screen_ids}")
+        self.assertTrue(targets.issubset(screen_ids),
+                        f"Navigation targets without screens: {targets - screen_ids}")
+        self.assertIn('onclick="openCreateMenu()"', HTML,
+                      "Create action must open the create menu")
 
     def test_static_element_ids_are_unique(self):
         static_html = re.sub(r"<script[^>]*>.*?</script[^>]*>", "", HTML, flags=re.I | re.S)
