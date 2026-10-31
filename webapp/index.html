@@ -936,7 +936,7 @@ function handleStartParam(){
 }
 
 /* ════════ Навігація ════════ */
-document.querySelectorAll(".nav button").forEach(b =>
+document.querySelectorAll(".nav button[data-go]").forEach(b =>
   b.onclick = () => { go(b.dataset.go); tap(); });
 
 function go(name){
