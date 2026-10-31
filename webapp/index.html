@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="./legacy.css?v=1">
 <link rel="stylesheet" href="./v2.css?v=4">
-<link rel="stylesheet" href="./redesign.css?v=11">
+<link rel="stylesheet" href="./redesign.css?v=12">
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
 </head>
 <body>
@@ -119,11 +119,11 @@
     <div class="t" id="barTitle">—</div>
     <div class="s" id="barArtist">—</div><div class="bar-output" id="barOutput"></div>
   </div>
-  <button class="iconbtn like" id="barLike" onclick="toggleLike()" aria-label="Улюблене"><span data-icon="heart"></span></button>
-  <button class="iconbtn" id="barRemote" onclick="openDevices()" aria-label="Керувати пристроями"><span data-icon="devices"></span></button>
+  <button class="iconbtn mini-toggle" id="barShuffle" onclick="toggleShuffle()" aria-label="Перемішати"><span data-icon="shuffle"></span></button>
   <button class="iconbtn" id="barPrev" onclick="barPrev()" aria-label="Попередній трек"><span data-icon="prev"></span></button>
-  <button class="iconbtn main" id="barPlay" onclick="barTogglePlay()"><span data-icon="play"></span></button>
+  <button class="iconbtn main" id="barPlay" onclick="barTogglePlay()" aria-label="Відтворити або призупинити"><span data-icon="play"></span></button>
   <button class="iconbtn" id="barNext" onclick="barNext()" aria-label="Наступний трек"><span data-icon="next"></span></button>
+  <button class="iconbtn mini-toggle" id="barRepeat" onclick="toggleRepeat()" aria-label="Повтор"><span data-icon="repeat"></span></button>
   <div class="barline" id="barLine"></div>
 </div>
 
@@ -2475,15 +2475,19 @@ function prevTrack(){
   });
 })();
 
-function toggleShuffle(){ S.shuffle = !S.shuffle; tap();
-  $("btnShuffle").classList.toggle("on", S.shuffle);
-  toast(S.shuffle ? "Перемішування увімкнено" : "Порядок за списком"); }
+function toggleShuffle(){
+  S.shuffle = !S.shuffle; tap();
+  ["btnShuffle","barShuffle"].forEach(id=>$(id)?.classList.toggle("on",S.shuffle));
+  toast(S.shuffle ? "Перемішування увімкнено" : "Порядок за списком");
+}
 
 function toggleRepeat(){
   S.repeat = S.repeat==="off" ? "all" : S.repeat==="all" ? "one" : "off"; tap();
-  $("btnRepeat").classList.toggle("on", S.repeat!=="off");
-  $("btnRepeat").classList.toggle("one", S.repeat==="one");
-  toast({off:"Повтор вимкнено", all:"Повтор черги", one:"Повтор треку"}[S.repeat]);
+  ["btnRepeat","barRepeat"].forEach(id=>{
+    $(id)?.classList.toggle("on",S.repeat!=="off");
+    $(id)?.classList.toggle("one",S.repeat==="one");
+  });
+  toast({off:"Повтор вимкнено",all:"Повтор черги",one:"Повтор треку"}[S.repeat]);
 }
 
 [A,B].forEach(el=>{
