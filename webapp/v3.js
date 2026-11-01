@@ -45,8 +45,8 @@ async function explore(){
   root.innerHTML='<div class="v3-eyebrow">EXPLORE / FIND YOUR NEXT SOUND</div><h1 class="v3-page-title">Відкривай більше.</h1><p class="v3-subtitle">Жанри, настрої та артисти за межами звичного.</p>'+
   section("Обери настрій",'<div class="v3-pills">'+st.moods.map((m,i)=>'<button class="v3-pill" data-mood="'+i+'">'+E(m.label)+'</button>').join("")+'</div>')+
   section("Досліджуй жанри",'<div class="v3-genre-grid">'+st.genres.map((g,i)=>'<button class="v3-genre" data-genre="'+i+'"><b>'+E(g.label)+'</b><small>ДОСЛІДИТИ ↗</small></button>').join("")+'</div>');
-  root.querySelectorAll("[data-mood]").forEach(b=>b.onclick=()=>{const m=st.moods[+b.dataset.mood];if(m.locked)toast("Цей настрій доступний у Premium");else openMood(m.key,m.label);});
-  root.querySelectorAll("[data-genre]").forEach(b=>b.onclick=()=>{const g=st.genres[+b.dataset.genre];openGenre(g.tag,g.label);});
+  root.querySelectorAll("[data-mood]").forEach(b=>b.onclick=()=>{const m=st.moods[+b.dataset.mood];if(m.locked)toast("Цей настрій доступний у Premium");else moodV3(m.key,m.label);});
+  root.querySelectorAll("[data-genre]").forEach(b=>b.onclick=()=>{const g=st.genres[+b.dataset.genre];genreV3(g.tag,g.label);});
  }catch(e){root.innerHTML='<div class="v3-empty">Не вдалося завантажити каталог: '+E(e.message)+'</div>';}
 }
 function searchPage(){
@@ -78,6 +78,16 @@ async function library(tab){
 }
 async function playlist(id){
  try{const d=await get("/api/playlist/"+encodeURIComponent(id)),p=d.playlist||{},list=p.tracks||[],root=$("v3-library");root.innerHTML='<button class="v3-pill" id="v3Back">← До бібліотеки</button><div class="v3-profile-hero" style="margin:20px 0"><div class="v3-avatar">♫</div><div><div class="v3-eyebrow">PLAYLIST</div><h2>'+E(p.name)+'</h2><p>'+list.length+' треків</p></div></div><button class="v3-pill active" id="v3PlayAll">▶ Слухати все</button><div class="v3-track-list" style="margin-top:14px">'+list.map((t,i)=>row(t,i)).join("")+'</div>'; $("v3Back").onclick=()=>library("playlists");$("v3PlayAll").onclick=()=>{if(list.length)setQueue(list,0);};bindRows(root,list);}catch(e){toast(e.message);}
+}
+async function moodV3(key,label){
+ nav("search");$("v3SearchInput").value="";$("v3GlobalSearch").value="";
+ $("v3Results").innerHTML='<div class="v3-empty">Підбираємо музику під настрій…</div>';
+ try{const d=await get("/api/mood/"+encodeURIComponent(key)),list=d.tracks||[];$("v3Results").innerHTML='<div class="v3-eyebrow">MOOD / '+E(label)+'</div><div class="v3-track-list">'+list.map((t,i)=>row(t,i)).join("")+'</div>';bindRows($("v3Results"),list);}catch(e){$("v3Results").innerHTML='<div class="v3-empty">'+E(e.message)+'</div>';}
+}
+async function genreV3(tag,label){
+ nav("search");$("v3SearchInput").value="";$("v3GlobalSearch").value="";
+ $("v3Results").innerHTML='<div class="v3-empty">Збираємо добірку жанру…</div>';
+ try{const d=await get("/api/home?tag="+encodeURIComponent(tag)),list=d.sections?.[0]?.tracks||[];$("v3Results").innerHTML='<div class="v3-eyebrow">GENRE / '+E(label||tag)+'</div><div class="v3-track-list">'+list.map((t,i)=>row(t,i)).join("")+'</div>';if(list.length)bindRows($("v3Results"),list);else $("v3Results").innerHTML+='<div class="v3-empty">Поки немає треків у цій добірці.</div>';}catch(e){$("v3Results").innerHTML='<div class="v3-empty">'+E(e.message)+'</div>';}
 }
 async function profile(){
  const root=$("v3-profile");root.innerHTML='<div class="v3-empty">Завантажуємо профіль…</div>';
