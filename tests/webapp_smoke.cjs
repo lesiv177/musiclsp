@@ -96,6 +96,12 @@ const { spawn } = require("node:child_process");
     await page.locator("#modal").evaluate(el=>el.classList.remove("on"));
 
     // The original device-control element and Connect runtime remain mounted.
+    // Changing the account locale refreshes V3 copy without reloading the app.
+    await page.evaluate(()=>{S.me.lang="en";document.documentElement.lang="en";});
+    await page.waitForFunction(()=>document.querySelector('#mlsp-v3 [data-page="home"]')?.textContent.includes("Home"));
+    await page.evaluate(()=>{S.me.lang="uk";document.documentElement.lang="uk";});
+    await page.waitForFunction(()=>document.querySelector('#mlsp-v3 [data-page="home"]')?.textContent.includes("Головна"));
+
     await page.locator("#deviceChip").click();
     await page.waitForSelector("#devicesList",{timeout:5000});
     await page.locator("#modal").evaluate(el=>el.classList.remove("on"));
