@@ -9,7 +9,10 @@ const { spawn } = require("node:child_process");
   const pageErrors = [];
   const apiCalls = [];
   const apiRequests = [];
+  const scriptResponses = [];
   page.on("pageerror", error => pageErrors.push(error.message));
+  page.on("response", response => { if (response.request().resourceType() === "script") scriptResponses.push({url:response.url(),status:response.status(),contentType:response.headers()["content-type"]||""}); });
+  page.on("requestfailed", request => { if (request.resourceType() === "script") scriptResponses.push({url:request.url(),failure:request.failure()?.errorText||"failed"}); });
 
   await page.route("https://mock-api.local/**", async route => {
     const url = new URL(route.request().url()), path = url.pathname;
@@ -52,9 +55,11 @@ const { spawn } = require("node:child_process");
         appClass:document.querySelector("#appRoot")?.className,
         mobileBrandDisplay:(()=>{const el=document.querySelector("#mlsp-v3 .v3-mobile-brand");return el?getComputedStyle(el).display:null})(),
         scriptStatus:[...document.scripts].map(s=>({src:s.src,loaded:!!s.src})),
-        styles:[...document.styleSheets].map(s=>s.href).filter(Boolean)
+        styles:[...document.styleSheets].map(s=>s.href).filter(Boolean),
+        htmlHasV3Root:document.documentElement.innerHTML.includes("id=\"mlsp-v3\""),
+        scriptsText:[...document.scripts].filter(s=>s.src).map(s=>({src:s.src,text:s.textContent.slice(0,100)}))
       }));
-      throw new Error("V3 bootstrap diagnostic: "+JSON.stringify({diagnostics,pageErrors,error:error.message}));
+      throw new Error("V3 bootstrap diagnostic: "+JSON.stringify({diagnostics,pageErrors,scriptResponses,error:error.message}));
     }
     if (!(await page.locator("#v3-home").isVisible())) throw new Error("V3 home screen is not visible");
     const visibleLegacy=await page.locator("#scHome").evaluate(el=>getComputedStyle(el).display!=="none");
