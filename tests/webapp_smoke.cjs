@@ -65,6 +65,8 @@ const { spawn } = require("node:child_process");
 
     await page.locator('.v3-mobile-nav [data-page="library"]').first().click();
     await page.waitForSelector("#v3LibraryBody .v3-track");
+    await page.locator('#v3-library [data-tab="history"]').click();
+    await page.waitForSelector("#v3LibraryBody .v3-empty");
     await page.locator('#v3-library [data-tab="playlists"]').click();
     await page.locator("#v3Create").click();
     await page.locator("#plName").fill("QA playlist");
