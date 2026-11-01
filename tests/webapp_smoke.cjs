@@ -104,7 +104,7 @@ const { spawn } = require("node:child_process");
 
     // Every account theme must recolor V3 accent controls and panel surfaces.
     await page.evaluate(()=>window.MLSPv3.navigate("home"));
-    await page.waitForSelector(".v3-hero-search");
+    await page.waitForSelector("#v3-home .v3-home-heading");
     const scrollCheck = await page.evaluate(async () => {
       // Grow the actual V3 app container: a body-level probe can pass even when
       // #appRoot is still position:fixed and the app itself cannot extend the document.
@@ -131,7 +131,7 @@ const { spawn } = require("node:child_process");
         applyTheme(theme);
         samples[theme] = {
           accent: getComputedStyle(document.querySelector(".v3-brand-mark")).backgroundColor,
-          panel: getComputedStyle(document.querySelector(".v3-hero-search")).backgroundColor
+          panel: getComputedStyle(document.querySelector(".v3-album-card")).backgroundColor
         };
       }
       applyTheme("midnight");
