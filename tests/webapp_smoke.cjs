@@ -47,22 +47,22 @@ const { spawn } = require("node:child_process");
     if(visibleLegacy)throw new Error("Legacy app screen is still visible");
 
     for(const target of ["explore","search","library","profile","home"]){
-      await page.locator('#mlsp-v3 [data-page="'+target+'"]').first().click();
+      await page.locator('.v3-mobile-nav [data-page="'+target+'"]').first().click();
       await page.waitForFunction(t=>document.querySelector("#v3-"+t)?.classList.contains("active"),target);
     }
     await page.locator("#v3GlobalSearch").fill("test artist");
     await page.waitForSelector("#v3Results .v3-track",{timeout:5000});
     if(!apiCalls.includes("/api/search"))throw new Error("V3 search did not call the search API");
 
-    await page.locator('#mlsp-v3 [data-page="explore"]').first().click();
+    await page.locator('.v3-mobile-nav [data-page="explore"]').first().click();
     await page.waitForSelector("#v3-explore [data-genre]");
     await page.locator("#v3-explore [data-genre]").first().click();
     await page.waitForSelector("#v3Results .v3-track");
-    await page.locator('#mlsp-v3 [data-page="explore"]').first().click();
+    await page.locator('.v3-mobile-nav [data-page="explore"]').first().click();
     await page.locator("#v3-explore [data-mood]").first().click();
     await page.waitForSelector("#v3Results .v3-track");
 
-    await page.locator('#mlsp-v3 [data-page="library"]').first().click();
+    await page.locator('.v3-mobile-nav [data-page="library"]').first().click();
     await page.waitForSelector("#v3LibraryBody .v3-track");
     await page.locator('#v3-library [data-tab="playlists"]').click();
     await page.locator("#v3Create").click();
@@ -73,7 +73,7 @@ const { spawn } = require("node:child_process");
     const createRequest=apiRequests.find(x=>x.path==="/api/playlists"&&x.method==="POST"&&x.body?.action==="create");
     if(!createRequest||createRequest.body.name!=="QA playlist"||createRequest.body.description!=="Created by browser smoke test")throw new Error("V3 playlist creation payload is incorrect");
 
-    await page.locator('#mlsp-v3 [data-page="profile"]').first().click();
+    await page.locator('.v3-mobile-nav [data-page="profile"]').first().click();
     await page.waitForSelector("#v3-profile .v3-profile-hero");
     await page.locator('#v3-profile [data-prof="premium"]').first().click();
     await page.waitForSelector("#modal.on .plan-choice");
