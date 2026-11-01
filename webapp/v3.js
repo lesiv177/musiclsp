@@ -56,7 +56,7 @@ function searchPage(){
 }
 function tr(key,fallback){try{const value=typeof t==="function"?t(key):key;return value&&value!==key?value:fallback;}catch(_){return fallback;}}
 function collectionRows(list,kind){
- return '<div class="v3-track-list">'+list.map((x,i)=>'<button class="v3-track" data-collection="'+kind+':'+i+'"><img src="'+E(x.cover||"")+'" alt="" loading="lazy"><span class="v3-track-meta"><b>'+E(x.name||x.title||"")+'</b><small>'+E(kind==="artists"?(tr("artist_label","Artist")):(tr("search_albums","Albums")))+(x.source_label?" · "+E(x.source_label):"")+'</small></span>↗</button>').join("")+'</div>';
+ return '<div class="v3-track-list">'+list.map((x,i)=>'<button class="v3-track" data-collection="'+i+'" data-collection-kind="'+kind+'"><img src="'+E(x.cover||"")+'" alt="" loading="lazy"><span class="v3-track-meta"><b>'+E(x.name||x.title||"")+'</b><small>'+E(kind==="artists"?(tr("artist_label","Artist")):(tr("search_albums","Albums")))+(x.source_label?" · "+E(x.source_label):"")+'</small></span>↗</button>').join("")+'</div>';
 }
 async function openCollection(kind,item){
  try{const d=await get("/api/"+(kind==="artists"?"artist":"album")+"/"+encodeURIComponent(item.id));if(d.tracks?.length)setQueue(d.tracks,0);else toast(tr("nothing_found_body","No tracks found"));}
@@ -83,7 +83,7 @@ async function search(){
    if(albums.length)html+=section(tr("search_albums","Albums"),collectionRows(albums.slice(0,8),"albums"));
    $("v3Results").innerHTML=html;
    bindRows($("v3Results"),tracks.slice(0,12),"alltracks");
-   $("v3Results").querySelectorAll("[data-collection]").forEach(b=>b.onclick=()=>{const [kind,index]=b.dataset.collection.split(":");openCollection(kind,(kind==="artists"?artists:albums)[+index]);});
+   $("v3Results").querySelectorAll("[data-collection]").forEach(b=>b.onclick=()=>{const kind=b.dataset.collectionKind,index=+b.dataset.collection;openCollection(kind,(kind==="artists"?artists:albums)[index]);});
    return;
   }
   const list=Array.isArray(results)?results:[];
