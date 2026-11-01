@@ -51,9 +51,9 @@ class V3ContractTests(unittest.TestCase):
         self.assertIn("--v3-accent", V3_CSS)
 
     def test_legacy_defaults_do_not_lock_account_theme_palette(self):
-        match = re.search(r"\\[data-theme\\]\\s*\\{([^}]*)\\}", LEGACY_CSS)
-        self.assertIsNotNone(match)
-        self.assertNotIn("!important", match.group(1))
+        self.assertIn("[data-theme]{", LEGACY_CSS)
+        theme_defaults = LEGACY_CSS.split("[data-theme]{", 1)[1].split("}", 1)[0]
+        self.assertNotIn("!important", theme_defaults)
 
     def test_home_reloads_after_v3_shell_rebuild(self):
         self.assertIn('if(page==="home"&&!$("v3-home")?.querySelector(".v3-hero"))home();', V3_JS)
