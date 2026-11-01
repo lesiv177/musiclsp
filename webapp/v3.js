@@ -127,7 +127,27 @@ async function profile(){
  root.querySelectorAll("[data-prof]").forEach(b=>b.onclick=()=>{if(b.dataset.prof==="library")nav("library");if(b.dataset.prof==="wrapped")openWrapped();if(b.dataset.prof==="premium")openPlan();});
  }catch(e){root.innerHTML='<div class="v3-empty">Не вдалося завантажити профіль: '+E(e.message)+'</div>';}
 }
-function init(){build();searchPage();home();document.addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){e.preventDefault();nav("search");$("v3SearchInput")?.focus();}});}
+function refreshLocale(){
+ const page=st.page,tab=st.tab,kind=st.kind;
+ const query=$("v3SearchInput")?.value||$("v3GlobalSearch")?.value||"";
+ build();searchPage();
+ if(page==="search"){nav("search");$("v3SearchInput").value=query;if(query.trim().length>=2)search();}
+ else if(page==="library"){nav("library");library(tab);}
+ else if(page==="explore"){nav("explore");explore();}
+ else if(page==="profile"){nav("profile");profile();}
+ else{nav("home");home();}
+ st.kind=kind;
+}
+function init(){
+ build();searchPage();home();
+ let locale=document.documentElement.lang||"uk";
+ const localeObserver=new MutationObserver(()=>{
+  const next=document.documentElement.lang||"uk";
+  if(next!==locale){locale=next;refreshLocale();}
+ });
+ localeObserver.observe(document.documentElement,{attributes:true,attributeFilter:["lang"]});
+ document.addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){e.preventDefault();nav("search");$("v3SearchInput")?.focus();}});
+}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
 window.MLSPv3={navigate:nav,home,explore,library,profile,search};
 })();
