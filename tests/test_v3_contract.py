@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 V3_JS = (ROOT / "webapp" / "v3.js").read_text(encoding="utf-8")
 V3_CSS = (ROOT / "webapp" / "v3.css").read_text(encoding="utf-8")
+LEGACY_CSS = (ROOT / "webapp" / "legacy.css").read_text(encoding="utf-8")
 
 
 class V3ContractTests(unittest.TestCase):
@@ -48,6 +49,11 @@ class V3ContractTests(unittest.TestCase):
             self.assertIn("var("+token, V3_CSS)
         self.assertIn("--v3-bg", V3_CSS)
         self.assertIn("--v3-accent", V3_CSS)
+
+    def test_legacy_defaults_do_not_lock_account_theme_palette(self):
+        match = re.search(r"\\[data-theme\\]\\s*\\{([^}]*)\\}", LEGACY_CSS)
+        self.assertIsNotNone(match)
+        self.assertNotIn("!important", match.group(1))
 
     def test_home_reloads_after_v3_shell_rebuild(self):
         self.assertIn('if(page==="home"&&!$("v3-home")?.querySelector(".v3-hero"))home();', V3_JS)
