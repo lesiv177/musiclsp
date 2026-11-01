@@ -105,15 +105,23 @@ const { spawn } = require("node:child_process");
     // Every account theme must recolor V3 accent controls and panel surfaces.
     await page.evaluate(()=>window.MLSPv3.navigate("home"));
     await page.waitForSelector(".v3-hero-search");
-    const scrollCheck = await page.evaluate(() => {
+    const scrollCheck = await page.evaluate(async () => {
+      // Add temporary content so the test checks scroll mechanics, not whether
+      // the mocked home feed happens to be taller than this viewport.
+      const probe = document.createElement("div");
+      probe.style.cssText = "height:1400px;min-height:1400px;pointer-events:none";
+      document.querySelector("#v3-home").appendChild(probe);
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const before = window.scrollY;
       window.scrollTo(0, document.documentElement.scrollHeight);
+      await new Promise(resolve => requestAnimationFrame(resolve));
       const after = window.scrollY;
+      probe.remove();
       window.scrollTo(0, before);
       return {height:document.documentElement.scrollHeight,viewport:window.innerHeight,after};
     });
-    if (scrollCheck.height <= scrollCheck.viewport || scrollCheck.after <= 0)
-      throw new Error("V3 document cannot scroll vertically: "+JSON.stringify(scrollCheck));
+    if (scrollCheck.after <= 0)
+      throw new Error("V3 document cannot scroll vertically with long content: "+JSON.stringify(scrollCheck));
     const themeSamples = await page.evaluate(() => {
       const samples = {};
       for (const theme of ["midnight","ember","aurora","neon","paper"]) {
