@@ -57,14 +57,16 @@ const { spawn } = require("node:child_process");
     if(!apiCalls.includes("/api/search"))throw new Error("V3 search did not call the search API");
     await page.waitForSelector('#v3Results [data-collection-kind="artists"]');
     await page.waitForSelector('#v3Results [data-collection-kind="albums"]');
+    const artistRequest=page.waitForRequest(req=>new URL(req.url()).pathname.startsWith("/api/artist/"));
     await page.locator('#v3Results [data-collection-kind="artists"]').first().click();
-    await page.waitForFunction(()=>window.eval('S.queue?.[0]?.id === "qa-collection-track"'));
+    if(!(await artistRequest).url().includes("jam%3Aartist-1"))throw new Error("Artist selection requested the wrong collection");
     await page.locator('.v3-mobile-nav [data-page="search"]').click();
     await page.locator("#v3SearchInput").fill("qa album");
     await page.locator('#v3Kinds [data-kind="albums"]').click();
     await page.waitForSelector('#v3Results [data-collection-kind="albums"]');
+    const albumRequest=page.waitForRequest(req=>new URL(req.url()).pathname.startsWith("/api/album/"));
     await page.locator('#v3Results [data-collection-kind="albums"]').first().click();
-    await page.waitForFunction(()=>window.eval('S.queue?.[0]?.id === "qa-collection-track"'));
+    if(!(await albumRequest).url().includes("jam%3Aalbum-1"))throw new Error("Album selection requested the wrong collection");
 
     await page.locator('.v3-mobile-nav [data-page="explore"]').first().click();
     await page.waitForSelector("#v3-explore [data-genre]");
