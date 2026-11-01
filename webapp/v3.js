@@ -23,22 +23,42 @@ function build(){
  const g=$("v3GlobalSearch");g.onfocus=()=>nav("search");g.oninput=()=>{nav("search");$("v3SearchInput").value=g.value;search();};g.onkeydown=e=>{if(e.key==="Enter"){nav("search");$("v3SearchInput").value=g.value;search();}};
 }
 function feature(title,sub,t,i){return '<button class="v3-feature" data-feature="'+i+'">'+(t?.cover?'<img src="'+E(t.cover)+'" alt="">':'')+'<span class="v3-play-dot">▶</span><span class="v3-feature-copy"><b>'+title+'</b><small>'+sub+'</small></span></button>'}
+function shelfCard(t,i,ctx){
+ return '<button class="v3-album-card" data-shelf="'+ctx+'" data-index="'+i+'"><span class="v3-album-cover">'+(t?.cover?'<img src="'+E(t.cover)+'" alt="" loading="lazy" onerror="this.style.opacity=.12">':'<span class="v3-cover-fallback">♫</span>')+'<span class="v3-album-play">▶</span></span><b>'+E(t?.title||"Без назви")+'</b><small>'+E(t?.artist||"Невідомий артист")+'</small></button>';
+}
+function shelf(title,list,ctx){
+ if(!list?.length)return "";
+ return section(title,'<div class="v3-shelf">'+list.slice(0,12).map((t,i)=>shelfCard(t,i,ctx)).join("")+'</div>');
+}
 async function home(){
  const root=$("v3-home");root.innerHTML='<div class="v3-empty">'+E(tr("ui_loading","Завантаження…"))+'</div>';
  try{
-  const [h,p,m]=await Promise.all([get("/api/home"),get("/api/playlists"),get("/api/moods")]);st.home=h;st.playlists=p.playlists||[];st.moods=m.moods||[];
-  const sec=h.sections||[],by=Object.fromEntries(sec.map(x=>[x.id,x])),recent=by.recent?.tracks||[],popular=by.popular?.tracks||[],fresh=by.fresh?.tracks||[],trending=by.trending?.tracks||[];
-  const sets=[["Твій мікс","Персональна добірка",recent[0]||popular[0],recent.length?recent:popular],["У тренді","Що слухають зараз",popular[0]||trending[0],popular],["Свіжі відкриття","Нові голоси",fresh[0]||trending[0],fresh],["Повільний ритм","Час розслабитись",trending[0]||recent[0],trending]];
-  root.innerHTML='<div class="v3-hero"><div class="v3-eyebrow">MUSICLSP / YOUR SOUND</div><h1>'+tr("hero_title_a","Твоя музика.")+'<br>'+tr("hero_title_b","Твої правила.")+'</h1><p>'+tr("hero_desc","Відкривай нові голоси та знаходь звучання під настрій.")+'</p><label class="v3-hero-search">⌕ <input id="v3HeroSearch" placeholder="Що хочеш послухати сьогодні?"></label></div>'+
-  section(tr("home_collections","Твоя музична хвиля"),'<div class="v3-card-grid">'+sets.map((x,i)=>feature(x[0],x[1],x[2],i)).join("")+'</div>')+
-  (recent.length?section("Продовжити слухати",'<div class="v3-track-list">'+recent.slice(0,7).map((t,i)=>row(t,i,"recent")).join("")+'</div>'):'')+
-  (fresh.length?section("Нові відкриття",'<div class="v3-track-list">'+fresh.slice(0,6).map((t,i)=>row(t,i,"fresh")).join("")+'</div>'):'')+
-  (st.playlists.length?section("Твої плейлисти",'<div class="v3-track-list">'+st.playlists.slice(0,6).map(p=>'<button class="v3-track" data-pl="'+E(p.id)+'"><span class="v3-avatar" style="width:42px;height:42px">♫</span><span class="v3-track-meta"><b>'+E(p.name)+'</b><small>'+(Number(p.count)||0)+' треків</small></span>›</button>').join("")+'</div>'):'')+
-  (!recent.length&&!popular.length&&!fresh.length?'<div class="v3-empty">Поки немає рекомендацій. Знайди перший трек через пошук.</div>':'');
-  const inp=$("v3HeroSearch");inp.onfocus=()=>{nav("search");$("v3SearchInput")?.focus();};inp.onkeydown=e=>{if(e.key==="Enter"){nav("search");$("v3SearchInput").value=inp.value;search();}};
-  root.querySelectorAll("[data-feature]").forEach(b=>b.onclick=()=>{const x=sets[+b.dataset.feature];if(x[3]?.length)setQueue(x[3],0);});
-  bindRows(root,recent,"recent");bindRows(root,fresh,"fresh");
+  const [h,p,m]=await Promise.all([get("/api/home"),get("/api/playlists"),get("/api/moods")]);
+  st.home=h;st.playlists=p.playlists||[];st.moods=m.moods||[];
+  const sec=h.sections||[],by=Object.fromEntries(sec.map(x=>[x.id,x]));
+  const recent=by.recent?.tracks||[],popular=by.popular?.tracks||[],fresh=by.fresh?.tracks||[],trending=by.trending?.tracks||[];
+  const moods=st.moods.slice(0,12);
+  root.innerHTML=
+   '<div class="v3-home-heading"><div><div class="v3-eyebrow">MUSICLSP / HOME</div><h1 class="v3-page-title">'+tr("home_collections","Made for your listening")+'</h1></div><button class="v3-home-refresh" type="button" data-refresh>↻</button></div>'+
+   (moods.length?'<div class="v3-home-moods">'+moods.map((m,i)=>'<button class="v3-pill" data-home-mood="'+i+'">'+E(m.label)+'</button>').join("")+'</div>':'')+
+   shelf("Albums for you",popular.length?popular:trending,"popular")+
+   shelf("Listen again",recent,"recent")+
+   shelf("Fresh discoveries",fresh,"fresh")+
+   shelf("Trending now",trending.length?trending:popular,"trending")+
+   (st.playlists.length?section("Your playlists",'<div class="v3-shelf">'+st.playlists.slice(0,12).map(p=>'<button class="v3-album-card v3-playlist-card" data-pl="'+E(p.id)+'"><span class="v3-album-cover v3-playlist-cover"><span>♫</span></span><b>'+E(p.name)+'</b><small>'+(Number(p.count)||0)+' tracks</small></button>').join("")+'</div>'):'')+
+   (!recent.length&&!popular.length&&!fresh.length&&!trending.length?'<div class="v3-empty">Поки немає рекомендацій. Знайди перший трек через пошук.</div>':'');
+  root.querySelectorAll("[data-shelf]").forEach(b=>b.onclick=()=>{
+   const groups={popular:popular,recent:recent,fresh:fresh,trending:trending.length?trending:popular};
+   const list=groups[b.dataset.shelf]||[];const i=Number(b.dataset.index)||0;
+   if(list.length)setQueue(list,i);
+  });
+  root.querySelectorAll("[data-home-mood]").forEach(b=>b.onclick=()=>{
+   const mood=st.moods[Number(b.dataset.homeMood)];
+   if(mood?.locked)toast(tr("ui_mood_premium","Цей настрій доступний у Premium"));
+   else if(mood)moodV3(mood.key,mood.label);
+  });
   root.querySelectorAll("[data-pl]").forEach(b=>b.onclick=()=>playlist(b.dataset.pl));
+  $("v3-home").querySelector("[data-refresh]")?.addEventListener("click",()=>home());
  }catch(e){root.innerHTML='<div class="v3-empty">Не вдалося завантажити головну: '+E(e.message)+'</div>';}
 }
 async function explore(){
