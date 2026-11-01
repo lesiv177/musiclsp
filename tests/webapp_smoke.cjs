@@ -103,6 +103,8 @@ const { spawn } = require("node:child_process");
     await page.waitForFunction(()=>document.querySelector('#mlsp-v3 [data-page="home"]')?.textContent.includes("Головна"));
 
     // Every account theme must recolor V3 accent controls and panel surfaces.
+    await page.evaluate(()=>window.MLSPv3.navigate("home"));
+    await page.waitForSelector(".v3-play-dot");
     const themeSamples = await page.evaluate(() => {
       const samples = {};
       for (const theme of ["midnight","ember","aurora","neon","paper"]) {
