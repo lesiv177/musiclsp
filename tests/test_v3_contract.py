@@ -52,6 +52,7 @@ class V3ContractTests(unittest.TestCase):
     def test_locale_rebuild_preserves_legacy_connect_controls(self):
         self.assertIn('const preservedLegacy=["topProfile","planChip","deviceChip"]', V3_JS)
         self.assertIn("preservedLegacy.forEach(node=>node.remove())", V3_JS)
+        self.assertIn('preservedLegacy.forEach((n,i)=>{const slot=$(["v3AvatarSlot","v3PlanSlot","v3DeviceSlot"][i]);if(n&&slot)slot.appendChild(n);})', V3_JS)
 
     def test_connect_and_legacy_player_are_not_embedded_in_v3(self):
         for protected in ("startDeviceSync(", "connectDeviceSocket(",
