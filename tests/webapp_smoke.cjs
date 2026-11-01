@@ -102,6 +102,24 @@ const { spawn } = require("node:child_process");
     await page.evaluate(()=>{S.me.lang="uk";document.documentElement.lang="uk";});
     await page.waitForFunction(()=>document.querySelector('#mlsp-v3 [data-page="home"]')?.textContent.includes("Головна"));
 
+    // Every account theme must recolor V3 accent controls and panel surfaces.
+    const themeSamples = await page.evaluate(() => {
+      const samples = {};
+      for (const theme of ["midnight","ember","aurora","neon","paper"]) {
+        applyTheme(theme);
+        samples[theme] = {
+          accent: getComputedStyle(document.querySelector(".v3-play-dot")).backgroundColor,
+          panel: getComputedStyle(document.querySelector(".v3-hero-search")).backgroundColor
+        };
+      }
+      applyTheme("midnight");
+      return samples;
+    });
+    if (new Set(Object.values(themeSamples).map(x=>x.accent)).size !== 5)
+      throw new Error("V3 accent did not change across all account themes: "+JSON.stringify(themeSamples));
+    if (new Set(Object.values(themeSamples).map(x=>x.panel)).size !== 5)
+      throw new Error("V3 panel did not change across all account themes: "+JSON.stringify(themeSamples));
+
     await page.locator("#deviceChip").click();
     await page.waitForSelector("#devicesList",{timeout:5000});
     await page.locator("#modal").evaluate(el=>el.classList.remove("on"));
