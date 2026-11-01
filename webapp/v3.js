@@ -78,7 +78,6 @@ function searchPage(){
  $("v3SearchInput").oninput=()=>{clearTimeout(st.timer);st.timer=setTimeout(search,350);};$("v3SearchInput").onkeydown=e=>{if(e.key==="Enter")search();};
  $("v3Kinds").querySelectorAll("button").forEach(b=>b.onclick=()=>{st.kind=b.dataset.kind;$("v3Kinds").querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===b));search();});
 }
-function tr(key,fallback){try{const value=typeof t==="function"?t(key):key;return value&&value!==key?value:fallback;}catch(_){return fallback;}}
 function collectionRows(list,kind){
  return '<div class="v3-track-list">'+list.map((x,i)=>'<button class="v3-track" data-collection="'+i+'" data-collection-kind="'+kind+'"><img src="'+E(x.cover||"")+'" alt="" loading="lazy"><span class="v3-track-meta"><b>'+E(x.name||x.title||"")+'</b><small>'+E(kind==="artists"?(tr("artist_label","Artist")):(tr("search_albums","Albums")))+(x.source_label?" · "+E(x.source_label):"")+'</small></span>↗</button>').join("")+'</div>';
 }
