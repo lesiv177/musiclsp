@@ -58,13 +58,13 @@ const { spawn } = require("node:child_process");
     await page.waitForSelector('#v3Results [data-collection-kind="artists"]');
     await page.waitForSelector('#v3Results [data-collection-kind="albums"]');
     await page.locator('#v3Results [data-collection-kind="artists"]').first().click();
-    await page.waitForFunction(()=>window.S?.queue?.[0]?.id==="qa-collection-track");
+    await page.waitForFunction(()=>window.eval('S.queue?.[0]?.id === "qa-collection-track"'));
     await page.locator('.v3-mobile-nav [data-page="search"]').click();
     await page.locator("#v3SearchInput").fill("qa album");
     await page.locator('#v3Kinds [data-kind="albums"]').click();
     await page.waitForSelector('#v3Results [data-collection-kind="albums"]');
     await page.locator('#v3Results [data-collection-kind="albums"]').first().click();
-    await page.waitForFunction(()=>window.S?.queue?.[0]?.id==="qa-collection-track");
+    await page.waitForFunction(()=>window.eval('S.queue?.[0]?.id === "qa-collection-track"'));
 
     await page.locator('.v3-mobile-nav [data-page="explore"]').first().click();
     await page.waitForSelector("#v3-explore [data-genre]");
