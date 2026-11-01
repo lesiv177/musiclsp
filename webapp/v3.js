@@ -16,7 +16,7 @@ function build(){
  '<main class="v3-main"><header class="v3-topbar"><div class="v3-mobile-brand"><span class="v3-brand-mark">♫</span><b>MusicLSP</b></div><label class="v3-top-search"><span>⌕</span><input id="v3GlobalSearch" placeholder="'+tr("search_ph","Search tracks, artists, albums...")+'"></label><div class="v3-top-actions"><button class="v3-premium-link" data-premium>✦ Premium</button><span id="v3AvatarSlot"></span><span id="v3PlanSlot"></span><span id="v3DeviceSlot"></span></div></header>'+
  '<section class="v3-page active" id="v3-home"></section><section class="v3-page" id="v3-explore"></section><section class="v3-page" id="v3-search"></section><section class="v3-page" id="v3-library"></section><section class="v3-page" id="v3-profile"></section></main>'+
  '<nav class="v3-mobile-nav"><button data-page="home" class="active"><span>⌂</span>'+tr("nav_home","Home")+'</button><button data-page="explore"><span>◈</span>'+tr("search_genres","Explore")+'</button><button data-page="search"><span>⌕</span>'+tr("nav_search","Search")+'</button><button data-page="library"><span>▤</span>'+tr("nav_lib","Library")+'</button><button data-page="profile"><span>◉</span>'+tr("nav_me","Profile")+'</button></nav>';
- ["topProfile","planChip","deviceChip"].forEach((id,i)=>{const n=$(id),slot=$(["v3AvatarSlot","v3PlanSlot","v3DeviceSlot"][i]);if(n&&slot)slot.appendChild(n);});
+ preservedLegacy.forEach((n,i)=>{const slot=$(["v3AvatarSlot","v3PlanSlot","v3DeviceSlot"][i]);if(n&&slot)slot.appendChild(n);});
  if($("topProfile"))$("topProfile").onclick=()=>nav("profile");
  root.querySelectorAll("[data-page]").forEach(b=>b.onclick=()=>nav(b.dataset.page));
  root.querySelectorAll("[data-premium]").forEach(b=>b.onclick=()=>openPlan());
