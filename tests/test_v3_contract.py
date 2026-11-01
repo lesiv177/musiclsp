@@ -32,6 +32,11 @@ class V3ContractTests(unittest.TestCase):
                     "lib_history", "lib_moments"):
             self.assertIn('tr("'+key+'"', V3_JS)
 
+    def test_v3_refreshes_when_account_language_changes(self):
+        self.assertIn("function refreshLocale()", V3_JS)
+        self.assertIn("new MutationObserver", V3_JS)
+        self.assertIn('attributeFilter:["lang"]', V3_JS)
+
     def test_theme_tokens_are_bridged_to_v3(self):
         for token in ("--bg", "--panel", "--line", "--ink", "--muted", "--accent"):
             self.assertIn("var("+token, V3_CSS)
