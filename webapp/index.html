@@ -2750,7 +2750,12 @@ function renderProfile(){
       </div>
       <button class="profile-edit-shortcut" type="button" onclick="openPlan()" aria-label="Твій план">↗</button>
     </div>
-    <div class="sect"><h2 data-i18n="pr_stats">Статистика</h2><div id="statBox"><div class="skel"></div></div>
+    <div class="profile-quick-actions" aria-label="Швидкі дії профілю">
+      <button type="button" onclick="go('Lib')"><span class="pqa-icon">♫</span><span><b>Моя колекція</b><small>Збережені треки й плейлисти</small></span><i>›</i></button>
+      <button type="button" onclick="openWrapped()"><span class="pqa-icon">↗</span><span><b>Моя статистика</b><small>Музичні підсумки</small></span><i>›</i></button>
+      <button type="button" onclick="openPlan()"><span class="pqa-icon">✦</span><span><b>Мій тариф</b><small>Керування можливостями</small></span><i>›</i></button>
+    </div>
+    <div class="sect" id="profileStats"><h2 data-i18n="pr_stats">Статистика</h2><div id="statBox"><div class="skel"></div></div>
       <button class="pill" style="margin-top:10px" onclick="openWrapped()">${ICON("gift","sm")}<span data-i18n="pr_wrapped">Мій рік у музиці</span></button>
     </div>
     ${S.me.is_admin ? `<div class="sect"><h2>Адміністратор</h2>
