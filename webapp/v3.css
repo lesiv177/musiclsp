@@ -2,7 +2,7 @@
 :root{--v3-bg:#090b10;--v3-panel:#11151e;--v3-line:#252d3b;--v3-text:#f4f6fb;--v3-muted:#929bad;--v3-accent:#ff6a3d;--v3-accent2:#ff9b69}
 html,body{background:var(--v3-bg)!important;color:var(--v3-text)!important;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 #appRoot{display:block!important;min-height:100dvh;padding:0!important;max-width:none!important;background:var(--v3-bg)!important}
-#appRoot>.app-top,#appRoot>.screen,#appRoot>.app-nav{display:none!important}
+#appRoot>.app-top,#appRoot>.screen,.app-nav{display:none!important}
 #mlsp-v3{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100dvh;max-width:1440px;margin:auto;padding:0 28px 125px;gap:30px}
 .v3-sidebar{position:sticky;top:0;height:calc(100dvh - 20px);padding:25px 0;display:flex;flex-direction:column;gap:34px;border-right:1px solid var(--v3-line)}
 .v3-brand{display:flex;align-items:center;gap:12px;font-size:19px;font-weight:850;letter-spacing:-.7px}.v3-brand-mark{width:38px;height:38px;display:grid;place-items:center;border-radius:12px;background:var(--v3-accent);color:#17100d;font-size:21px}.v3-brand small{display:block;margin-top:2px;color:var(--v3-muted);font-size:9px;letter-spacing:2px}
