@@ -2740,12 +2740,15 @@ async function downloadCurrent(){
 function renderProfile(){
   const p = S.me.premium;
   $("meBody").innerHTML = `
-    <div class="sect">
-      <h2>${esc(S.me.name || "Слухач")}</h2>
-      <div style="color:var(--muted);font-size:13px">
-        ${p ? "Premium активний" + (S.me.premium_until?" до "+esc(String(S.me.premium_until).slice(0,10)):"")
-            : "Безкоштовний план"}</div>
-      ${S.me.streak>1?`<div class="streak">${ICON("flame","sm")}${S.me.streak} днів поспіль</div>`:""}
+    <div class="sect profile-hero">
+      <div class="profile-avatar" aria-hidden="true">${esc((S.me.name || "С").trim().slice(0,1).toUpperCase())}</div>
+      <div class="profile-hero-copy">
+        <div class="profile-eyebrow">ТВІЙ МУЗИЧНИЙ ПРОСТІР</div>
+        <h2>${esc(S.me.name || "Слухач")}</h2>
+        <div class="profile-plan-line"><span class="profile-plan-dot"></span>${p ? "MusicLSP Premium" : "MusicLSP Free"}${p && S.me.premium_until ? " · до "+esc(String(S.me.premium_until).slice(0,10)) : ""}</div>
+        ${S.me.streak>1?`<div class="streak">${ICON("flame","sm")}${S.me.streak} днів поспіль</div>`:""}
+      </div>
+      <button class="profile-edit-shortcut" type="button" onclick="openPlan()" aria-label="Твій план">↗</button>
     </div>
     <div class="sect"><h2 data-i18n="pr_stats">Статистика</h2><div id="statBox"><div class="skel"></div></div>
       <button class="pill" style="margin-top:10px" onclick="openWrapped()">${ICON("gift","sm")}<span data-i18n="pr_wrapped">Мій рік у музиці</span></button>
