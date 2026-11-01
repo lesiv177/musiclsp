@@ -54,17 +54,48 @@ function searchPage(){
  $("v3SearchInput").oninput=()=>{clearTimeout(st.timer);st.timer=setTimeout(search,350);};$("v3SearchInput").onkeydown=e=>{if(e.key==="Enter")search();};
  $("v3Kinds").querySelectorAll("button").forEach(b=>b.onclick=()=>{st.kind=b.dataset.kind;$("v3Kinds").querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===b));search();});
 }
+function tr(key,fallback){try{const value=typeof t==="function"?t(key):key;return value&&value!==key?value:fallback;}catch(_){return fallback;}}
+function collectionRows(list,kind){
+ return '<div class="v3-track-list">'+list.map((x,i)=>'<button class="v3-track" data-collection="'+kind+':'+i+'"><img src="'+E(x.cover||"")+'" alt="" loading="lazy"><span class="v3-track-meta"><b>'+E(x.name||x.title||"")+'</b><small>'+E(kind==="artists"?(tr("artist_label","Artist")):(tr("search_albums","Albums")))+(x.source_label?" · "+E(x.source_label):"")+'</small></span>↗</button>').join("")+'</div>';
+}
+async function openCollection(kind,item){
+ try{const d=await get("/api/"+(kind==="artists"?"artist":"album")+"/"+encodeURIComponent(item.id));if(d.tracks?.length)setQueue(d.tracks,0);else toast(tr("nothing_found_body","No tracks found"));}
+ catch(e){toast(e.message);}
+}
 async function search(){
- const inp=$("v3SearchInput");if(!inp)return;const q=inp.value.trim(),seq=++st.seq;$("v3GlobalSearch").value=q;
- if(q.length<2){$("v3Results").innerHTML='<div class="v3-empty">Введи хоча б два символи для пошуку.</div>';return;}
- $("v3Results").innerHTML='<div class="v3-empty">Шукаємо…</div>';
- try{const d=await get("/api/search?q="+encodeURIComponent(q)+"&type="+encodeURIComponent(st.kind)+"&limit=30&sort=relevance");if(seq!==st.seq)return;const list=Array.isArray(d.results)?d.results:(d.results?.tracks||[]);
- if(!list.length){$("v3Results").innerHTML='<div class="v3-empty">Нічого не знайдено. Спробуй інший запит.</div>';return;}
- if(st.kind==="artists"||st.kind==="albums"){
-  $("v3Results").innerHTML='<div class="v3-track-list">'+list.map((x,i)=>'<button class="v3-track" data-collection="'+i+'"><img src="'+E(x.cover||"")+'" alt=""><span class="v3-track-meta"><b>'+E(x.name||x.title)+'</b><small>'+(st.kind==="artists"?"Артист":"Альбом")+'</small></span>↗</button>').join("")+'</div>';
-  $("v3Results").querySelectorAll("[data-collection]").forEach(b=>b.onclick=async()=>{const x=list[+b.dataset.collection];try{const d=await get("/api/"+(st.kind==="artists"?"artist":"album")+"/"+encodeURIComponent(x.id));if(d.tracks?.length)setQueue(d.tracks,0);}catch(e){toast(e.message);}});
- }else{$("v3Results").innerHTML='<div class="v3-track-list">'+list.map((t,i)=>row(t,i)).join("")+'</div>';bindRows($("v3Results"),list);}
- }catch(e){$("v3Results").innerHTML='<div class="v3-empty">Помилка пошуку: '+E(e.message)+'</div>';}
+ const inp=$("v3SearchInput");if(!inp)return;
+ const q=inp.value.trim(),seq=++st.seq;
+ $("v3GlobalSearch").value=q;
+ if(q.length<2){$("v3Results").innerHTML='<div class="v3-empty">'+E(tr("search_empty_body","Enter at least two characters to search."))+'</div>';return;}
+ $("v3Results").innerHTML='<div class="v3-empty">'+E(tr("ui_loading","Searching…"))+'</div>';
+ try{
+  const d=await get("/api/search?q="+encodeURIComponent(q)+"&type="+encodeURIComponent(st.kind)+"&limit=30&sort=relevance");
+  if(seq!==st.seq)return;
+  const results=d.results||{};
+  if(st.kind==="all"&&results&&!Array.isArray(results)){
+   const tracks=Array.isArray(results.tracks)?results.tracks:[];
+   const albums=Array.isArray(results.albums)?results.albums:[];
+   const artists=Array.isArray(results.artists)?results.artists:[];
+   if(!tracks.length&&!albums.length&&!artists.length){$("v3Results").innerHTML='<div class="v3-empty">'+E(tr("nothing_found_body","Try another search."))+'</div>';return;}
+   let html="";
+   if(tracks.length)html+=section(tr("search_tracks","Tracks"),'<div class="v3-track-list">'+tracks.slice(0,12).map((x,i)=>row(x,i,"alltracks")).join("")+'</div>');
+   if(artists.length)html+=section(tr("search_artists","Artists"),collectionRows(artists.slice(0,8),"artists"));
+   if(albums.length)html+=section(tr("search_albums","Albums"),collectionRows(albums.slice(0,8),"albums"));
+   $("v3Results").innerHTML=html;
+   bindRows($("v3Results"),tracks.slice(0,12),"alltracks");
+   $("v3Results").querySelectorAll("[data-collection]").forEach(b=>b.onclick=()=>{const [kind,index]=b.dataset.collection.split(":");openCollection(kind,(kind==="artists"?artists:albums)[+index]);});
+   return;
+  }
+  const list=Array.isArray(results)?results:[];
+  if(!list.length){$("v3Results").innerHTML='<div class="v3-empty">'+E(tr("nothing_found_body","Try another search."))+'</div>';return;}
+  if(st.kind==="artists"||st.kind==="albums"){
+   $("v3Results").innerHTML=collectionRows(list,st.kind);
+   $("v3Results").querySelectorAll("[data-collection]").forEach(b=>b.onclick=()=>openCollection(st.kind,list[+b.dataset.collection]));
+  }else{
+   $("v3Results").innerHTML='<div class="v3-track-list">'+list.map((x,i)=>row(x,i)).join("")+'</div>';
+   bindRows($("v3Results"),list);
+  }
+ }catch(e){if(seq==st.seq)$("v3Results").innerHTML='<div class="v3-empty">'+E(e.message)+'</div>';}
 }
 async function library(tab){
  st.tab=tab;const root=$("v3-library");
