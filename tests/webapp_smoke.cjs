@@ -26,9 +26,10 @@ const { spawn } = require("node:child_process");
     else if (path === "/api/history") data = {ok:true,tracks:[]};
     else if (path === "/api/search") {
       const q=url.searchParams.get("q"),type=url.searchParams.get("type");
-      data={ok:true,results:type==="all"?{tracks:[{id:"qa-search",title:"Search result",artist:"QA Artist",cover:"",duration:180}],albums:[],artists:[]}:
-        (q?[{id:"qa-search",title:"Search result",artist:"QA Artist",cover:"",duration:180}]:[])};
-    } else if (path === "/api/mood/calm") data={ok:true,tracks:[{id:"qa-mood",title:"Mood track",artist:"QA Artist",cover:"",duration:180}]};
+      data={ok:true,results:type==="all"?{tracks:[{id:"qa-search",title:"Search result",artist:"QA Artist",cover:"",duration:180}],albums:[{id:"jam:album-1",name:"QA Album",cover:""}],artists:[{id:"jam:artist-1",name:"QA Artist",cover:""}]}:
+        (type==="artists"?[{id:"jam:artist-1",name:"QA Artist",cover:""}]:type==="albums"?[{id:"jam:album-1",name:"QA Album",cover:""}]:(q?[{id:"qa-search",title:"Search result",artist:"QA Artist",cover:"",duration:180}]:[]))};
+    } else if (path === "/api/artist/jam%3Aartist-1" || path === "/api/artist/jam:artist-1" || path === "/api/album/jam%3Aalbum-1" || path === "/api/album/jam:album-1") data={ok:true,tracks:[{id:"qa-collection-track",title:"Collection track",artist:"QA Artist",cover:"",duration:180}]};
+    else if (path === "/api/mood/calm") data={ok:true,tracks:[{id:"qa-mood",title:"Mood track",artist:"QA Artist",cover:"",duration:180}]};
     else if (path.startsWith("/api/home?tag=")) data={ok:true,sections:[{id:"genre",tracks:[{id:"qa-genre",title:"Jazz track",artist:"QA Artist",cover:"",duration:180}]}]};
     else if (path.startsWith("/api/devices/")) data={ok:true,devices:[],commands:[],session:null,state:null};
     else if (path === "/api/playlists" && route.request().method()==="POST") data={ok:true,playlist:{id:8,name:"QA playlist"}};
@@ -54,6 +55,16 @@ const { spawn } = require("node:child_process");
     await page.locator("#v3SearchInput").fill("test artist");
     await page.waitForSelector("#v3Results .v3-track",{timeout:5000});
     if(!apiCalls.includes("/api/search"))throw new Error("V3 search did not call the search API");
+    await page.waitForSelector('#v3Results [data-collection-kind="artists"]');
+    await page.waitForSelector('#v3Results [data-collection-kind="albums"]');
+    await page.locator('#v3Results [data-collection-kind="artists"]').first().click();
+    await page.waitForFunction(()=>window.S?.queue?.[0]?.id==="qa-collection-track");
+    await page.locator('.v3-mobile-nav [data-page="search"]').click();
+    await page.locator("#v3SearchInput").fill("qa album");
+    await page.locator('#v3Kinds [data-kind="albums"]').click();
+    await page.waitForSelector('#v3Results [data-collection-kind="albums"]');
+    await page.locator('#v3Results [data-collection-kind="albums"]').first().click();
+    await page.waitForFunction(()=>window.S?.queue?.[0]?.id==="qa-collection-track");
 
     await page.locator('.v3-mobile-nav [data-page="explore"]').first().click();
     await page.waitForSelector("#v3-explore [data-genre]");
