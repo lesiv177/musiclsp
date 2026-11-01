@@ -110,7 +110,7 @@ const { spawn } = require("node:child_process");
       // the mocked home feed happens to be taller than this viewport.
       const probe = document.createElement("div");
       probe.style.cssText = "height:1400px;min-height:1400px;pointer-events:none";
-      document.querySelector("#v3-home").appendChild(probe);
+      document.body.appendChild(probe);
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const before = window.scrollY;
       window.scrollTo(0, document.documentElement.scrollHeight);
