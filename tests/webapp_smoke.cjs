@@ -105,6 +105,15 @@ const { spawn } = require("node:child_process");
     // Every account theme must recolor V3 accent controls and panel surfaces.
     await page.evaluate(()=>window.MLSPv3.navigate("home"));
     await page.waitForSelector(".v3-hero-search");
+    const scrollCheck = await page.evaluate(() => {
+      const before = window.scrollY;
+      window.scrollTo(0, document.documentElement.scrollHeight);
+      const after = window.scrollY;
+      window.scrollTo(0, before);
+      return {height:document.documentElement.scrollHeight,viewport:window.innerHeight,after};
+    });
+    if (scrollCheck.height <= scrollCheck.viewport || scrollCheck.after <= 0)
+      throw new Error("V3 document cannot scroll vertically: "+JSON.stringify(scrollCheck));
     const themeSamples = await page.evaluate(() => {
       const samples = {};
       for (const theme of ["midnight","ember","aurora","neon","paper"]) {
