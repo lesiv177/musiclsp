@@ -41,7 +41,7 @@ async function home(){
 async function explore(){
  const root=$("v3-explore");root.innerHTML='<div class="v3-empty">Завантажуємо каталог…</div>';
  try{
-  const [g,m,h]=await Promise.all([get("/api/genres"),get("/api/moods"),get("/api/home")]);st.genres=g.genres||[];st.moods=m.moods||[];
+  const [g,m]=await Promise.all([get("/api/genres"),get("/api/moods")]);st.genres=g.genres||[];st.moods=m.moods||[];
   root.innerHTML='<div class="v3-eyebrow">EXPLORE / FIND YOUR NEXT SOUND</div><h1 class="v3-page-title">Відкривай більше.</h1><p class="v3-subtitle">Жанри, настрої та артисти за межами звичного.</p>'+
   section("Обери настрій",'<div class="v3-pills">'+st.moods.map((m,i)=>'<button class="v3-pill" data-mood="'+i+'">'+E(m.label)+'</button>').join("")+'</div>')+
   section("Досліджуй жанри",'<div class="v3-genre-grid">'+st.genres.map((g,i)=>'<button class="v3-genre" data-genre="'+i+'"><b>'+E(g.label)+'</b><small>ДОСЛІДИТИ ↗</small></button>').join("")+'</div>');
