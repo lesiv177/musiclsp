@@ -55,3 +55,19 @@ html,body{background:var(--bg,#090b10)!important;color:var(--ink,#f4f6fb)!import
 .v3-mobile-nav{background:color-mix(in srgb,var(--bg) 94%,transparent);border-color:var(--line)}
 .v3-mobile-nav button{color:var(--muted)}
 .v3-premium-link{border-color:color-mix(in srgb,var(--accent) 35%,var(--line));background:color-mix(in srgb,var(--accent) 12%,var(--panel));color:var(--accent)}
+
+/* Final theme coverage for V3 surfaces that previously retained fixed colors. */
+.v3-hero-search{background:var(--panel)!important;color:var(--ink)!important;border:1px solid var(--line)}
+.v3-hero-search input{color:var(--ink)!important}
+.v3-hero p{color:var(--muted)!important}
+.v3-side-note button,.v3-brand-mark,.v3-play-dot{color:var(--accent-ink)!important}
+.v3-premium-link{background:color-mix(in srgb,var(--accent) 12%,var(--panel))!important;color:var(--accent)!important;border-color:color-mix(in srgb,var(--accent) 35%,var(--line))!important}
+.v3-section-head button{color:var(--accent)!important}
+.v3-searchbox,.v3-library-tabs button,.v3-pill,.v3-genre,.v3-profile-action,.v3-stat{color:var(--ink)}
+.v3-empty{border-color:var(--line)!important;color:var(--muted)!important}
+.v3-track:hover{background:color-mix(in srgb,var(--accent) 7%,var(--panel))!important;border-color:var(--line)!important}
+.v3-nav button,.v3-mobile-nav button{color:var(--muted)}
+.v3-nav button.active,.v3-mobile-nav button.active{color:var(--ink)!important}
+.v3-mobile-nav button.active{background:color-mix(in srgb,var(--accent) 16%,var(--panel))!important}
+.v3-profile-hero{background:radial-gradient(ellipse at 90% 0,color-mix(in srgb,var(--accent) 18%,transparent),transparent 48%),var(--panel)!important;border-color:var(--line)!important}
+.v3-avatar{background:color-mix(in srgb,var(--accent) 28%,var(--panel))!important;color:var(--accent)!important}
