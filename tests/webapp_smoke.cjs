@@ -41,7 +41,7 @@ const { spawn } = require("node:child_process");
     });
     await page.goto("http://127.0.0.1:8765/?api=https%3A%2F%2Fmock-api.local",{waitUntil:"domcontentloaded"});
     await page.waitForFunction(()=>document.querySelector("#appRoot")?.classList.contains("ready"),null,{timeout:15000});
-    await page.waitForSelector("#mlsp-v3 .v3-brand");
+    await page.waitForSelector("#mlsp-v3 .v3-mobile-brand");
     if (!(await page.locator("#v3-home").isVisible())) throw new Error("V3 home screen is not visible");
     const visibleLegacy=await page.locator("#scHome").evaluate(el=>getComputedStyle(el).display!=="none");
     if(visibleLegacy)throw new Error("Legacy app screen is still visible");
