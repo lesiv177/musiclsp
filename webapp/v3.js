@@ -6,7 +6,7 @@ const st={page:"home",home:null,genres:[],moods:[],playlists:[],tab:"liked",kind
 function section(t,b){return '<section class="v3-section"><div class="v3-section-head"><h2>'+t+'</h2></div>'+b+'</section>'}
 function row(t,i,ctx="default"){return '<div class="v3-track" data-i="'+i+'" data-context="'+ctx+'"><img src="'+E(t.cover||"")+'" alt="" loading="lazy" onerror="this.style.opacity=.15"><span class="v3-track-meta"><b>'+E(t.title||"Без назви")+'</b><small>'+E(t.artist||"Невідомий артист")+(t.duration_str?' · '+E(t.duration_str):'')+'</small></span><button class="v3-track-action" data-menu="'+i+'">···</button></div>'}
 function bindRows(root,list,ctx="default"){root.querySelectorAll(".v3-track[data-i][data-context='"+ctx+"']").forEach(el=>el.onclick=e=>{const i=+el.dataset.i;if(e.target.closest("[data-menu]"))openTrackMenu(list[i]);else setQueue(list,i);});}
-function nav(page){st.page=page;document.querySelectorAll(".v3-page").forEach(x=>x.classList.toggle("active",x.id==="v3-"+page));document.querySelectorAll("#mlsp-v3 [data-page]").forEach(x=>x.classList.toggle("active",x.dataset.page===page));if(page==="explore"&&!st.genres.length)explore();if(page==="library")library(st.tab);if(page==="profile")profile();window.scrollTo(0,0);}
+function nav(page){st.page=page;document.querySelectorAll(".v3-page").forEach(x=>x.classList.toggle("active",x.id==="v3-"+page));document.querySelectorAll("#mlsp-v3 [data-page]").forEach(x=>x.classList.toggle("active",x.dataset.page===page));if(page==="home"&&!$("v3-home")?.querySelector(".v3-hero"))home();if(page==="explore"&&!st.genres.length)explore();if(page==="library")library(st.tab);if(page==="profile")profile();window.scrollTo(0,0);}
 function build(){
  const root=$("mlsp-v3");
  const preservedLegacy=["topProfile","planChip","deviceChip"].map(id=>$(id)).filter(Boolean);
@@ -138,7 +138,7 @@ function refreshLocale(){
  else if(page==="library"){nav("library");library(tab);}
  else if(page==="explore"){nav("explore");explore();}
  else if(page==="profile"){nav("profile");profile();}
- else{nav("home");home();}
+ else{nav("home");}
  st.kind=kind;
 }
 function init(){
