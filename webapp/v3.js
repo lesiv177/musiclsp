@@ -4,8 +4,8 @@
 const $=id=>document.getElementById(id), E=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const st={page:"home",home:null,genres:[],moods:[],playlists:[],tab:"liked",kind:"all",seq:0,timer:null};
 function section(t,b){return '<section class="v3-section"><div class="v3-section-head"><h2>'+t+'</h2></div>'+b+'</section>'}
-function row(t,i){return '<div class="v3-track" data-i="'+i+'"><img src="'+E(t.cover||"")+'" alt="" loading="lazy" onerror="this.style.opacity=.15"><span class="v3-track-meta"><b>'+E(t.title||"Без назви")+'</b><small>'+E(t.artist||"Невідомий артист")+(t.duration_str?' · '+E(t.duration_str):'')+'</small></span><button class="v3-track-action" data-menu="'+i+'">···</button></div>'}
-function bindRows(root,list){root.querySelectorAll(".v3-track[data-i]").forEach(el=>el.onclick=e=>{const i=+el.dataset.i;if(e.target.closest("[data-menu]"))openTrackMenu(list[i]);else setQueue(list,i);});}
+function row(t,i,ctx="default"){return '<div class="v3-track" data-i="'+i+'" data-context="'+ctx+'"><img src="'+E(t.cover||"")+'" alt="" loading="lazy" onerror="this.style.opacity=.15"><span class="v3-track-meta"><b>'+E(t.title||"Без назви")+'</b><small>'+E(t.artist||"Невідомий артист")+(t.duration_str?' · '+E(t.duration_str):'')+'</small></span><button class="v3-track-action" data-menu="'+i+'">···</button></div>'}
+function bindRows(root,list,ctx="default"){root.querySelectorAll(".v3-track[data-i][data-context='"+ctx+"']").forEach(el=>el.onclick=e=>{const i=+el.dataset.i;if(e.target.closest("[data-menu]"))openTrackMenu(list[i]);else setQueue(list,i);});}
 function nav(page){st.page=page;document.querySelectorAll(".v3-page").forEach(x=>x.classList.toggle("active",x.id==="v3-"+page));document.querySelectorAll("#mlsp-v3 [data-page]").forEach(x=>x.classList.toggle("active",x.dataset.page===page));if(page==="explore"&&!st.genres.length)explore();if(page==="library")library(st.tab);if(page==="profile")profile();window.scrollTo(0,0);}
 function build(){
  const root=$("mlsp-v3");root.innerHTML=
@@ -28,13 +28,13 @@ async function home(){
   const sets=[["Твій мікс","Персональна добірка",recent[0]||popular[0],recent.length?recent:popular],["У тренді","Що слухають зараз",popular[0]||trending[0],popular],["Свіжі відкриття","Нові голоси",fresh[0]||trending[0],fresh],["Повільний ритм","Час розслабитись",trending[0]||recent[0],trending]];
   root.innerHTML='<div class="v3-hero"><div class="v3-eyebrow">MUSICLSP / YOUR SOUND</div><h1>Твоя музика.<br>Твої правила.</h1><p>Відкривай нові голоси, знаходь звучання під настрій і збирай музику, яка залишається з тобою.</p><label class="v3-hero-search">⌕ <input id="v3HeroSearch" placeholder="Що хочеш послухати сьогодні?"></label></div>'+
   section("Твоя музична хвиля",'<div class="v3-card-grid">'+sets.map((x,i)=>feature(x[0],x[1],x[2],i)).join("")+'</div>')+
-  (recent.length?section("Продовжити слухати",'<div class="v3-track-list">'+recent.slice(0,7).map(row).join("")+'</div>'):'')+
-  (fresh.length?section("Нові відкриття",'<div class="v3-track-list">'+fresh.slice(0,6).map(row).join("")+'</div>'):'')+
+  (recent.length?section("Продовжити слухати",'<div class="v3-track-list">'+recent.slice(0,7).map((t,i)=>row(t,i,"recent")).join("")+'</div>'):'')+
+  (fresh.length?section("Нові відкриття",'<div class="v3-track-list">'+fresh.slice(0,6).map((t,i)=>row(t,i,"fresh")).join("")+'</div>'):'')+
   (st.playlists.length?section("Твої плейлисти",'<div class="v3-track-list">'+st.playlists.slice(0,6).map(p=>'<button class="v3-track" data-pl="'+E(p.id)+'"><span class="v3-avatar" style="width:42px;height:42px">♫</span><span class="v3-track-meta"><b>'+E(p.name)+'</b><small>'+(Number(p.count)||0)+' треків</small></span>›</button>').join("")+'</div>'):'')+
   (!recent.length&&!popular.length&&!fresh.length?'<div class="v3-empty">Поки немає рекомендацій. Знайди перший трек через пошук.</div>':'');
   const inp=$("v3HeroSearch");inp.onfocus=()=>nav("search");inp.onkeydown=e=>{if(e.key==="Enter"){nav("search");$("v3SearchInput").value=inp.value;search();}};
   root.querySelectorAll("[data-feature]").forEach(b=>b.onclick=()=>{const x=sets[+b.dataset.feature];if(x[3]?.length)setQueue(x[3],0);});
-  bindRows(root,recent);bindRows(root,fresh);
+  bindRows(root,recent,"recent");bindRows(root,fresh,"fresh");
   root.querySelectorAll("[data-pl]").forEach(b=>b.onclick=()=>playlist(b.dataset.pl));
  }catch(e){root.innerHTML='<div class="v3-empty">Не вдалося завантажити головну: '+E(e.message)+'</div>';}
 }
@@ -58,7 +58,7 @@ async function search(){
  const inp=$("v3SearchInput");if(!inp)return;const q=inp.value.trim(),seq=++st.seq;$("v3GlobalSearch").value=q;
  if(q.length<2){$("v3Results").innerHTML='<div class="v3-empty">Введи хоча б два символи для пошуку.</div>';return;}
  $("v3Results").innerHTML='<div class="v3-empty">Шукаємо…</div>';
- try{const d=await get("/api/search?q="+encodeURIComponent(q)+"&type="+encodeURIComponent(st.kind)+"&limit=30&sort=relevance");if(seq!==st.seq)return;const list=d.results||[];
+ try{const d=await get("/api/search?q="+encodeURIComponent(q)+"&type="+encodeURIComponent(st.kind)+"&limit=30&sort=relevance");if(seq!==st.seq)return;const list=Array.isArray(d.results)?d.results:(d.results?.tracks||[]);
  if(!list.length){$("v3Results").innerHTML='<div class="v3-empty">Нічого не знайдено. Спробуй інший запит.</div>';return;}
  if(st.kind==="artists"||st.kind==="albums"){
   $("v3Results").innerHTML='<div class="v3-track-list">'+list.map((x,i)=>'<button class="v3-track" data-collection="'+i+'"><img src="'+E(x.cover||"")+'" alt=""><span class="v3-track-meta"><b>'+E(x.name||x.title)+'</b><small>'+(st.kind==="artists"?"Артист":"Альбом")+'</small></span>↗</button>').join("")+'</div>';
