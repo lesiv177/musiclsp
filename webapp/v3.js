@@ -63,7 +63,7 @@ async function search(){
  if(st.kind==="artists"||st.kind==="albums"){
   $("v3Results").innerHTML='<div class="v3-track-list">'+list.map((x,i)=>'<button class="v3-track" data-collection="'+i+'"><img src="'+E(x.cover||"")+'" alt=""><span class="v3-track-meta"><b>'+E(x.name||x.title)+'</b><small>'+(st.kind==="artists"?"Артист":"Альбом")+'</small></span>↗</button>').join("")+'</div>';
   $("v3Results").querySelectorAll("[data-collection]").forEach(b=>b.onclick=async()=>{const x=list[+b.dataset.collection];try{const d=await get("/api/"+(st.kind==="artists"?"artist":"album")+"/"+encodeURIComponent(x.id));if(d.tracks?.length)setQueue(d.tracks,0);}catch(e){toast(e.message);}});
- }else{$("v3Results").innerHTML='<div class="v3-track-list">'+list.map(row).join("")+'</div>';bindRows($("v3Results"),list);}
+ }else{$("v3Results").innerHTML='<div class="v3-track-list">'+list.map((t,i)=>row(t,i)).join("")+'</div>';bindRows($("v3Results"),list);}
  }catch(e){$("v3Results").innerHTML='<div class="v3-empty">Помилка пошуку: '+E(e.message)+'</div>';}
 }
 async function library(tab){
@@ -73,11 +73,11 @@ async function library(tab){
  try{
   if(tab==="playlists"){const d=await get("/api/playlists"),ps=d.playlists||[];box.innerHTML='<button class="v3-pill active" id="v3Create">＋ Створити плейлист</button><div style="height:12px"></div><div class="v3-track-list">'+ps.map(p=>'<button class="v3-track" data-pl="'+E(p.id)+'"><span class="v3-avatar" style="width:42px;height:42px">♫</span><span class="v3-track-meta"><b>'+E(p.name)+'</b><small>'+(Number(p.count)||0)+' треків</small></span>›</button>').join("")+'</div>'+(ps.length?"":'<div class="v3-empty">Створи першу музичну добірку.</div>');$("v3Create").onclick=()=>openCreatePlaylist();box.querySelectorAll("[data-pl]").forEach(b=>b.onclick=()=>playlist(b.dataset.pl));return;}
   if(tab==="moments"){box.innerHTML='<div class="v3-empty">Збережені моменти можна відкривати з плеєра під час прослуховування.</div>';return;}
-  const d=await get(tab==="liked"?"/api/library":"/api/history"),list=d.tracks||[];box.innerHTML=list.length?'<div class="v3-track-list">'+list.map(row).join("")+'</div>':'<div class="v3-empty">Тут поки порожньо. Знайди музику й додай її до своєї колекції.</div>';bindRows(box,list);
+  const d=await get(tab==="liked"?"/api/library":"/api/history"),list=d.tracks||[];box.innerHTML=list.length?'<div class="v3-track-list">'+list.map((t,i)=>row(t,i)).join("")+'</div>':'<div class="v3-empty">Тут поки порожньо. Знайди музику й додай її до своєї колекції.</div>';bindRows(box,list);
  }catch(e){box.innerHTML='<div class="v3-empty">Не вдалося завантажити: '+E(e.message)+'</div>';}
 }
 async function playlist(id){
- try{const d=await get("/api/playlist/"+encodeURIComponent(id)),p=d.playlist||{},list=p.tracks||[],root=$("v3-library");root.innerHTML='<button class="v3-pill" id="v3Back">← До бібліотеки</button><div class="v3-profile-hero" style="margin:20px 0"><div class="v3-avatar">♫</div><div><div class="v3-eyebrow">PLAYLIST</div><h2>'+E(p.name)+'</h2><p>'+list.length+' треків</p></div></div><button class="v3-pill active" id="v3PlayAll">▶ Слухати все</button><div class="v3-track-list" style="margin-top:14px">'+list.map(row).join("")+'</div>'; $("v3Back").onclick=()=>library("playlists");$("v3PlayAll").onclick=()=>{if(list.length)setQueue(list,0);};bindRows(root,list);}catch(e){toast(e.message);}
+ try{const d=await get("/api/playlist/"+encodeURIComponent(id)),p=d.playlist||{},list=p.tracks||[],root=$("v3-library");root.innerHTML='<button class="v3-pill" id="v3Back">← До бібліотеки</button><div class="v3-profile-hero" style="margin:20px 0"><div class="v3-avatar">♫</div><div><div class="v3-eyebrow">PLAYLIST</div><h2>'+E(p.name)+'</h2><p>'+list.length+' треків</p></div></div><button class="v3-pill active" id="v3PlayAll">▶ Слухати все</button><div class="v3-track-list" style="margin-top:14px">'+list.map((t,i)=>row(t,i)).join("")+'</div>'; $("v3Back").onclick=()=>library("playlists");$("v3PlayAll").onclick=()=>{if(list.length)setQueue(list,0);};bindRows(root,list);}catch(e){toast(e.message);}
 }
 async function profile(){
  const root=$("v3-profile");root.innerHTML='<div class="v3-empty">Завантажуємо профіль…</div>';
