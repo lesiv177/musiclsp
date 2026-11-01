@@ -25,3 +25,33 @@ html,body{background:var(--v3-bg)!important;color:var(--v3-text)!important;font-
 @media(max-width:520px){#mlsp-v3{padding:0 15px 140px}.v3-topbar{height:49px;margin-bottom:14px}.v3-top-search{height:39px}.v3-premium-link{display:none}.v3-hero{min-height:210px;padding:22px 18px;border-radius:19px}.v3-hero h1{font-size:36px}.v3-card-grid{gap:9px}.v3-feature{min-height:140px}.v3-section{margin:21px 0}.v3-profile-hero{padding:17px;gap:13px}.v3-avatar{width:54px;height:54px;border-radius:15px}.v3-profile-actions{grid-template-columns:1fr}.v3-profile-action{padding:13px}.v3-stats{gap:6px}.v3-stat{padding:12px 8px}.v3-stat b{font-size:20px}.v3-stat small{font-size:8px}}
 
 .v3-mobile-brand{display:none;align-items:center;gap:9px;font-size:16px;font-weight:850;letter-spacing:-.5px}.v3-mobile-brand .v3-brand-mark{width:31px;height:31px;border-radius:10px;font-size:17px}@media(max-width:900px){.v3-mobile-brand{display:flex}.v3-top-search{display:none}.v3-topbar{justify-content:space-between}.v3-top-actions{margin-left:auto}#mlsp-v3 #planChip{display:none!important}}
+
+
+/* Theme bridge: keep V3 palette in sync with the account theme selected by the legacy settings runtime. */
+:root{
+  --v3-bg:var(--bg,#090b10);
+  --v3-panel:var(--panel,#11151e);
+  --v3-line:var(--line,#252d3b);
+  --v3-text:var(--ink,#f4f6fb);
+  --v3-muted:var(--muted,#929bad);
+  --v3-accent:var(--accent,#ff6a3d);
+  --v3-accent2:color-mix(in srgb,var(--accent,#ff6a3d) 72%,white);
+}
+html,body{background:var(--bg,#090b10)!important;color:var(--ink,#f4f6fb)!important}
+#appRoot{background:var(--bg,#090b10)!important}
+#mlsp-v3{color:var(--ink,#f4f6fb)}
+.v3-nav button.active,.v3-nav button:hover{background:color-mix(in srgb,var(--accent,#ff6a3d) 13%,var(--panel,#11151e));color:var(--ink,#f4f6fb)}
+.v3-nav button.active{box-shadow:inset 3px 0 var(--accent,#ff6a3d)}
+.v3-brand-mark,.v3-side-note button,.v3-play-dot{background:var(--accent,#ff6a3d);color:var(--accent-ink,#17100d)}
+.v3-eyebrow{color:var(--v3-accent2)}
+.v3-hero{border-color:var(--line);background:radial-gradient(ellipse at 82% 18%,color-mix(in srgb,var(--accent) 24%,transparent),transparent 40%),linear-gradient(112deg,var(--panel),var(--bg) 68%,color-mix(in srgb,var(--accent) 12%,var(--bg)))}
+.v3-top-search,.v3-searchbox{background:var(--panel);border-color:var(--line);color:var(--muted)}
+.v3-top-search input,.v3-searchbox input{color:var(--ink)}
+.v3-pill.active,.v3-mobile-nav button.active{background:color-mix(in srgb,var(--accent) 18%,var(--panel));color:var(--ink);border-color:color-mix(in srgb,var(--accent) 48%,var(--line))}
+.v3-feature,.v3-genre,.v3-track,.v3-profile-action,.v3-stat{background:var(--panel);border-color:var(--line);color:var(--ink)}
+.v3-feature-copy small,.v3-track-meta small,.v3-profile-action small,.v3-stat small,.v3-subtitle{color:var(--muted)}
+.v3-side-note{background:linear-gradient(145deg,var(--panel),var(--bg));border-color:var(--line)}
+.v3-side-note p{color:var(--muted)}
+.v3-mobile-nav{background:color-mix(in srgb,var(--bg) 94%,transparent);border-color:var(--line)}
+.v3-mobile-nav button{color:var(--muted)}
+.v3-premium-link{border-color:color-mix(in srgb,var(--accent) 35%,var(--line));background:color-mix(in srgb,var(--accent) 12%,var(--panel));color:var(--accent)}
