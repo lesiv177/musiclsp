@@ -49,6 +49,10 @@ class V3ContractTests(unittest.TestCase):
         self.assertIn("--v3-bg", V3_CSS)
         self.assertIn("--v3-accent", V3_CSS)
 
+    def test_locale_rebuild_preserves_legacy_connect_controls(self):
+        self.assertIn('const preservedLegacy=["topProfile","planChip","deviceChip"]', V3_JS)
+        self.assertIn("preservedLegacy.forEach(node=>node.remove())", V3_JS)
+
     def test_connect_and_legacy_player_are_not_embedded_in_v3(self):
         for protected in ("startDeviceSync(", "connectDeviceSocket(",
                           "publishDeviceState(", "claimLocalPlayback(",
