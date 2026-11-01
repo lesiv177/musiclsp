@@ -49,6 +49,10 @@ class V3ContractTests(unittest.TestCase):
         self.assertIn("--v3-bg", V3_CSS)
         self.assertIn("--v3-accent", V3_CSS)
 
+    def test_home_reloads_after_v3_shell_rebuild(self):
+        self.assertIn('if(page==="home"&&!$("v3-home")?.querySelector(".v3-hero"))home();', V3_JS)
+        self.assertIn('else{nav("home");}', V3_JS)
+
     def test_locale_rebuild_preserves_legacy_connect_controls(self):
         self.assertIn('const preservedLegacy=["topProfile","planChip","deviceChip"]', V3_JS)
         self.assertIn("preservedLegacy.forEach(node=>node.remove())", V3_JS)
