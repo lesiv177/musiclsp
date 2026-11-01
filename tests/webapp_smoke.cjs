@@ -10,7 +10,8 @@ const { spawn } = require("node:child_process");
   const apiCalls = [];
   const apiRequests = [];
   const scriptResponses = [];
-  page.on("pageerror", error => pageErrors.push(error.message));
+  page.on("pageerror", error => pageErrors.push({message:error.message,stack:error.stack}));
+  page.on("console", msg => { if (msg.type() === "error") pageErrors.push({console:msg.text(),location:msg.location()}); });
   page.on("response", response => { if (response.request().resourceType() === "script") scriptResponses.push({url:response.url(),status:response.status(),contentType:response.headers()["content-type"]||""}); });
   page.on("requestfailed", request => { if (request.resourceType() === "script") scriptResponses.push({url:request.url(),failure:request.failure()?.errorText||"failed"}); });
 
