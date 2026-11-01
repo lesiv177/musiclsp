@@ -50,7 +50,8 @@ const { spawn } = require("node:child_process");
       await page.locator('.v3-mobile-nav [data-page="'+target+'"]').first().click();
       await page.waitForFunction(t=>document.querySelector("#v3-"+t)?.classList.contains("active"),target);
     }
-    await page.locator("#v3GlobalSearch").fill("test artist");
+    await page.locator('.v3-mobile-nav [data-page="search"]').click();
+    await page.locator("#v3SearchInput").fill("test artist");
     await page.waitForSelector("#v3Results .v3-track",{timeout:5000});
     if(!apiCalls.includes("/api/search"))throw new Error("V3 search did not call the search API");
 
