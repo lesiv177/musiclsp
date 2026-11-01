@@ -37,6 +37,12 @@ class V3ContractTests(unittest.TestCase):
         self.assertIn("new MutationObserver", V3_JS)
         self.assertIn('attributeFilter:["lang"]', V3_JS)
 
+    def test_v3_page_copy_uses_shared_translation_catalog(self):
+        for key in ("hero_title_a", "hero_title_b", "hero_desc", "hero_cta",
+                    "onboard_body", "home_collections", "h_mood",
+                    "search_genres", "lib_create_playlist", "pr_stats"):
+            self.assertIn('tr("'+key+'"', V3_JS)
+
     def test_theme_tokens_are_bridged_to_v3(self):
         for token in ("--bg", "--panel", "--line", "--ink", "--muted", "--accent"):
             self.assertIn("var("+token, V3_CSS)
