@@ -42,6 +42,7 @@ jobs:
           Path("/tmp/musiclsp-webapp.js").write_text("\n;\n".join(scripts), encoding="utf-8")
           PY
           node --check /tmp/musiclsp-webapp.js
+          node --check webapp/v3.js
       - name: Validate Mini App styles and asset references
         run: |
           python - <<'PY'
