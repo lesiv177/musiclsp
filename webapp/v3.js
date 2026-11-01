@@ -40,7 +40,7 @@ async function home(){
   const recent=by.recent?.tracks||[],popular=by.popular?.tracks||[],fresh=by.fresh?.tracks||[],trending=by.trending?.tracks||[];
   const moods=st.moods.slice(0,12);
   root.innerHTML=
-   '<div class="v3-home-heading"><div><div class="v3-eyebrow">MUSICLSP / HOME</div><div class="v3-page-kicker">'+tr("home_collections","Made for your listening")+</div></div><h1 class="v3-page-title">'+tr("hero_title_a","Your music.")+" "+tr("hero_title_b","Your rules.")+'</h1></div><button class="v3-home-refresh" type="button" data-refresh>↻</button></div>'+
+   '<div class="v3-home-heading"><div><div class="v3-eyebrow">MUSICLSP / HOME</div><div class="v3-page-kicker">'+tr("home_collections","Made for your listening")+'</div></div></div><h1 class="v3-page-title">'+tr("hero_title_a","Your music.")+" "+tr("hero_title_b","Your rules.")+'</h1></div><button class="v3-home-refresh" type="button" data-refresh>↻</button></div>'+
    (moods.length?'<div class="v3-home-moods">'+moods.map((m,i)=>'<button class="v3-pill" data-home-mood="'+i+'">'+E(m.label)+'</button>').join("")+'</div>':'')+
    shelf("Albums for you",popular.length?popular:trending,"popular")+
    shelf("Listen again",recent,"recent")+
