@@ -42,7 +42,20 @@ const { spawn } = require("node:child_process");
     });
     await page.goto("http://127.0.0.1:8765/?api=https%3A%2F%2Fmock-api.local",{waitUntil:"domcontentloaded"});
     await page.waitForFunction(()=>document.querySelector("#appRoot")?.classList.contains("ready"),null,{timeout:15000});
-    await page.waitForSelector("#mlsp-v3 .v3-mobile-brand");
+    try {
+      await page.waitForSelector("#mlsp-v3 .v3-mobile-brand",{timeout:5000});
+    } catch (error) {
+      const diagnostics=await page.evaluate(()=>({
+        v3Html:document.querySelector("#mlsp-v3")?.innerHTML?.slice(0,1800)||null,
+        v3Api:typeof window.MLSPv3,
+        mobileBrandCount:document.querySelectorAll("#mlsp-v3 .v3-mobile-brand").length,
+        appClass:document.querySelector("#appRoot")?.className,
+        mobileBrandDisplay:(()=>{const el=document.querySelector("#mlsp-v3 .v3-mobile-brand");return el?getComputedStyle(el).display:null})(),
+        scriptStatus:[...document.scripts].map(s=>({src:s.src,loaded:!!s.src})),
+        styles:[...document.styleSheets].map(s=>s.href).filter(Boolean)
+      }));
+      throw new Error("V3 bootstrap diagnostic: "+JSON.stringify({diagnostics,pageErrors,error:error.message}));
+    }
     if (!(await page.locator("#v3-home").isVisible())) throw new Error("V3 home screen is not visible");
     const visibleLegacy=await page.locator("#scHome").evaluate(el=>getComputedStyle(el).display!=="none");
     if(visibleLegacy)throw new Error("Legacy app screen is still visible");
