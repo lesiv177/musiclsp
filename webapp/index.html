@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="./redesign.css?v=21">
 <link rel="stylesheet" href="./ui-polish.css?v=2">
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
+  <link rel="stylesheet" href="./v3.css?v=1">
 </head>
 <body>
 <div id="splash">
@@ -36,6 +37,7 @@
   <div class="stext" id="splashText" data-i18n="loading_data">Завантаження даних…</div>
 </div>
 <div class="app" id="appRoot">
+  <div id="mlsp-v3"></div>
 
   <header class="top app-top">
     <button class="top-avatar" id="topProfile" type="button" onclick="go('Me')" aria-label="Відкрити профіль"><span class="avatar-fallback">M</span></button>
@@ -3583,6 +3585,7 @@ async function prefetchNext(){
 
 paintStaticIcons();
 </script>
+<script src="./v3.js?v=1"></script>
 </body>
 </html>
 
