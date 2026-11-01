@@ -108,3 +108,12 @@ body{min-height:100dvh!important}
 @media(min-width:901px){.v3-shelf{grid-auto-columns: minmax(145px, 1fr);grid-auto-columns: minmax(145px, 168px);gap:16px}.v3-main{max-width:1160px}.v3-topbar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(18px)}}
 @media(max-width:900px){.v3-shelf{grid-auto-columns:minmax(132px,38vw);gap:11px}.v3-home-heading{margin-top:5px}.v3-section{margin:20px 0 25px}}
 @media(max-width:520px){.v3-shelf{grid-auto-columns:minmax(126px,42vw);gap:10px}.v3-album-card{padding:8px;border-radius:14px}.v3-album-cover{border-radius:10px}.v3-album-card>b{font-size:11px;margin-top:8px}.v3-album-card>small{font-size:9px}.v3-home-moods{margin-bottom:16px}}
+
+
+/* Telegram mobile layout: keep global discovery search visible below the brand row. */
+@media(max-width:900px){
+ .v3-topbar{height:auto;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"brand actions" "search search";row-gap:12px;padding:7px 0 12px;margin-bottom:12px}
+ .v3-mobile-brand{grid-area:brand}
+ .v3-top-actions{grid-area:actions;margin:0}
+ .v3-top-search{grid-area:search;display:flex!important;width:100%;max-width:none;height:43px;border-radius:999px}
+}
