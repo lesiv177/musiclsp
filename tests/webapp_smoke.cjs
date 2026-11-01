@@ -106,22 +106,25 @@ const { spawn } = require("node:child_process");
     await page.evaluate(()=>window.MLSPv3.navigate("home"));
     await page.waitForSelector(".v3-hero-search");
     const scrollCheck = await page.evaluate(async () => {
-      // Add temporary content so the test checks scroll mechanics, not whether
-      // the mocked home feed happens to be taller than this viewport.
-      const probe = document.createElement("div");
-      probe.style.cssText = "height:1400px;min-height:1400px;pointer-events:none";
-      document.body.appendChild(probe);
+      // Grow the actual V3 app container: a body-level probe can pass even when
+      // #appRoot is still position:fixed and the app itself cannot extend the document.
+      const app = document.querySelector("#appRoot");
+      const v3 = document.querySelector("#mlsp-v3");
+      const originalMinHeight = v3.style.minHeight;
+      v3.style.minHeight = Math.max(window.innerHeight * 2.5, 1600) + "px";
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const rootPosition = getComputedStyle(app).position;
+      const documentHeight = document.documentElement.scrollHeight;
       const before = window.scrollY;
-      window.scrollTo(0, document.documentElement.scrollHeight);
+      window.scrollTo(0, documentHeight);
       await new Promise(resolve => requestAnimationFrame(resolve));
       const after = window.scrollY;
-      probe.remove();
+      v3.style.minHeight = originalMinHeight;
       window.scrollTo(0, before);
-      return {height:document.documentElement.scrollHeight,viewport:window.innerHeight,after};
+      return {rootPosition,documentHeight,viewport:window.innerHeight,after};
     });
-    if (scrollCheck.after <= 0)
-      throw new Error("V3 document cannot scroll vertically with long content: "+JSON.stringify(scrollCheck));
+    if (scrollCheck.rootPosition === "fixed" || scrollCheck.after <= 0)
+      throw new Error("V3 app container does not participate in document scrolling: "+JSON.stringify(scrollCheck));
     const themeSamples = await page.evaluate(() => {
       const samples = {};
       for (const theme of ["midnight","ember","aurora","neon","paper"]) {
