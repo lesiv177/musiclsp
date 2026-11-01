@@ -2,6 +2,7 @@
 (()=>{
 "use strict";
 const $=id=>document.getElementById(id), E=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const tr=(key,fallback)=>{try{const value=typeof window.t==="function"?window.t(key):key;return value&&value!==key?value:(fallback??key)}catch(_){return fallback??key}};
 const st={page:"home",home:null,genres:[],moods:[],playlists:[],tab:"liked",kind:"all",seq:0,timer:null};
 function section(t,b){return '<section class="v3-section"><div class="v3-section-head"><h2>'+t+'</h2></div>'+b+'</section>'}
 function row(t,i,ctx="default"){return '<div class="v3-track" data-i="'+i+'" data-context="'+ctx+'"><img src="'+E(t.cover||"")+'" alt="" loading="lazy" onerror="this.style.opacity=.15"><span class="v3-track-meta"><b>'+E(t.title||"Без назви")+'</b><small>'+E(t.artist||"Невідомий артист")+(t.duration_str?' · '+E(t.duration_str):'')+'</small></span><button class="v3-track-action" data-menu="'+i+'">···</button></div>'}
