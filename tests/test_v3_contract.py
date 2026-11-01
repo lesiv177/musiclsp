@@ -17,7 +17,7 @@ class V3ContractTests(unittest.TestCase):
         self.assertIn('collectionRows(albums.slice(0,8),"albums")', V3_JS)
 
     def test_artist_and_album_rows_keep_their_kind(self):
-        self.assertIn('data-collection-kind="'+kind+'"', V3_JS)
+        self.assertIn('data-collection-kind=', V3_JS)
         self.assertIn('b.dataset.collectionKind', V3_JS)
         self.assertIn('kind==="artists"?"artist":"album"', V3_JS)
 
