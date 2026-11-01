@@ -72,6 +72,9 @@ html,body{background:var(--bg,#090b10)!important;color:var(--ink,#f4f6fb)!import
 .v3-profile-hero{background:radial-gradient(ellipse at 90% 0,color-mix(in srgb,var(--accent) 18%,transparent),transparent 48%),var(--panel)!important;border-color:var(--line)!important}
 .v3-avatar{background:color-mix(in srgb,var(--accent) 28%,var(--panel))!important;color:var(--accent)!important}
 
+/* V3 owns document flow; v2.css previously fixed #appRoot to the viewport. */
+#appRoot{position:relative!important;inset:auto!important;width:100%!important;}
+
 /* iOS/Telegram Mini App: keep the document as the vertical scroll container. */
 html,body{height:auto!important;min-height:100%!important;overflow-x:hidden!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;overscroll-behavior-y:auto!important;touch-action:pan-y pinch-zoom!important}
 body{min-height:100dvh!important}
