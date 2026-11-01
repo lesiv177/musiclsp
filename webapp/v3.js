@@ -32,7 +32,7 @@ async function home(){
   (fresh.length?section("Нові відкриття",'<div class="v3-track-list">'+fresh.slice(0,6).map((t,i)=>row(t,i,"fresh")).join("")+'</div>'):'')+
   (st.playlists.length?section("Твої плейлисти",'<div class="v3-track-list">'+st.playlists.slice(0,6).map(p=>'<button class="v3-track" data-pl="'+E(p.id)+'"><span class="v3-avatar" style="width:42px;height:42px">♫</span><span class="v3-track-meta"><b>'+E(p.name)+'</b><small>'+(Number(p.count)||0)+' треків</small></span>›</button>').join("")+'</div>'):'')+
   (!recent.length&&!popular.length&&!fresh.length?'<div class="v3-empty">Поки немає рекомендацій. Знайди перший трек через пошук.</div>':'');
-  const inp=$("v3HeroSearch");inp.onfocus=()=>nav("search");inp.onkeydown=e=>{if(e.key==="Enter"){nav("search");$("v3SearchInput").value=inp.value;search();}};
+  const inp=$("v3HeroSearch");inp.onfocus=()=>{nav("search");$("v3SearchInput")?.focus();};inp.onkeydown=e=>{if(e.key==="Enter"){nav("search");$("v3SearchInput").value=inp.value;search();}};
   root.querySelectorAll("[data-feature]").forEach(b=>b.onclick=()=>{const x=sets[+b.dataset.feature];if(x[3]?.length)setQueue(x[3],0);});
   bindRows(root,recent,"recent");bindRows(root,fresh,"fresh");
   root.querySelectorAll("[data-pl]").forEach(b=>b.onclick=()=>playlist(b.dataset.pl));
