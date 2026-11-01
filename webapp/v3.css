@@ -117,3 +117,5 @@ body{min-height:100dvh!important}
  .v3-top-actions{grid-area:actions;margin:0}
  .v3-top-search{grid-area:search;display:flex!important;width:100%;max-width:none;height:43px;border-radius:999px}
 }
+
+.v3-page-kicker{color:var(--muted);font-size:10px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;margin-bottom:6px}
