@@ -873,11 +873,13 @@ body{background:radial-gradient(120% 45% at 50% -10%,color-mix(in srgb,var(--acc
 
 
 /* MusicLSP 6.1 — visual refresh (presentation only; playback/session logic untouched) */
-:root,[data-theme]{
- --bg:#071321!important;--panel:#0d2032!important;--panel-2:#122b42!important;
- --line:rgba(139,196,235,.15)!important;--ink:#eef7ff!important;--muted:#91aabd!important;
- --accent:#42b8ff!important;--accent-ink:#041522!important;--gold:#80d6ff!important;
- --radius:18px!important;--nav-h:66px!important;--bar-h:66px!important;
+:root,/* Theme defaults only. The selected theme palettes in later stylesheets must be
+   allowed to override these values; !important here would lock every theme to blue. */
+[data-theme]{
+ --bg:#071321;--panel:#0d2032;--panel-2:#122b42;
+ --line:rgba(139,196,235,.15);--ink:#eef7ff;--muted:#91aabd;
+ --accent:#42b8ff;--accent-ink:#041522;--gold:#80d6ff;
+ --radius:18px;--nav-h:66px;--bar-h:66px;
 }
 html,body{background:#071321!important;color:#eef7ff!important}
 body{background-image:radial-gradient(ellipse at 50% -20%,rgba(38,145,214,.20),transparent 54%),linear-gradient(180deg,#071321,#081827 65%,#06111d)!important}
