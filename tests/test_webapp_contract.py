@@ -78,7 +78,8 @@ class MiniAppContractTests(unittest.TestCase):
     def test_device_sync_controls_are_present(self):
         for element_id in ("barRemote", "devicesList", "barOutput"):
             self.assertIn(f'id="{element_id}"', HTML, f"Missing device-sync element: {element_id}")
-        for function in ("startDeviceSync", "connectDeviceSocket", "pollDeviceCommands",
+        for function in ("startDeviceSync", "connectDeviceSocket", "publishDeviceState",
+                         "claimLocalPlayback", "cnExec", "cnStartHere", "transferTo",
                          "sendDeviceCommand", "handoffToDevice", "resumeOnThisDevice"):
             self.assertIn(function, self.functions, f"Missing device-sync function: {function}")
 
@@ -96,18 +97,24 @@ class MiniAppContractTests(unittest.TestCase):
         next_track = JS.split("function nextTrack(auto)", 1)[1].split("\n}", 1)[0]
         self.assertIn("cur.pause();", next_track,
                       "Reaching the end of the queue must stop the audio element")
-        self.assertIn("publishDeviceState();", next_track,
+        self.assertIn("publishDeviceState(true);", next_track,
                       "Queue-end state must be published to connected devices")
 
     def test_resume_playback_reclaims_shared_session(self):
         toggle = JS.split("function togglePlay()", 1)[1].split("\n}", 1)[0]
         self.assertIn("claimLocalPlayback()", toggle,
-                      "Resuming locally must reclaim the shared playback session")
-        self.assertIn("publishDeviceState()", toggle,
-                      "Resuming locally must publish its playback state")
+                      "Resuming locally must make this device the active Connect device")
+        self.assertIn("CN.remote()", toggle,
+                      "A remote controller must send commands instead of playing locally")
         pending = JS.split("async function startPending()", 1)[1].split("\n}", 1)[0]
         self.assertIn("claimLocalPlayback()", pending,
-                      "Restoring a saved track must reclaim the shared playback session")
+                      "Restoring a saved track must claim the Connect session")
+
+    def test_connect_transfer_is_acknowledged_only_after_playback_starts(self):
+        start = JS.split("async function cnStartHere(m)", 1)[1].split("\nfunction cnShowTap", 1)[0]
+        self.assertIn('type:"ack"', start)
+        self.assertLess(start.index("await play("), start.index("ok:true"),
+                        "Transfer may be confirmed only after audio really started")
 
     def test_profile_and_admin_actions_have_implementations(self):
         for function in ("saveSettings", "loadStats", "loadReferral", "openWrapped",

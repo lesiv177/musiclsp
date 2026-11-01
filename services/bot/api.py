@@ -25,6 +25,7 @@ from core import db
 from core import runtime as RT
 from core import providers as P
 from core import smart as SM
+from core.connect import Hub, valid_device_id
 from core.auth import verify_init_data
 from core.config import (
     ADMIN_IDS, PREMIUM_FEATURES, FREE_LIMITS, PREMIUM_LIMITS,
@@ -33,29 +34,6 @@ from core.config import (
 )
 
 logger = logging.getLogger(__name__)
-
-_DEVICE_SOCKETS = {}
-
-
-async def broadcast_device_event(uid, event):
-    """Broadcast one event to all live sessions belonging to a Telegram user."""
-    uid = int(uid)
-    sockets = tuple(_DEVICE_SOCKETS.get(uid, ()))
-    stale = []
-    for socket in sockets:
-        if socket.closed:
-            stale.append(socket)
-            continue
-        try:
-            await socket.send_json(event)
-        except Exception:
-            stale.append(socket)
-    bucket = _DEVICE_SOCKETS.get(uid)
-    if bucket is not None:
-        for socket in stale:
-            bucket.discard(socket)
-        if not bucket:
-            _DEVICE_SOCKETS.pop(uid, None)
 
 CORS = {
     "Access-Control-Allow-Origin": "*",
@@ -228,378 +206,77 @@ async def h_settings(request, u):
 
 
 
-def valid_device_id(value):
-    value = str(value or "")
-    return bool(value and len(value) <= 80 and all(
-        ch in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for ch in value
-    ))
+# ─── Connect: передача відтворення між пристроями (як Spotify Connect) ────────
+# Уся логіка — у core/connect.py; тут лише транспорт (WebSocket) і авторизація.
+
+async def _connect_load(uid):
+    saved = await to_thread(db.player_session_get, uid)
+    return (saved or {}).get("state") if isinstance(saved, dict) else None
 
 
-def safe_device_track(track):
-    if not isinstance(track, dict) or not track.get("id"):
-        return None
-    fields = ("id", "title", "artist", "cover", "duration", "source",
-              "source_label", "license_short", "source_url")
-    safe = {}
-    for key in fields:
-        value = track.get(key)
-        if isinstance(value, str):
-            safe[key] = value[:2000 if key in ("cover", "source_url") else 240]
-        elif isinstance(value, (int, float)) and not isinstance(value, bool):
-            try:
-                if math.isfinite(float(value)):
-                    safe[key] = value
-            except (OverflowError, ValueError):
-                continue
-    safe["id"] = str(safe["id"])[:160]
-    return safe if safe["id"] else None
-
-
-# ─── Пристрої та передавання відтворення між сесіями ──────────────────────────
-@require_auth
-async def h_devices_get(request, u):
-    devices = await to_thread(db.device_list, int(u["uid"]))
-    return ok({"ok": True, "devices": devices})
-
-
-@require_auth
-async def h_devices_reset(request, u):
-    """Reset only the authenticated Telegram user's Connect-style device state."""
-    result = await to_thread(db.playback_reset, int(u["uid"]))
-    await broadcast_device_event(int(u["uid"]), {"type": "reset"})
-    return ok({"ok": True, "reset": result})
-
-
-@require_auth
-async def h_device_register(request, u):
+async def _connect_persist(uid, state):
     try:
-        body = await json_object(request)
-        if body is None:
-            return fail("Некоректний JSON або очікувався JSON-об’єкт")
-    except (ValueError, web.HTTPException):
-        return fail("Некоректний JSON")
-    if not isinstance(body, dict):
-        return fail("Очікувався JSON-об’єкт")
-    device_id = str(body.get("device_id") or "")
-    if not valid_device_id(device_id):
-        return fail("Некоректний ідентифікатор пристрою")
-    await to_thread(db.device_register, int(u["uid"]), device_id,
-                    str(body.get("name") or "MusicLSP device"),
-                    str(body.get("platform") or "web"))
-    return ok({"ok": True, "device_id": device_id})
+        if state:
+            await to_thread(db.player_session_set, uid, "", json.dumps(state, ensure_ascii=False))
+    except Exception as e:
+        logger.warning("Connect: не вдалося зберегти сесію: %s", e)
 
 
-@require_auth
-async def h_device_state(request, u):
-    try:
-        body = await json_object(request)
-        if body is None:
-            return fail("Некоректний JSON або очікувався JSON-об’єкт")
-    except (ValueError, web.HTTPException):
-        return fail("Некоректний JSON")
-    if not isinstance(body, dict):
-        return fail("Очікувався JSON-об’єкт")
-    device_id = str(body.get("device_id") or "")
-    state = body.get("state") or {}
-    if not valid_device_id(device_id) or not isinstance(state, dict):
-        return fail("Некоректний стан пристрою")
-    try:
-        position_raw = float(state.get("position") or 0)
-        volume_raw = float(state.get("volume") or 0)
-        if not math.isfinite(position_raw) or not math.isfinite(volume_raw):
-            raise ValueError("non-finite playback state")
-        position = int(max(0, min(86400, position_raw)))
-        volume = max(0.0, min(1.0, volume_raw))
-    except (TypeError, ValueError, OverflowError):
-        return fail("Некоректний стан відтворення")
-    duration_raw = state.get("duration") or 0
-    try:
-        duration_value = float(duration_raw)
-        if not math.isfinite(duration_value):
-            duration_value = 0
-    except (TypeError, ValueError, OverflowError):
-        duration_value = 0
-    duration = int(max(0, min(86400, duration_value)))
-    safe = {"playing": state.get("playing") is True, "position": position,
-            "duration": duration, "volume": volume}
-    track = safe_device_track(state.get("track"))
-    if track:
-        safe["track"] = track
-    queue = state.get("queue")
-    if isinstance(queue, list):
-        safe["queue"] = [item for raw in queue[:30] if (item := safe_device_track(raw))]
-        index = bounded_int(state.get("index"), 0, 0, max(0, len(safe["queue"]) - 1))
-        safe["index"] = index if safe["queue"] else -1
-    uid = int(u["uid"])
-    updated = await to_thread(db.device_state_update, uid, device_id,
-                              json.dumps(safe, ensure_ascii=False))
-    if not updated:
-        return fail("Пристрій не зареєстрований", 404)
-    session = await to_thread(db.player_session_get, uid)
-    if isinstance(session, dict) and session.get("owner_device_id") == device_id:
-        # Refresh only while this device still owns the lease. A concurrent
-        # handoff must never be overwritten by a delayed heartbeat.
-        claimed = await to_thread(db.player_session_claim, uid, device_id,
-                                  json.dumps(safe, ensure_ascii=False), device_id)
-    elif not session and safe.get("track"):
-        # First playback session: create it only if another device has not
-        # initialized the account session in the meantime.
-        claimed = await to_thread(db.player_session_claim, uid, device_id,
-                                  json.dumps(safe, ensure_ascii=False), "")
-    else:
-        claimed = False
-    if claimed:
-        await broadcast_device_event(uid, {"type": "session", "owner_device_id": device_id, "state": safe})
-    await broadcast_device_event(uid, {"type": "state", "device_id": device_id, "state": safe})
-    return ok({"ok": True})
+CONNECT = Hub(load=_connect_load, persist=_connect_persist)
 
 
-@require_auth
-async def h_player_session_get(request, u):
-    session = await to_thread(db.player_session_get, int(u["uid"]))
-    return ok({"ok": True, "session": session})
-
-
-@require_auth
-async def h_player_session_claim(request, u):
-    try:
-        body = await json_object(request)
-        if body is None:
-            return fail("Некоректний JSON або очікувався JSON-об’єкт")
-    except (ValueError, web.HTTPException):
-        return fail("Некоректний JSON")
-    if not isinstance(body, dict):
-        return fail("Очікувався JSON-об’єкт")
-    device_id = str(body.get("device_id") or "")
-    if not valid_device_id(device_id):
-        return fail("Некоректний ідентифікатор пристрою")
-    uid = int(u["uid"])
-    devices = await to_thread(db.device_list, uid)
-    target = next((item for item in devices if item.get("device_id") == device_id and item.get("active")), None)
-    if not target:
-        return fail("Цей пристрій не в мережі", 404)
-    raw = body.get("state") if isinstance(body.get("state"), dict) else {}
-    track = safe_device_track(raw.get("track"))
-    if not track:
-        return fail("Немає треку для передачі", 409)
-    queue_raw = raw.get("queue") if isinstance(raw.get("queue"), list) else [track]
-    queue = [item for raw_item in queue_raw[:30] if (item := safe_device_track(raw_item))]
-    if not queue:
-        queue = [track]
-    index = bounded_int(raw.get("index"), 0, 0, max(0, len(queue) - 1))
-    try:
-        position = float(raw.get("position") or 0)
-        if not math.isfinite(position):
-            raise ValueError()
-    except (TypeError, ValueError, OverflowError):
-        position = 0
-    try:
-        volume = float(raw.get("volume", 1))
-        if not math.isfinite(volume):
-            volume = 1
-    except (TypeError, ValueError, OverflowError):
-        volume = 1
-    try:
-        duration = float(raw.get("duration") or 0)
-        if not math.isfinite(duration):
-            duration = 0
-    except (TypeError, ValueError, OverflowError):
-        duration = 0
-    safe = {"track": track, "queue": queue, "index": index,
-            "position": int(max(0, min(86400, position))),
-            "duration": int(max(0, min(86400, duration))),
-            "playing": raw.get("playing") is True,
-            "volume": max(0.0, min(1.0, volume))}
-    expected_owner = str(body.get("expected_owner_id") or "")[:80]
-    claimed = await to_thread(db.player_session_claim, uid, device_id,
-                              json.dumps(safe, ensure_ascii=False), expected_owner)
-    if not claimed:
-        current = await to_thread(db.player_session_get, uid)
-        return ok({"ok": False, "error": "Сесію вже забрав інший пристрій",
-                   "session": current}, status=409)
-    session = {"owner_device_id": device_id, "state": safe}
-    await broadcast_device_event(uid, {"type": "session", **session})
-    return ok({"ok": True, "session": session})
-
-
-@require_auth
-async def h_device_command(request, u):
-    try:
-        body = await json_object(request)
-        if body is None:
-            return fail("Некоректний JSON або очікувався JSON-об’єкт")
-    except (ValueError, web.HTTPException):
-        return fail("Некоректний JSON")
-    if not isinstance(body, dict):
-        return fail("Очікувався JSON-об’єкт")
-    device_id = str(body.get("device_id") or "")
-    action = str(body.get("action") or "")
-    payload = body.get("payload") or {}
-    if action not in {"handoff", "play", "pause", "next", "previous", "seek", "volume"}:
-        return fail("Невідома команда")
-    if not valid_device_id(device_id) or not isinstance(payload, dict):
-        return fail("Некоректна команда")
-    uid = int(u["uid"])
-    devices = await to_thread(db.device_list, uid)
-    target = next((item for item in devices if item.get("device_id") == device_id), None)
-    if not target or not target.get("active"):
-        return fail("Пристрій зараз не в мережі", 404)
-    if action == "play" and not payload:
-        state = target.get("state") or {}
-        queue = state.get("queue") if isinstance(state.get("queue"), list) else []
-        if not queue and state.get("track"):
-            queue = [state["track"]]
-        if not queue:
-            return fail("На пристрої немає треку для відновлення", 409)
-        payload = {"queue": queue[:30], "index": state.get("index", 0), "position": state.get("position", 0)}
-    if action == "handoff":
-        track = safe_device_track(payload.get("track"))
-        if not track:
-            return fail("Немає треку для передачі", 409)
-        queue_raw = payload.get("queue") if isinstance(payload.get("queue"), list) else [track]
-        queue = [item for raw_item in queue_raw[:30] if (item := safe_device_track(raw_item))]
-        if not queue:
-            queue = [track]
-        index = bounded_int(payload.get("index"), 0, 0, max(0, len(queue) - 1))
-        try:
-            position = float(payload.get("position") or 0)
-            if not math.isfinite(position):
-                raise ValueError()
-        except (TypeError, ValueError, OverflowError):
-            position = 0
-        try:
-            volume = float(payload.get("volume", 1))
-            if not math.isfinite(volume):
-                volume = 1
-        except (TypeError, ValueError, OverflowError):
-            volume = 1
-        payload = {"track": track, "queue": queue, "index": index,
-                   "position": int(max(0, min(86400, position))),
-                   "volume": max(0.0, min(1.0, volume))}
-    encoded = json.dumps(payload, ensure_ascii=False)
-    if len(encoded) > 30000:
-        return fail("Завелика команда")
-    command_id = await to_thread(db.device_command_add, uid, device_id, action, encoded)
-    if command_id is None:
-        return fail("Пристрій не знайдено або вже не в мережі", 404)
-    command = {"id": command_id, "action": action, "payload": payload}
-    await broadcast_device_event(uid, {"type": "command", "device_id": device_id, "command": command})
-    return ok({"ok": True, "command_id": command_id})
-
-
-@require_auth
-async def h_device_commands(request, u):
-    device_id = str(request.query.get("device_id") or "")
-    after = bounded_int(request.query.get("after"), 0, 0, 2147483647)
-    if not valid_device_id(device_id) or after is None:
-        return fail("Некоректний запит")
-    commands = await to_thread(db.device_commands_get, int(u["uid"]), device_id, after)
-    return ok({"ok": True, "commands": commands})
-
-
-
-@require_auth
-async def h_device_command_ack(request, u):
-    body = await json_object(request)
-    if body is None:
-        return fail("Некоректний JSON або очікувався JSON-об’єкт")
-    device_id = str(body.get("device_id") or "")
-    command_id = bounded_int(body.get("command_id"), None, 1, 2147483647)
-    result = str(body.get("result") or "ok")[:300]
-    if not valid_device_id(device_id) or command_id is None:
-        return fail("Некоректне підтвердження")
-    acked = await to_thread(db.device_command_ack, int(u["uid"]), device_id, command_id, result)
-    if not acked:
-        return fail("Команда не знайдена", 404)
-    return ok({"ok": True, "acknowledged": command_id})
-
-
-async def h_devices_ws(request):
-    """Authenticated low-latency event channel for this user's devices."""
+async def h_connect_ws(request):
+    """WebSocket-канал одного пристрою. Авторизація — підписаний initData."""
     user = auth_user(request)
     if not user:
         return fail("Потрібен вхід через Telegram", 401)
     uid = int(user["uid"])
     device_id = str(request.query.get("device_id") or "")
-    after = bounded_int(request.query.get("after"), 0, 0, 2147483647)
-    if not valid_device_id(device_id) or after is None:
-        return fail("Некоректний запит")
-    devices = await to_thread(db.device_list, uid)
-    if not any(item.get("device_id") == device_id for item in devices):
-        return fail("Пристрій не зареєстрований", 404)
-    ws = web.WebSocketResponse(heartbeat=25, max_msg_size=4096, compress=False)
+    if not valid_device_id(device_id):
+        return fail("Некоректний ідентифікатор пристрою")
+    ws = web.WebSocketResponse(heartbeat=20, max_msg_size=64 * 1024, compress=False)
     if not ws.can_prepare(request).ok:
         return fail("Очікується WebSocket-з’єднання", 400)
     await ws.prepare(request)
-    bucket = _DEVICE_SOCKETS.setdefault(uid, set())
-    bucket.add(ws)
+
+    async def send(msg):
+        await ws.send_json(msg, dumps=lambda o: json.dumps(o, ensure_ascii=False))
+
+    await CONNECT.connect(uid, device_id, request.query.get("name", ""),
+                          request.query.get("platform", ""), send,
+                          volume_ok=request.query.get("volume_ok") != "0")
     try:
-        await ws.send_json({"type": "ready", "device_id": device_id})
-        for item in devices:
-            await ws.send_json({"type": "state", "device_id": item.get("device_id"), "state": item.get("state") or {}})
-        pending = await to_thread(db.device_commands_get, uid, device_id, after)
-        for command in pending:
-            await ws.send_json({"type": "command", "device_id": device_id, "command": command})
         async for message in ws:
-            if message.type == WSMsgType.TEXT and message.data == "ping":
-                await ws.send_str("pong")
+            if message.type == WSMsgType.TEXT:
+                if message.data == "ping":
+                    await ws.send_str("pong")
+                    continue
+                try:
+                    data = json.loads(message.data)
+                except ValueError:
+                    continue
+                try:
+                    await CONNECT.handle(uid, device_id, data)
+                except Exception:
+                    logger.exception("Connect: помилка обробки повідомлення")
             elif message.type in (WSMsgType.ERROR, WSMsgType.CLOSE, WSMsgType.CLOSED):
                 break
     except (ConnectionError, RuntimeError, asyncio.CancelledError):
         pass
     finally:
-        bucket.discard(ws)
-        if not bucket:
-            _DEVICE_SOCKETS.pop(uid, None)
+        await CONNECT.disconnect(uid, device_id, send)
     return ws
+
+
+@require_auth
+async def h_connect_devices(request, u):
+    """Знімок пристроїв (для діагностики та першого малювання списку)."""
+    return ok({"ok": True, **CONNECT.devices_for(int(u["uid"]))})
 
 
 # ─── Каталог ─────────────────────────────────────────────────────────────────
 
 @require_auth
-async def youtube_search_tracks(query, limit=12):
-    """Пошук YouTube через офіційний Data API; повертаємо лише публічні
-    відео, для яких API підтвердив можливість вбудованого відтворення."""
-    key = os.getenv("YOUTUBE_API_KEY", "").strip()
-    if not key:
-        return []
-    try:
-        search = requests.get("https://www.googleapis.com/youtube/v3/search",
-            params={"part":"snippet","type":"video","videoEmbeddable":"true",
-                    "safeSearch":"strict","maxResults":min(25,max(1,int(limit))),
-                    "q":query,"key":key}, timeout=8)
-        search.raise_for_status()
-        items = search.json().get("items", [])
-        ids = [x.get("id",{}).get("videoId") for x in items]
-        ids = [x for x in ids if x]
-        if not ids:
-            return []
-        check = requests.get("https://www.googleapis.com/youtube/v3/videos",
-            params={"part":"status,contentDetails,snippet","id":",".join(ids),"key":key},
-            timeout=8)
-        check.raise_for_status()
-        verified = {x["id"]:x for x in check.json().get("items", [])
-                    if x.get("status",{}).get("embeddable") is True
-                    and x.get("status",{}).get("privacyStatus") == "public"}
-        out = []
-        for item in items:
-            vid = item.get("id",{}).get("videoId")
-            v = verified.get(vid)
-            if not v:
-                continue
-            snippet = v.get("snippet", {})
-            thumbs = snippet.get("thumbnails", {})
-            cover = (thumbs.get("high") or thumbs.get("medium") or thumbs.get("default") or {}).get("url","")
-            out.append({"id":"yt:"+vid,"title":snippet.get("title","")[:240],
-                        "artist":snippet.get("channelTitle","")[:180],
-                        "cover":cover,"duration":0,"duration_str":"",
-                        "source":"youtube","source_label":"YouTube"})
-        return out
-    except Exception as exc:
-        logger.warning("YouTube search failed: %s", type(exc).__name__)
-        return []
-
-
 async def h_search(request, u):
     uid = int(u["uid"])
     query = (request.query.get("q") or "").strip()
@@ -637,11 +314,6 @@ async def h_search(request, u):
         data = await to_thread(P.archive_search, query, limit)
     else:
         data = await to_thread(SM.search, query, limit, qual, sources, sort)
-        youtube = await to_thread(youtube_search_tracks, query, min(12, limit))
-        # YouTube є першим джерелом каталогу; інші ліцензовані джерела лишаються нижче.
-        if youtube:
-            data = youtube + [x for x in data if x.get("id") not in {y["id"] for y in youtube}]
-            data = data[:limit]
     return ok({"ok": True, "type": kind, "query": query, "sort": sort,
                "results": data, "searches_left": max(0, cap - used)})
 
@@ -1325,7 +997,6 @@ async def h_admin_report_resolve(request, u):
     await to_thread(db.audit, int(u["uid"]), "web_admin_report_resolve", str(body.get("id")), "")
     return ok({"ok": True})
 
-
 @require_admin
 async def h_admin_promos(request, u):
     if request.method == "POST":
@@ -1488,16 +1159,8 @@ def build_app():
     r.add_get("/api/me", h_me)
     r.add_get("/api/resolve", h_resolve)
     r.add_post("/api/settings", h_settings)
-    r.add_get("/api/devices", h_devices_get)
-    r.add_post("/api/devices/reset", h_devices_reset)
-    r.add_get("/api/player/session", h_player_session_get)
-    r.add_post("/api/player/session", h_player_session_claim)
-    r.add_post("/api/devices/register", h_device_register)
-    r.add_post("/api/devices/state", h_device_state)
-    r.add_post("/api/devices/command", h_device_command)
-    r.add_get("/api/devices/commands", h_device_commands)
-    r.add_post("/api/devices/command/ack", h_device_command_ack)
-    r.add_get("/api/devices/ws", h_devices_ws)
+    r.add_get("/api/connect/ws", h_connect_ws)
+    r.add_get("/api/connect/devices", h_connect_devices)
     r.add_get("/api/search", h_search)
     r.add_get("/api/home", h_home)
     r.add_get("/api/collections", h_collections)

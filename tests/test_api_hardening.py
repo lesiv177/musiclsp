@@ -42,92 +42,11 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(api.valid_device_id("bad device"))
         self.assertFalse(api.valid_device_id("x" * 81))
 
-    def test_safe_device_track_drops_non_finite_numbers(self):
-        track = api.safe_device_track({
-            "id": "sc:123", "title": "Song", "duration": float("nan"),
-            "cover": "https://example.test/cover", "unexpected": "discard",
-        })
-        self.assertEqual(track["id"], "sc:123")
-        self.assertEqual(track["title"], "Song")
-        self.assertNotIn("duration", track)
-        self.assertNotIn("unexpected", track)
-
-    async def test_device_state_rejects_infinite_position(self):
-        request = SimpleNamespace(
-            headers={}, query={},
-            json=AsyncMock(return_value={
-                "device_id": "phone-1",
-                "state": {"position": float("inf"), "volume": 0.5},
-            }),
-        )
-        with patch.object(api, "auth_user", return_value={"uid": 42}), \
-             patch.object(api, "to_thread", new=AsyncMock()) as run_thread:
-            response = await api.h_device_state(request)
-        self.assertEqual(response.status, 400)
-        self.assertFalse(run_thread.called)
-
-    async def test_device_state_clamps_values_and_sanitizes_track(self):
-        request = SimpleNamespace(
-            headers={}, query={},
-            json=AsyncMock(return_value={
-                "device_id": "phone-1",
-                "state": {
-                    "playing": "false", "position": 99999, "volume": -4,
-                    "track": {"id": "sc:1", "title": "Song", "duration": float("nan")},
-                    "queue": [{"id": "sc:1", "title": "Song"}, {"title": "invalid"}],
-                    "index": 500,
-                },
-            }),
-        )
-        with patch.object(api, "auth_user", return_value={"uid": 42}), \
-             patch.object(api, "to_thread", new=AsyncMock(return_value=True)) as run_thread:
-            response = await api.h_device_state(request)
-        self.assertEqual(response.status, 200)
-        encoded = run_thread.await_args_list[0].args[3]
-        saved = json.loads(encoded)
-        self.assertFalse(saved["playing"])
-        self.assertEqual(saved["position"], 86400)
-        self.assertEqual(saved["volume"], 0)
-        self.assertEqual(saved["queue"], [{"id": "sc:1", "title": "Song"}])
-        self.assertEqual(saved["index"], 0)
-        self.assertNotIn("duration", saved["track"])
-
-    async def test_device_command_is_pushed_to_connected_sessions(self):
-        request = SimpleNamespace(
-            headers={}, query={},
-            json=AsyncMock(return_value={"device_id": "pc-1", "action": "next", "payload": {}}),
-        )
-        with patch.object(api, "auth_user", return_value={"uid": 42}), \
-             patch.object(api, "to_thread", new=AsyncMock(side_effect=[
-                 [{"device_id": "pc-1", "active": True, "state": {}}], 77
-             ])), \
-             patch.object(api, "broadcast_device_event", new=AsyncMock()) as broadcast:
-            response = await api.h_device_command(request)
-        self.assertEqual(response.status, 200)
-        broadcast.assert_awaited_once_with(42, {
-            "type": "command", "device_id": "pc-1",
-            "command": {"id": 77, "action": "next", "payload": {}},
-        })
-
-    async def test_device_command_rejects_offline_target(self):
-        request = SimpleNamespace(
-            headers={}, query={},
-            json=AsyncMock(return_value={"device_id": "pc-1", "action": "next", "payload": {}}),
-        )
-        with patch.object(api, "auth_user", return_value={"uid": 42}), \
-             patch.object(api, "to_thread", new=AsyncMock(return_value=[
-                 {"device_id": "pc-1", "active": False, "state": {}}
-             ])) as run_thread:
-            response = await api.h_device_command(request)
-        self.assertEqual(response.status, 404)
-        self.assertEqual(run_thread.await_count, 1)
-
-    def test_device_routes_are_registered(self):
+    def test_connect_routes_are_registered(self):
         app = api.build_app()
         paths = {route.resource.canonical for route in app.router.routes()}
         self.assertTrue({
-            "/api/devices", "/api/devices/register", "/api/devices/state",
-            "/api/devices/command", "/api/devices/commands", "/api/devices/ws",
+            "/api/connect/ws", "/api/connect/devices",
         }.issubset(paths))
 
     def test_bounded_offline_download(self):
@@ -155,3 +74,11 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SearchRouteTests(unittest.TestCase):
+    def test_search_handler_requires_auth(self):
+        """Регресія: h_search лишився без @require_auth, і пошук падав з TypeError."""
+        import inspect
+        params = list(inspect.signature(api.h_search).parameters)
+        self.assertEqual(params, ["request"], "h_search має бути обгорнутий require_auth")

@@ -8,8 +8,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="./legacy.css?v=1">
-<link rel="stylesheet" href="./v2.css?v=5">
-<link rel="stylesheet" href="./redesign.css?v=19">
+<link rel="stylesheet" href="./v2.css?v=4">
+<link rel="stylesheet" href="./redesign.css?v=21">
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
 </head>
 <body>
@@ -943,9 +943,10 @@ async function refreshMe(){
   }catch(e){ /* тихо: наступна спроба підхопить */ }
 }
 document.addEventListener("visibilitychange", () => {
-  if(document.visibilityState === "visible"){ refreshMe(); syncAccountSession(true); publishDeviceState(); pollDeviceCommands(); }
+  if(document.visibilityState === "visible"){ refreshMe(); cnWake(); }
 });
 window.addEventListener("focus", refreshMe);
+window.addEventListener("online", ()=>{ if(typeof cnWake==="function") cnWake(); });
 tg?.onEvent?.("activated", refreshMe);
 
 function handleStartParam(){
@@ -997,7 +998,6 @@ function rowsHtml(list, ctxKey){
       <button class="act" data-menu="${i}">${ICON("kebab")}</button>
     </div>`).join("") + `</div>`;
 }
-
 const CTX = {};
 function mountRows(el, list, ctxKey){
   CTX[ctxKey] = list;
@@ -1795,441 +1795,398 @@ async function createPlaylist(){
 
 
 /* ── синхронізація пристроїв MusicLSP ── */
-const DEVICE_SYNC = {id:"", started:false, cursor:0, polling:false, socket:null, processing:new Set(), completedCommands:new Set(), reconnectTimer:null, pingTimer:null, reconnectDelay:1000, remoteStates:{}, remoteNames:{}, remoteTarget:"", session:null, sessionTimer:null, sessionPolling:false};
+/* ════════════════════════════════════════════════════════════════════════════
+   Connect — керування відтворенням між пристроями, як Spotify Connect.
+   • Кожен відкритий плеєр — «пристрій» зі своїм WebSocket (сервер: core/connect.py).
+   • Один пристрій АКТИВНИЙ (грає звук і шле стан), решта — пульти.
+   • Передача: цільовий пристрій стартує з тієї ж секунди й підтверджує (ack);
+     лише тоді попередній замовкає — музика не обривається при невдачі.
+   • Локальний запуск треку завжди забирає відтворення на себе (claim).
+   ════════════════════════════════════════════════════════════════════════════ */
+const CN = {
+  id:"", started:false, ws:null, ready:false, retry:1000, retryTimer:null, pingTimer:null,
+  devices:[], owner:"", state:null, stateAt:0, transfer:"",
+  bypass:false, guardUntil:0, lastPublish:0, paintedId:"", seq:0, tickTimer:null,
+  lastPlayError:"", volumeOk:true, startId:"", tapEl:null,
+};
+const WIN_TAG = (()=>{
+  try{ let t=sessionStorage.getItem("mlsp_win"); if(!t){ t=Math.random().toString(36).slice(2,6); sessionStorage.setItem("mlsp_win",t); } return t; }
+  catch(e){ return Math.random().toString(36).slice(2,6); }
+})();
 function deviceId(){
+  let base="";
   try{
-    let id=localStorage.getItem("mlsp_device_id");
-    if(!id){ id=(window.crypto?.randomUUID?.() || ("mlsp-"+Date.now()+"-"+Math.random().toString(36).slice(2))); localStorage.setItem("mlsp_device_id",id); }
-    return id;
-  }catch(e){ return "mlsp-"+Date.now()+"-"+Math.random().toString(36).slice(2); }
+    base=localStorage.getItem("mlsp_device_id")||"";
+    if(!base){ base=(window.crypto?.randomUUID?.() || ("mlsp-"+Date.now()+"-"+Math.random().toString(36).slice(2))); localStorage.setItem("mlsp_device_id",base); }
+  }catch(e){ base="mlsp-"+Math.random().toString(36).slice(2); }
+  return (base.replace(/[^A-Za-z0-9_-]/g,"").slice(0,60)||"dev")+"-"+WIN_TAG;   // кожне вікно — окремий пристрій
+}
+function deviceKind(){
+  const ua=navigator.userAgent||"", p=(tg&&tg.platform)||"";
+  if(/iPad/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints>1)) return "tablet";
+  if(/iPhone|iPod/i.test(ua) || p==="ios" || /Android.*Mobile|p==="android"/i.test(ua) || p==="android") return "phone";
+  if(/Android/i.test(ua)) return "tablet";
+  if(/Macintosh|Windows|Linux|X11/i.test(ua) || /macos|tdesktop/.test(p)) return "desktop";
+  return "web";
 }
 function deviceLabel(){
-  const ua=navigator.userAgent||"";
-  if(/iPhone|iPad|iPod/i.test(ua)) return "iPhone / iPad";
-  if(/Android/i.test(ua)) return "Android";
+  const ua=navigator.userAgent||"", k=deviceKind();
+  if(k==="tablet") return /iPad|Macintosh/i.test(ua) ? "iPad" : "Планшет";
+  if(k==="phone") return /iPhone|iPod/i.test(ua) ? "iPhone" : "Android";
   if(/Macintosh|Mac OS/i.test(ua)) return "Mac";
   if(/Windows/i.test(ua)) return "Windows";
-  return "Web player";
+  if(/Linux|X11/i.test(ua)) return "Linux";
+  return "Веб-плеєр";
 }
+/* iOS не дозволяє сторінці міняти гучність <audio> — там лише кнопки пристрою. */
+function volumeSupported(){ return !/iPhone|iPad|iPod/i.test(navigator.userAgent||"") && !(/Macintosh/i.test(navigator.userAgent||"") && navigator.maxTouchPoints>1); }
+
+CN.remote = ()=> !!(CN.owner && CN.owner!==CN.id && CN.devices.some(d=>d.id===CN.owner));
+function cnDevice(id){ return CN.devices.find(d=>d.id===id); }
+function cnName(id){
+  const d=cnDevice(id); if(!d) return "Пристрій";
+  const same=CN.devices.filter(x=>x.name===d.name);
+  return same.length>1 ? d.name+" "+(same.findIndex(x=>x.id===id)+1) : d.name;
+}
+
+/* ── підключення ── */
 async function startDeviceSync(){
-  if(DEVICE_SYNC.started || !S.me || !API) return;
-  DEVICE_SYNC.started=true; DEVICE_SYNC.id=deviceId();
-  try{ DEVICE_SYNC.cursor=Number(localStorage.getItem("mlsp_device_cursor")||0)||0; }catch(e){}
-  try{
-    await post("/api/devices/register",{device_id:DEVICE_SYNC.id,name:deviceLabel(),platform:navigator.platform||"web"});
-    await syncAccountSession(true);
-    publishDeviceState();
-    setInterval(publishDeviceState,2000);
-    setInterval(pollDeviceCommands,5000);
-    DEVICE_SYNC.sessionTimer=setInterval(()=>syncAccountSession(false),2500);
-    connectDeviceSocket();
-  }catch(e){ DEVICE_SYNC.started=false; }
+  if(CN.started || !API || !INIT) return;
+  CN.started=true; CN.id=deviceId(); CN.volumeOk=volumeSupported();
+  connectDeviceSocket();
+  clearInterval(CN.tickTimer);
+  CN.tickTimer=setInterval(cnTick,500);
+  setInterval(()=>{ if(CN.owner===CN.id && !cur.paused) publishDeviceState(true); },5000);
 }
 function connectDeviceSocket(){
-  if(!DEVICE_SYNC.id || !S.me || !API || (DEVICE_SYNC.socket && [WebSocket.OPEN,WebSocket.CONNECTING].includes(DEVICE_SYNC.socket.readyState))) return;
+  if(!CN.started || !API || (CN.ws && CN.ws.readyState<=1)) return;
+  let ws;
   try{
-    const base=new URL(API||location.origin,location.href);
-    const url=new URL("/api/devices/ws",base);
+    const url=new URL("/api/connect/ws", new URL(API||location.origin, location.href));
     url.protocol=url.protocol==="https:"?"wss:":"ws:";
-    url.searchParams.set("device_id",DEVICE_SYNC.id);
-    url.searchParams.set("after",String(DEVICE_SYNC.cursor));
+    url.searchParams.set("device_id",CN.id);
+    url.searchParams.set("name",deviceLabel());
+    url.searchParams.set("platform",deviceKind());
+    url.searchParams.set("volume_ok",CN.volumeOk?"1":"0");
     url.searchParams.set("initData",INIT);
-    const socket=new WebSocket(url.toString());
-    DEVICE_SYNC.socket=socket;
-    socket.onopen=()=>{
-      DEVICE_SYNC.reconnectDelay=1000;
-      if(DEVICE_SYNC.pingTimer) clearInterval(DEVICE_SYNC.pingTimer);
-      DEVICE_SYNC.pingTimer=setInterval(()=>{if(socket.readyState===WebSocket.OPEN)try{socket.send("ping");}catch(e){}},20000);
-    };
-    socket.onmessage=event=>{
-      let data;try{data=JSON.parse(event.data);}catch(e){return;}
-      if(data.type==="reset"){
-        clearLocalDeviceIdentity();
-        location.reload();
-        return;
-      }
-      if(data.type==="command" && data.device_id===DEVICE_SYNC.id && data.command){
-        processDeviceCommand(data.command);
-      }else if(data.type==="session"){
-        applyAccountSession({owner_device_id:data.owner_device_id,state:data.state,updated_at:new Date().toISOString()});
-      }else if(data.type==="state" && data.device_id){
-        DEVICE_SYNC.remoteStates[data.device_id]=data.state||{};
-        if(data.device_id===DEVICE_SYNC.remoteTarget)renderRemoteBar(data.state||{});
-      }
-    };
-    socket.onerror=()=>{try{socket.close();}catch(e){}};
-    socket.onclose=()=>{
-      if(DEVICE_SYNC.pingTimer){clearInterval(DEVICE_SYNC.pingTimer);DEVICE_SYNC.pingTimer=null;}
-      if(DEVICE_SYNC.socket===socket)DEVICE_SYNC.socket=null;
-      if(!DEVICE_SYNC.started || DEVICE_SYNC.reconnectTimer)return;
-      const delay=DEVICE_SYNC.reconnectDelay;
-      DEVICE_SYNC.reconnectDelay=Math.min(20000,Math.round(DEVICE_SYNC.reconnectDelay*1.8));
-      DEVICE_SYNC.reconnectTimer=setTimeout(async ()=>{
-        DEVICE_SYNC.reconnectTimer=null;
-        try{await post("/api/devices/register",{device_id:DEVICE_SYNC.id,name:deviceLabel(),platform:navigator.platform||"web"});}catch(e){}
-        connectDeviceSocket();
-      },delay);
-    };
-  }catch(e){
-    if(!DEVICE_SYNC.reconnectTimer){
-      DEVICE_SYNC.reconnectTimer=setTimeout(()=>{DEVICE_SYNC.reconnectTimer=null;connectDeviceSocket();},DEVICE_SYNC.reconnectDelay);
-      DEVICE_SYNC.reconnectDelay=Math.min(20000,DEVICE_SYNC.reconnectDelay*2);
-    }
-  }
+    ws=new WebSocket(url.toString());
+  }catch(e){ return cnRetry(); }
+  CN.ws=ws;
+  ws.onopen=()=>{
+    CN.retry=1000; clearInterval(CN.pingTimer);
+    CN.pingTimer=setInterval(()=>{ try{ ws.send("ping"); }catch(e){} },20000);
+  };
+  ws.onmessage=ev=>{
+    if(ev.data==="pong") return;
+    let m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
+    cnOnMessage(m);
+  };
+  ws.onerror=()=>{ try{ ws.close(); }catch(e){} };
+  ws.onclose=()=>{
+    clearInterval(CN.pingTimer);
+    if(CN.ws===ws){ CN.ws=null; CN.ready=false; }
+    cnRetry(); cnRender();
+  };
 }
-function publishDeviceState(){
-  if(!DEVICE_SYNC.id || !S.me) return;
-  const q=S.queue.slice(0,30), track=current();
-  const actuallyPlaying=!!(track && cur && !cur.paused && !cur.ended);
-  post("/api/devices/state",{device_id:DEVICE_SYNC.id,state:{
-    playing:actuallyPlaying,position:Math.floor(cur.currentTime||0),duration:Math.floor(cur.duration||0),volume:cur.volume||0,
-    track:track||null,queue:q,index:S.index
-  }}).catch(()=>{});
+function cnRetry(){
+  if(!CN.started || CN.retryTimer) return;
+  const d=CN.retry; CN.retry=Math.min(15000,Math.round(CN.retry*1.7));
+  CN.retryTimer=setTimeout(()=>{ CN.retryTimer=null; connectDeviceSocket(); },d);
 }
-function applyAccountSession(session, initial=false){
-  if(!session || !session.owner_device_id || !session.state) return;
-  const previousOwner=DEVICE_SYNC.session&&DEVICE_SYNC.session.owner_device_id;
-  DEVICE_SYNC.session=session;
-  const owner=session.owner_device_id, state=session.state||{};
-  const queue=Array.isArray(state.queue)&&state.queue.length?state.queue:(state.track?[state.track]:[]);
-  if(owner!==DEVICE_SYNC.id){
-    // Make-before-break: the old output stops only after the new device has
-    // actually started and claimed the shared session.
-    if(cur && !cur.paused && !cur.ended){
-      cur.pause();S.playing=false;paintPlayState();
-    }
-    DEVICE_SYNC.remoteTarget=owner;
-    DEVICE_SYNC.remoteStates[owner]=state;
-    try{localStorage.removeItem("mlsp_remote_target");}catch(e){}
-    if(queue.length){S.queue=queue.slice(0,30);S.index=Math.max(0,Math.min(S.queue.length-1,Number(state.index)||0));}
-    renderRemoteBar(state);
-    const b=$("barRemote"), chip=$("deviceChip");
-    if(b){b.classList.add("on");b.innerHTML=ICON("devices");}
-    if(chip){chip.classList.add("on");chip.innerHTML=ICON("devices");}
-    return;
-  }
-  DEVICE_SYNC.remoteTarget="";
-  try{localStorage.removeItem("mlsp_remote_target");}catch(e){}
-  if(queue.length && (initial || previousOwner!==owner || !current())){
-    S.queue=queue.slice(0,30);
-    S.index=Math.max(0,Math.min(S.queue.length-1,Number(state.index)||0));
-    if(current()){paint(current());paintPlayState();}
-  }
-  const b=$("barRemote"), chip=$("deviceChip");
-  if(b){b.classList.remove("on");b.innerHTML=ICON("devices");}
-  if(chip){chip.classList.remove("on");chip.innerHTML=ICON("devices");}
+function cnWake(){            // повернулись у застосунок / зʼявилась мережа
+  if(!CN.started) return;
+  if(!CN.ws || CN.ws.readyState>1){ CN.retry=1000; clearTimeout(CN.retryTimer); CN.retryTimer=null; connectDeviceSocket(); }
+  else if(CN.owner===CN.id) publishDeviceState(true);
+}
+function cnSend(msg){
+  if(!CN.ws || CN.ws.readyState!==1) return false;
+  try{ CN.ws.send(JSON.stringify(msg)); return true; }catch(e){ return false; }
 }
 
-async function syncAccountSession(initial=false){
-  if(!DEVICE_SYNC.id || !S.me || DEVICE_SYNC.sessionPolling || document.visibilityState==="hidden") return;
-  DEVICE_SYNC.sessionPolling=true;
-  try{
-    const d=await get("/api/player/session");
-    if(d.session) applyAccountSession(d.session,initial);
-  }catch(e){}finally{DEVICE_SYNC.sessionPolling=false;}
+/* ── стан цього пристрою → серверу ── */
+function cnWindow(){
+  const from=Math.max(0,S.index-5);
+  return {queue:S.queue.slice(from,from+30), index:S.index-from};
 }
-async function processDeviceCommand(command){
-  const id=Number(command&&command.id)||0;
-  if(!id || DEVICE_SYNC.completedCommands.has(id) || DEVICE_SYNC.processing.has(id)) return;
-  DEVICE_SYNC.processing.add(id);
-  try{
-    const applied=await applyDeviceCommand(command);
-    if(applied===false) throw new Error("command application failed");
-    await post("/api/devices/command/ack",{device_id:DEVICE_SYNC.id,command_id:id,result:"ok"});
-    DEVICE_SYNC.completedCommands.add(id);
-    DEVICE_SYNC.cursor=Math.max(DEVICE_SYNC.cursor,id);
-    try{localStorage.setItem("mlsp_device_cursor",String(DEVICE_SYNC.cursor));}catch(e){}
-  }catch(error){
-    console.warn("MusicLSP command will be retried",id,error);
-  }finally{
-    DEVICE_SYNC.processing.delete(id);
+function cnLocalState(){
+  const t=current(); if(!t) return null;
+  const w=cnWindow();
+  const dur=isFinite(cur.duration)&&cur.duration>0 ? cur.duration : (t.duration||0);
+  return {track:t, queue:w.queue, index:w.index,
+    position:Math.floor((cur.currentTime||0)*10)/10, duration:dur,
+    playing:!cur.paused && !cur.ended, volume:Math.max(0,Math.min(1,cur.volume||1)), volume_ok:CN.volumeOk,
+    shuffle:!!S.shuffle, repeat:S.repeat};
+}
+function publishDeviceState(force){
+  if(!CN.started || CN.owner!==CN.id) return;
+  const now=Date.now();
+  if(force!==true && now-CN.lastPublish<1200) return;
+  const st=cnLocalState(); if(!st) return;
+  CN.lastPublish=now;
+  cnSend({type:"state",state:st});
+}
+/* Користувач сам запустив відтворення тут — цей пристрій стає активним. */
+function claimLocalPlayback(){
+  if(!CN.started || !current()) return false;
+  CN.guardUntil=Date.now()+4000;
+  const st=cnLocalState(); if(!st) return false;
+  const sent=cnSend({type:"claim",state:st});
+  if(sent){ CN.owner=CN.id; cnRender(); }
+  return sent;
+}
+
+/* ── повідомлення від сервера ── */
+function cnOnMessage(m){
+  if(m.type==="ready"){ CN.ready=true; return; }
+  if(m.type==="snapshot") return cnApplySnapshot(m);
+  if(m.type==="state"){
+    if(m.owner===CN.id) return;
+    CN.owner=m.owner; CN.state=m.state; CN.stateAt=Date.now();
+    return cnRender();
   }
+  if(m.type==="exec") return cnExec(m);
+  if(m.type==="error") return cnError(m);
 }
-async function pollDeviceCommands(){
-  if(!DEVICE_SYNC.id || DEVICE_SYNC.polling || document.visibilityState==="hidden") return;
-  DEVICE_SYNC.polling=true;
-  try{
-    const d=await get("/api/devices/commands?device_id="+encodeURIComponent(DEVICE_SYNC.id)+"&after="+DEVICE_SYNC.cursor);
-    for(const command of (d.commands||[])){
-      await processDeviceCommand(command);
-    }
-  }catch(e){}finally{ DEVICE_SYNC.polling=false; }
-}
-async function seekLocalPosition(position){
-  const target=Math.max(0,Number(position)||0);
-  if(cur.readyState>=1){try{cur.currentTime=Math.min(target,Number.isFinite(cur.duration)?cur.duration:target);}catch(e){}return;}
-  await new Promise(resolve=>{
-    const done=()=>{cur.removeEventListener("loadedmetadata",done);resolve();};
-    cur.addEventListener("loadedmetadata",done,{once:true});
-    setTimeout(done,4000);
-  });
-  try{cur.currentTime=Math.min(target,Number.isFinite(cur.duration)?cur.duration:target);}catch(e){}
-}
-async function applyDeviceCommand(command){
-  const p=command.payload||{};
-  if(command.action==="handoff" || command.action==="play"){
-    setRemoteTarget("");
-    const queue=Array.isArray(p.queue)&&p.queue.length?p.queue:(p.track?[p.track]:[]);
-    if(queue.length){
-      S.queue=queue.slice(0,30);
-      S.index=Math.max(0,Math.min(S.queue.length-1,Number(p.index)||0));
-      const target=Math.max(0,Number(p.position)||0);
-      const started=await play(current());
-      if(!started){
-        toast("Дозволь відтворення на цьому пристрої — попередній пристрій продовжить грати");
-        return false;
-      }
-      if(target>0) await seekLocalPosition(target);
-      if(Number.isFinite(Number(p.volume)))cur.volume=Math.max(0,Math.min(1,Number(p.volume)));
-      const state={track:current(),queue:S.queue.slice(0,30),index:S.index,
-        position:Math.floor(cur.currentTime||target),duration:Math.floor(cur.duration||0),
-        playing:!cur.paused,volume:Math.max(0,Math.min(1,Number(cur.volume)||0))};
-      try{
-        const expectedOwner=DEVICE_SYNC.session&&DEVICE_SYNC.session.owner_device_id
-          ? DEVICE_SYNC.session.owner_device_id : "";
-        await post("/api/player/session",{device_id:DEVICE_SYNC.id,expected_owner_id:expectedOwner,state});
-      }catch(e){
-        cur.pause();S.playing=false;paintPlayState();
-        toast("Не вдалося підтвердити перемикання. Попередній пристрій продовжить грати");
-        return false;
-      }
-      DEVICE_SYNC.session={owner_device_id:DEVICE_SYNC.id,state,updated_at:new Date().toISOString()};
-      publishDeviceState();
-      return true;
-    }
-    if(current()){
-      if(!cur.src){const started=await play(current());if(started)await post("/api/player/session",{device_id:DEVICE_SYNC.id,state:{track:current(),queue:S.queue.slice(0,30),index:S.index,position:0,playing:true,volume:cur.volume||1}});}
-      else {try{await cur.play();S.playing=true;paintPlayState();claimLocalPlayback();publishDeviceState();}catch(e){toast("Натисни відтворення на цьому пристрої");}}
-    }
-    return true;
+function cnApplySnapshot(m){
+  CN.devices=m.devices||[]; CN.owner=m.owner||""; CN.transfer=m.transfer||"";
+  CN.state=m.state||null; CN.stateAt=Date.now();
+  const mine=CN.owner===CN.id;
+  const guard=CN.bypass || Date.now()<CN.guardUntil;
+  const localPlaying=!!current() && !cur.paused && !cur.ended;
+  if(!guard && localPlaying){
+    if(CN.owner && !mine){ cur.pause(); S.playing=false; paintPlayState(); }   // грає інший пристрій
+    else if(!CN.owner){ claimLocalPlayback(); }                                 // втратили зʼєднання — забираємо назад
   }
-  if(command.action==="pause"){cur.pause();S.playing=false;paintPlayState();publishDeviceState();}
-  if(command.action==="next") nextTrack(false);
-  if(command.action==="previous") prevTrack();
-  if(command.action==="seek" && Number.isFinite(Number(p.position))){cur.currentTime=Math.max(0,Number(p.position));publishDeviceState();}
-  if(command.action==="volume" && Number.isFinite(Number(p.volume))){cur.volume=Math.max(0,Math.min(1,Number(p.volume)));publishDeviceState();}
+  if(CN.remote()) cnAdoptRemote();
+  else if(!CN.owner && CN.state && !current()) cnAdoptLastSession();
+  cnRender();
+}
+/* Пульт: дзеркалимо чергу й трек активного пристрою. */
+function cnAdoptRemote(){
+  const st=CN.state; if(!st||!st.track) return;
+  RESUME.pending=null; S.playing=false;
+  if(Array.isArray(st.queue)&&st.queue.length){ S.queue=st.queue.slice(); S.index=Math.max(0,Math.min(S.queue.length-1,st.index||0)); }
+  else { S.queue=[st.track]; S.index=0; }
+  if(CN.paintedId!==st.track.id){ CN.paintedId=st.track.id; paint(st.track); }
+}
+/* Активного пристрою немає, але є остання сесія — показуємо її й даємо продовжити тут. */
+function cnAdoptLastSession(){
+  const st=CN.state; if(!st||!st.track) return;
+  S.queue=(st.queue&&st.queue.length?st.queue:[st.track]).slice();
+  S.index=Math.max(0,Math.min(S.queue.length-1,st.index||0));
+  RESUME.pending={t:st.position||0};
+  CN.paintedId=st.track.id; paint(st.track); S.playing=false; paintPlayState();
+  const d=st.duration||st.track.duration||0;
+  $("npCur").textContent=fmt(st.position||0); $("npDur").textContent=d?fmt(d):"—";
+  if(d){ $("barLine").style.width=Math.min(100,(st.position||0)/d*100)+"%"; $("npSeek").value=Math.round(Math.min(1,(st.position||0)/d)*1000); }
+}
+function cnRemotePos(){
+  const st=CN.state; if(!st) return 0;
+  let p=st.position||0;
+  if(st.playing) p+=(Date.now()-CN.stateAt)/1000;
+  const d=st.duration||0; return d?Math.min(p,d):p;
+}
+function cnTick(){
+  if(!CN.remote() || !CN.state || !CN.state.track) return;
+  const d=CN.state.duration||CN.state.track.duration||0, p=cnRemotePos();
+  $("npCur").textContent=fmt(p); $("npDur").textContent=d?fmt(d):"—";
+  $("barLine").style.width=(d?Math.min(100,p/d*100):0)+"%";
+  if(!seeking) $("npSeek").value=d?Math.round(Math.min(1,p/d)*1000):0;
+}
+
+/* ── малювання ── */
+function cnRender(){
+  const remote=CN.remote(), n=CN.devices.length;  const barBtn=$("barRemote"), chip=$("deviceChip");
+  if(barBtn){ barBtn.hidden=!(n>1||remote); barBtn.classList.toggle("on",remote); barBtn.innerHTML=ICON("devices"); }
+  if(chip){ chip.classList.toggle("on",remote); chip.innerHTML=ICON("devices"); }
+  const out=$("barOutput");
+  if(out){
+    if(remote){ out.textContent="◉ "+cnName(CN.owner); out.style.display="block"; }
+    else out.style.display="none";
+  }
+  document.body.classList.toggle("cn-remote",remote);
+  document.body.classList.toggle("cn-multi",n>1||remote);
+  paintPlayState();
+  if(remote) cnTick();
+  const list=$("devicesList"); if(list && list.isConnected) cnPaintSheet();
+}
+
+/* ── команди ── */
+function cnCmd(action,payload={}){
+  if(!cnSend({type:"cmd",id:"c"+(++CN.seq),action,payload})){
+    toast("Немає зв’язку з пристроями. Спробую підключитись ще раз…"); cnWake(); return false;
+  }
+  // оптимістично — щоб пульт реагував миттєво
+  if(CN.remote() && CN.state){
+    const st=CN.state;
+    if(action==="pause"||action==="play"){ st.position=cnRemotePos(); st.playing=action==="play"; CN.stateAt=Date.now(); }
+    if(action==="seek"){ st.position=payload.position||0; CN.stateAt=Date.now(); }
+    if(action==="volume"){ st.volume=payload.volume; }
+    cnRender();
+  }
   return true;
 }
+function sendDeviceCommand(_target,action,payload){ return cnCmd(action,payload||{}); }   // сумісність
+function transferTo(id){
+  if(id===CN.owner && CN.state && CN.state.playing) return;
+  if(!current() && !CN.state) return toast("Спершу увімкніть якийсь трек");
+  if(id===CN.id && CN.owner===CN.id){ return; }
+  CN.transfer=id; cnRender();
+  if(!cnSend({type:"cmd",id:"c"+(++CN.seq),action:"transfer",payload:{to:id}})){ CN.transfer=""; cnRender(); toast("Немає зв’язку з пристроями"); }
+}
+function handoffToDevice(id){ return transferTo(id); }
+function resumeOnThisDevice(){ return transferTo(CN.id); }
 
-async function claimLocalPlayback(){
-  if(!DEVICE_SYNC.id || !S.me || !current() || !cur || cur.paused) return false;
-  const state={track:current(),queue:S.queue.slice(0,30),index:S.index,
-    position:Math.floor(cur.currentTime||0),duration:Math.floor(cur.duration||0),
-    playing:true,volume:Math.max(0,Math.min(1,Number(cur.volume)||0))};
-  try{
-    const expectedOwner=DEVICE_SYNC.session&&DEVICE_SYNC.session.owner_device_id
-      ? DEVICE_SYNC.session.owner_device_id : "";
-    const result=await post("/api/player/session",{
-      device_id:DEVICE_SYNC.id,expected_owner_id:expectedOwner,state
-    });
-    DEVICE_SYNC.session=result.session||{owner_device_id:DEVICE_SYNC.id,state,updated_at:new Date().toISOString()};
-    return true;
-  }catch(e){
-    console.warn("MusicLSP session claim failed",e);
-    return false;
-  }
-}
-function clearLocalDeviceIdentity(){
-  try{
-    localStorage.removeItem("mlsp_device_id");
-    localStorage.removeItem("mlsp_device_cursor");
-    localStorage.removeItem("mlsp_remote_target");
-  }catch(e){}
-}
-async function resetDeviceLinks(){
-  if(!confirm("Очистити всі пристрої та сесію відтворення цього Telegram-акаунта? Плейлисти й бібліотека залишаться.")) return;
-  try{
-    await post("/api/devices/reset",{});
-    clearLocalDeviceIdentity();
-    location.reload();
-  }catch(e){toast(e.message||"Не вдалося очистити прив’язки");}
-}
-async function openDevices(){
-  showModal('<div class="spotify-connect-head"><span>Пристрої</span><button class="connect-close" onclick="closeModal()">×</button></div><div id="devicesList"><div class="skel"></div></div>');
-  try{
-    const [d,sessionData]=await Promise.all([get("/api/devices"),get("/api/player/session").catch(()=>({session:null}))]);
-    const devices=(d.devices||[]).filter(x=>x.active);
-    const session=sessionData.session||null;
-    if(session){
-      DEVICE_SYNC.session=session;
-      const owner=devices.find(x=>x.device_id===session.owner_device_id);
-      if(owner) owner.state=session.state||{};
-      if(session.owner_device_id!==DEVICE_SYNC.id) applyAccountSession(session,false);
+/* ── виконання команд на активному пристрої ── */
+async function cnExec(m){
+  const p=m.payload||{};
+  switch(m.action){
+    case "start": return cnStartHere(m);
+    case "stop": case "cancel_start":
+      cnHideTap();
+      if(m.action==="stop"){ cur.pause(); S.playing=false; paintPlayState(); }
+      return;
+    case "pause": cur.pause(); S.playing=false; paintPlayState(); return publishDeviceState(true);
+    case "play":
+      if(RESUME.pending) return startPending();
+      try{ await cur.play(); S.playing=true; paintPlayState(); publishDeviceState(true); }catch(e){ toast("Торкніться ▶ на цьому пристрої"); }
+      return;
+    case "next": return nextTrack(false);
+    case "previous": return prevTrack();
+    case "seek": try{ cur.currentTime=Math.max(0,Number(p.position)||0); }catch(e){} return publishDeviceState(true);
+    case "volume": if(CN.volumeOk) cur.volume=Math.max(0,Math.min(1,Number(p.volume)||0)); return publishDeviceState(true);
+    case "playqueue": {
+      const st=p.state; if(!st||!st.queue||!st.queue.length) return;
+      S.queue=st.queue.slice(); S.index=Math.max(0,Math.min(S.queue.length-1,st.index||0));
+      return play(current());
     }
-    devices.forEach(x=>{DEVICE_SYNC.remoteStates[x.device_id]=x.state||{};DEVICE_SYNC.remoteNames[x.device_id]=x.name||"Пристрій";});
-    const own=devices.find(x=>x.device_id===DEVICE_SYNC.id);
-    const playingSource=devices.find(x=>x.device_id!==DEVICE_SYNC.id && x.state && x.state.track)
-      || (session && session.owner_device_id!==DEVICE_SYNC.id && session.state && session.state.track
-          ? {device_id:session.owner_device_id,state:session.state,name:"Інший пристрій"} : null);
-    const card=(x,isOwn)=>{
-      const state=x.state||{}, track=state.track||{};
-      const platform=String((x.platform||"")+" "+(x.name||"")).toLowerCase();
-      const deviceIcon=/mac|macintosh|mac os/.test(platform)?"apple":/windows|win32/.test(platform)?"windows":/iphone|ipad|ios/.test(platform)?"phone":/android/.test(platform)?"android":"monitor";
-      const icon=deviceIcon==="apple"?'':deviceIcon==="windows"?'⊞':deviceIcon==="phone"?'▯':deviceIcon==="android"?'◉':'▣';
-      const isSelected=isOwn?!DEVICE_SYNC.remoteTarget:DEVICE_SYNC.remoteTarget===x.device_id;
-      const status=state.playing?"Відтворюється":(track.title?"Призупинено":"Очікує відтворення");
-      const nowPlaying=track.title?'<div class="device-now"><span class="device-live '+(state.playing?"is-playing":"")+'"></span><span class="device-track">'+esc(track.title)+'</span><span class="device-artist">'+esc(track.artist||"")+'</span></div>':'<div class="device-now"><span class="device-track muted">Нічого не відтворюється</span></div>';
-      const duration=Math.max(0,Number(state.duration)||0), position=Math.max(0,Math.min(duration||Number(state.position)||0,Number(state.position)||0));
-      const seekControl=!isOwn&&track.title&&duration>0?'<div class="device-seek"><div class="device-seek-times"><span>'+formatDeviceTime(position)+'</span><span>'+formatDeviceTime(duration)+'</span></div><input aria-label="Перемотування" data-device-seek="'+esc(x.device_id)+'" type="range" min="0" max="'+duration+'" value="'+position+'"></div>':"";
-      const controls=isOwn?"":'<div class="device-remote">'
-        +'<button class="device-control" data-device-cmd="previous" data-id="'+esc(x.device_id)+'" aria-label="Попередній">⏮</button>'
-        +'<button class="device-control primary" data-device-cmd="'+(state.playing?"pause":"play")+'" data-id="'+esc(x.device_id)+'" aria-label="'+(state.playing?"Пауза":"Продовжити")+'">'+(state.playing?"Ⅱ":"▶")+'</button>'
-        +'<button class="device-control" data-device-cmd="next" data-id="'+esc(x.device_id)+'" aria-label="Наступний">⏭</button>'
-        +'<label class="device-volume">Гучність <input data-device-volume="'+esc(x.device_id)+'" type="range" min="0" max="100" value="'+Math.round((Number(state.volume)||0)*100)+'"></label>'
-        +'</div>';
-      const actionLabel=isOwn?(playingSource?"Слухати тут":(DEVICE_SYNC.remoteTarget?"Відтворювати тут":"Цей пристрій")):(state.playing?"Підключено":"Слухати на цьому пристрої");
-      const actionDisabled=isOwn&&!playingSource&&!DEVICE_SYNC.remoteTarget;
-      return '<div class="connect-device '+(isSelected?"selected":"")+'"><div class="connect-device-head"><div class="device-platform '+deviceIcon+'">'+icon+'</div><div class="device-info"><div class="device-name">'+esc(x.name||"Пристрій")+(isOwn?' · ЦЕЙ ПРИСТРІЙ':'')+'</div><div class="device-status"><i class="online"></i>'+esc(status)+'</div></div><button class="device-connect" data-device-select="'+esc(x.device_id)+'" '+(actionDisabled?'disabled':'')+'>'+esc(actionLabel)+'</button></div>'+nowPlaying+controls+seekControl+'</div>';
-    };
-    $("devicesList").innerHTML=(own?card(own,true):"")+(devices.filter(x=>x.device_id!==DEVICE_SYNC.id).map(x=>card(x,false)).join("")||'<div class="empty">Інші пристрої з’являться тут, коли MusicLSP буде відкрито на них</div>');
-    $("devicesList").querySelectorAll("[data-device-select]").forEach(b=>b.onclick=()=>selectPlaybackDevice(b.dataset.deviceSelect,devices));
-    $("devicesList").querySelectorAll("[data-device-cmd]").forEach(b=>b.onclick=()=>sendDeviceCommand(b.dataset.id,b.dataset.deviceCmd));
-    $("devicesList").querySelectorAll("[data-device-volume]").forEach(el=>el.onchange=()=>sendDeviceCommand(el.dataset.deviceVolume,"volume",{volume:Number(el.value)/100}));
-    $("devicesList").querySelectorAll("[data-device-seek]").forEach(el=>el.onchange=()=>sendDeviceCommand(el.dataset.deviceSeek,"seek",{position:Number(el.value)}));
-    const reset=document.createElement("button");
-    reset.className="btn ghost";
-    reset.textContent="Очистити всі прив’язки пристроїв";
-    reset.style.cssText="width:100%;margin-top:12px;color:#ff9b9b";
-    reset.onclick=resetDeviceLinks;
-    $("devicesList").appendChild(reset);
-  }catch(e){ $("devicesList").innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
-}
-async function getTransferSnapshot(){
-  const latest=await get("/api/player/session").catch(()=>({session:DEVICE_SYNC.session||null}));
-  const session=latest.session||DEVICE_SYNC.session||null;
-  const owner=session&&session.owner_device_id;
-  if(owner && owner!==DEVICE_SYNC.id && session.state){
-    const state=session.state;
-    const queue=Array.isArray(state.queue)&&state.queue.length?state.queue:(state.track?[state.track]:[]);
-    const index=Math.max(0,Math.min(Math.max(0,queue.length-1),Number(state.index)||0));
-    const track=queue[index]||state.track;
-    if(track)return {track,queue:queue.length?queue:[track],index,position:Math.max(0,Number(state.position)||0),volume:Math.max(0,Math.min(1,Number(state.volume)||1))};
   }
-  const queue=S.queue.slice(0,30), index=Math.max(0,Math.min(Math.max(0,queue.length-1),S.index));
-  const track=queue[index]||current();
-  if(!track)return null;
-  return {track,queue:queue.length?queue:[track],index,position:Math.floor(cur.currentTime||0),volume:Math.max(0,Math.min(1,cur.volume||1))};
 }
-async function selectPlaybackDevice(targetId, devices){
-  if(targetId===DEVICE_SYNC.id){
-    try{
-      const snapshot=await getTransferSnapshot();
-      if(!snapshot){setRemoteTarget("");return;}
-      DEVICE_SYNC.remoteTarget="";
-      S.queue=snapshot.queue.slice(0,30);S.index=Math.min(snapshot.index,S.queue.length-1);
-      const started=await play(current());
-      if(!started){toast("Дозволь відтворення на цьому пристрої");return;}
-      if(snapshot.position>0)await seekLocalPosition(snapshot.position);
-      cur.volume=snapshot.volume;
-      const state={track:current(),queue:S.queue.slice(0,30),index:S.index,
-        position:Math.floor(cur.currentTime||snapshot.position),duration:Math.floor(cur.duration||0),
-        playing:!cur.paused,volume:cur.volume||1};
+/* Мене вибрали як пристрій відтворення: стартуємо з тієї ж секунди й підтверджуємо. */
+async function cnStartHere(m){
+  const st=(m.payload||{}).state; if(!st||!st.queue||!st.queue.length) return;
+  CN.startId=m.id; CN.bypass=true;
+  S.queue=st.queue.slice(); S.index=Math.max(0,Math.min(S.queue.length-1,st.index||0));
+  RESUME.pending=null; S.playing=false;
+  const ack=(extra)=>cnSend({type:"ack",id:m.id,...extra});
+  const finish=async()=>{
+    const ok=await play(current(),st.position||0);
+    if(!ok) return {ok:false,reason:CN.lastPlayError==="NotAllowedError"?"autoplay_blocked":"stream_failed"};
+    if(CN.volumeOk && Number.isFinite(Number(st.volume))) cur.volume=Math.max(0,Math.min(1,Number(st.volume)));
+    return {ok:true};
+  };
+  let r=await finish();
+  if(!r.ok && r.reason==="autoplay_blocked"){
+    // iOS/Telegram вимагає жесту. Просимо торкнутись, а відправнику кажемо чекати.
+    ack({pending:true});
+    r=await new Promise(res=>cnShowTap(cnName(CN.owner)||"Інший пристрій", async()=>res(await finish()), ()=>res({ok:false,reason:"cancelled"})));
+  }
+  CN.bypass=false; CN.guardUntil=Date.now()+4000;
+  if(r.ok){
+    const local=cnLocalState()||{};
+    local.position=Math.max(local.position||0,st.position||0);
+    ack({ok:true,state:local});
+    CN.owner=CN.id; cnRender();
+  }else ack({ok:false,reason:r.reason});
+}
+function cnShowTap(from,onTap,onCancel){
+  cnHideTap();
+  const el=document.createElement("div");
+  el.className="cn-tap"; el.id="cnTap";
+  el.innerHTML=`<div class="cn-tap-card"><div class="cn-tap-ic">${ICON("devices")}</div>
+    <b>Слухати тут?</b><span>${esc(from)} передає відтворення на цей пристрій.<br>Торкніться, щоб почати.</span>
+    <button class="btn" id="cnTapGo">▶ Слухати тут</button><button class="btn ghost" id="cnTapNo">Не зараз</button></div>`;
+  document.body.appendChild(el); CN.tapEl=el;
+  $("cnTapGo").onclick=()=>{ cnHideTap(); onTap(); };      // виклик play() синхронно в межах жесту
+  $("cnTapNo").onclick=()=>{ cnHideTap(); onCancel(); };
+}
+function cnHideTap(){ if(CN.tapEl){ CN.tapEl.remove(); CN.tapEl=null; } }
+
+function cnError(m){
+  if(m.code==="needs_tap"){ toast(`Торкніться екрана на «${cnName(m.device)}», щоб почати відтворення`); return; }
+  if(m.transfer){ CN.transfer=""; cnRender(); }
+  const msg={
+    no_active_device:"Немає активного пристрою — увімкніть трек на цьому пристрої",
+    device_offline:"Пристрій зараз не в мережі", nothing_to_play:"Спершу увімкніть якийсь трек",
+    autoplay_blocked:"Пристрій не зміг почати відтворення. Відкрийте MusicLSP на ньому й торкніться екрана",
+    stream_failed:"Трек не запустився на тому пристрої", timeout:"Пристрій не відповів — перевірте, що MusicLSP відкрито",
+    target_lost:"Пристрій відключився", cancelled:"Передачу скасовано",
+  }[m.code];
+  if(msg && m.code!=="superseded") toast(msg); else if(!msg && m.message) toast(m.message);
+}
+
+/* ── вікно «Пристрої» ── */
+function cnIcon(kind){
+  return {phone:'<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',
+    tablet:'<rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M11 18h2"/>',
+    desktop:'<rect x="2.5" y="4" width="19" height="12.5" rx="2"/><path d="M8 20.5h8M12 16.5v4"/>',
+    web:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18"/>'}[kind]||'';
+}
+function cnEq(on){ return `<span class="cn-eq ${on?"on":""}" aria-hidden="true"><i></i><i></i><i></i></span>`; }
+function cnRow(d){
+  const mine=d.id===CN.id, active=d.id===CN.owner, playing=active&&CN.state&&CN.state.playing;
+  const busy=CN.transfer===d.id;
+  const sub=busy?"Підключення…":active?(playing?"Відтворюється тут":"Активний пристрій"):mine?"Цей пристрій":"Доступний";
+  return `<button class="cn-dev ${active?"active":""} ${busy?"busy":""}" data-cn-to="${esc(d.id)}">
+    <span class="cn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${cnIcon(d.platform)}</svg></span>
+    <span class="cn-meta"><b>${esc(cnName(d.id))}${mine?" · цей пристрій":""}</b><em>${active?cnEq(playing):""}${esc(sub)}</em></span>
+    ${busy?'<span class="cn-spin"></span>':""}</button>`;
+}
+function cnPaintSheet(){
+  const list=$("devicesList"); if(!list) return;
+  const me=CN.devices.find(d=>d.id===CN.id);
+  const others=CN.devices.filter(d=>d.id!==CN.id);
+  const owner=cnDevice(CN.owner);
+  let html="";
+  html+=`<div class="cn-sec">Поточний пристрій</div>`;
+  html+=me?cnRow(me):`<div class="cn-off">Немає зв’язку з сервером пристроїв. Підключаюсь…</div>`;
+  html+=`<div class="cn-sec">Доступні пристрої</div>`;
+  html+=others.length?others.map(cnRow).join(""):`<div class="cn-off">Інших пристроїв не знайдено.<br>Відкрийте MusicLSP у Telegram на іншому пристрої — він зʼявиться тут.</div>`;
+  if(CN.remote() && owner){
+    const v=Math.round(((CN.state&&CN.state.volume)??1)*100);
+    html+=owner.volume_ok
+      ? `<div class="cn-vol"><span>Гучність · ${esc(cnName(owner.id))}</span><input type="range" min="0" max="100" value="${v}" data-cn-vol aria-label="Гучність"></div>`
+      : `<div class="cn-hint">Гучність на ${esc(cnName(owner.id))} змінюється кнопками самого пристрою.</div>`;
+  }
+  list.innerHTML=html;
+  list.querySelectorAll("[data-cn-to]").forEach(b=>b.onclick=()=>{ tap(); transferTo(b.dataset.cnTo); });
+  const vol=list.querySelector("[data-cn-vol]"); if(vol) vol.onchange=()=>cnCmd("volume",{volume:Number(vol.value)/100});
+}
+function openDevices(){
+  showModal('<div class="spotify-connect-head"><span>Підключитися до пристрою</span><button class="connect-close" onclick="closeModal()" aria-label="Закрити">×</button></div><div id="devicesList"></div>');
+  cnPaintSheet(); cnWake();
+}
+
+/* Розблокування звуку: iOS дозволяє програмний play() лише на елементі, який
+   уже запускали жестом. Робимо це один раз при першому дотику — тоді інший
+   пристрій зможе стартувати музику тут без додаткових підтверджень. */
+(function unlockAudioOnce(){
+  const SILENT="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=";
+  let done=false;
+  const go=()=>{
+    if(done) return; done=true;
+    ["touchend","click","keydown"].forEach(e=>document.removeEventListener(e,go,true));
+    [A,B].forEach(el=>{
+      if((el.src && !el.paused) || CN.bypass || RESUME.pending) return;   // не чіпаємо елемент, що грає або саме стартує
+      const keep=el.getAttribute("src");
       try{
-        const expectedOwner=DEVICE_SYNC.session&&DEVICE_SYNC.session.owner_device_id
-          ? DEVICE_SYNC.session.owner_device_id : "";
-        await post("/api/player/session",{device_id:DEVICE_SYNC.id,expected_owner_id:expectedOwner,state});
-      }catch(e){
-        cur.pause();S.playing=false;paintPlayState();
-        toast("Не вдалося підтвердити перемикання. Попередній пристрій продовжить грати");
-        return;
-      }
-      DEVICE_SYNC.session={owner_device_id:DEVICE_SYNC.id,state,updated_at:new Date().toISOString()};
-      publishDeviceState();
-      await syncAccountSession(false);
-      toast("Тепер слухаєш на цьому пристрої");
-      closeModal();
-    }catch(e){toast(e.message||"Не вдалося перемкнути відтворення");}
-    return;
-  }
-  const target=devices.find(x=>x.device_id===targetId);
-  if(!target)return;
-  try{
-    const snapshot=await getTransferSnapshot();
-    if(!snapshot)return toast(t("ui_queue_empty"));
-    await post("/api/devices/command",{device_id:targetId,action:"handoff",payload:snapshot});
-    closeModal();
-    toast("Запит на перемикання: "+(target.name||"пристрій"));
-    // Keep the current speaker playing until the target confirms successful start.
-  }catch(e){toast(e.message||"Не вдалося перемкнути пристрій");}
-}
-async function resumeOnThisDevice(){
-  if(!DEVICE_SYNC.id) return;
-  try{
-    const d=await get("/api/devices");
-    const devices=(d.devices||[]).filter(x=>x.active);
-    await selectPlaybackDevice(DEVICE_SYNC.id,devices);
-  }catch(e){toast(e.message||"Не вдалося продовжити на цьому пристрої");}
-}
-function setRemoteTarget(targetId){
-  DEVICE_SYNC.remoteTarget=targetId||"";
-  try{if(DEVICE_SYNC.remoteTarget)localStorage.setItem("mlsp_remote_target",DEVICE_SYNC.remoteTarget);else localStorage.removeItem("mlsp_remote_target");}catch(e){}
-  const button=$("barRemote");
-  if(button){button.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);button.innerHTML=ICON("devices");}
-  const deviceChip=$("deviceChip");if(deviceChip){deviceChip.innerHTML=ICON("devices");deviceChip.classList.toggle("on",!!DEVICE_SYNC.remoteTarget);}
-  const state=DEVICE_SYNC.remoteStates[DEVICE_SYNC.remoteTarget];
-  if(state)renderRemoteBar(state);
-  else if(DEVICE_SYNC.remoteTarget)renderRemoteBar({playing:false,track:null});
-  closeModal();
-}
-function formatDeviceTime(seconds){seconds=Math.max(0,Math.floor(Number(seconds)||0));return Math.floor(seconds/60)+":"+String(seconds%60).padStart(2,"0");}
-function renderRemoteBar(state){
-  const track=state.track||{}, hasTrack=!!track.title;
-  $("bar").classList.toggle("on",hasTrack);
-  if(hasTrack){
-    $("barTitle").textContent=track.title;
-    $("barArtist").textContent=track.artist||"";
-    $("barOutput").textContent="◉ "+(DEVICE_SYNC.remoteTarget?(DEVICE_SYNC.remoteNames[DEVICE_SYNC.remoteTarget]||"Інший пристрій"):"Цей пристрій");
-    $("npTitle").textContent=track.title;
-    $("npArtist").textContent=track.artist||"";
-    if(track.cover){$("barArt").src=track.cover;$("npArt").src=track.cover;$("ambientBg").src=track.cover;}
-  }else if(DEVICE_SYNC.remoteTarget){
-    $("barTitle").textContent="Очікує відтворення";
-    $("barArtist").textContent="";
-    $("barOutput").textContent="◉ "+(DEVICE_SYNC.remoteNames[DEVICE_SYNC.remoteTarget]||"Інший пристрій");
-    $("npTitle").textContent="Очікує відтворення";
-    $("npArtist").textContent="ПК підключено";
-  }
-  $("barOutput").style.display=DEVICE_SYNC.remoteTarget?"block":"none";
-  $("barPlay").innerHTML=ICON(state.playing?"pause":"play");
-  $("npPlay").innerHTML=ICON(state.playing?"pause":"play");
-}
-function barPrev(){if(DEVICE_SYNC.remoteTarget)return sendDeviceCommand(DEVICE_SYNC.remoteTarget,"previous");prevTrack();}
-function barNext(){if(DEVICE_SYNC.remoteTarget)return sendDeviceCommand(DEVICE_SYNC.remoteTarget,"next");nextTrack();}
-function barTogglePlay(){
-  if(DEVICE_SYNC.remoteTarget){
-    const state=DEVICE_SYNC.remoteStates[DEVICE_SYNC.remoteTarget]||{};
-    return sendDeviceCommand(DEVICE_SYNC.remoteTarget,state.playing?"pause":"play");
-  }
-  if(current() && !cur.src && DEVICE_SYNC.session && DEVICE_SYNC.session.state){
-    const pos=Number(DEVICE_SYNC.session.state.position)||0;
-    return play(current()).then(ok=>{if(ok && pos>0){try{cur.currentTime=pos;}catch(e){}}});
-  }
-  togglePlay();
-}
-async function sendDeviceCommand(targetId, action, payload={}){
-  const previous=DEVICE_SYNC.remoteStates[targetId]||{};
-  const optimistic={...previous,track:previous.track||current()};
-  if(action==="play" || action==="handoff") optimistic.playing=true;
-  if(action==="pause") optimistic.playing=false;
-  DEVICE_SYNC.remoteStates[targetId]=optimistic;
-  if(targetId===DEVICE_SYNC.remoteTarget)renderRemoteBar(optimistic);
-  try{
-    await post("/api/devices/command",{device_id:targetId,action,payload});
-  }catch(e){
-    DEVICE_SYNC.remoteStates[targetId]=previous;
-    if(targetId===DEVICE_SYNC.remoteTarget)renderRemoteBar(previous);
-    toast(e.message);
-  }
-}
-async function handoffToDevice(targetId){
-  const track=current();
-  if(!track) return toast(t("ui_queue_empty"));
-  const payload={track,queue:S.queue.slice(0,30),index:S.index,position:Math.floor(cur.currentTime||0)};
-  try{
-    await post("/api/devices/command",{device_id:targetId,action:"handoff",payload});
-    cur.pause(); S.playing=false; paintPlayState(); closeModal();
-  }catch(e){ toast(e.message); }
-}
+        el.muted=true; el.src=SILENT;
+        const pr=el.play();
+        const restore=()=>{
+          el.muted=false;
+          if(el.getAttribute("src")!==SILENT) return;     // за цей час уже запустили справжній трек — не чіпаємо
+          el.pause(); if(keep) el.setAttribute("src",keep); else el.removeAttribute("src");
+        };
+        if(pr&&pr.then) pr.then(restore,restore); else restore();
+      }catch(e){ el.muted=false; }
+    });
+  };
+  ["touchend","click","keydown"].forEach(e=>document.addEventListener(e,go,true));
+})();
+
+function barPrev(){ prevTrack(); }
+function barNext(){ nextTrack(); }
+function barTogglePlay(){ togglePlay(); }
 
 /* ════════ Черга і відтворення ════════ */
 function current(){ return S.index >= 0 ? S.queue[S.index] : null; }
@@ -2261,15 +2218,16 @@ function nightCap(base){
 
 let fadeTimer = null;
 let fadeInProgress = false;
-function play(t){
-  if(!t) return;
-  if(DEVICE_SYNC.remoteTarget && DEVICE_SYNC.remoteTarget!==DEVICE_SYNC.id){
-    const payload={track:t,queue:S.queue.slice(0,30),index:S.index,position:0};
-    return post("/api/devices/command",{device_id:DEVICE_SYNC.remoteTarget,action:"handoff",payload})
-      .then(()=>toast("Відтворення передано на пристрій"))
-      .catch(e=>{toast(e.message);return false;});
+function play(t, startAt){
+  if(!t) return Promise.resolve(false);
+  if(CN.remote() && !CN.bypass){
+    /* Пульт: самі не граємо — просимо активний пристрій зіграти цю чергу. */
+    const w=cnWindow();
+    cnCmd("playqueue",{track:t,queue:w.queue,index:w.index});
+    paint(t); S.playing=false; paintPlayState();
+    return Promise.resolve(true);
   }
-  RESUME.pending = null; RETRY.n = 0;
+  RESUME.pending = null; RETRY.n = 0; CN.lastPlayError = "";
   clearInterval(fadeTimer);
   if(fadeInProgress){
     fadeInProgress = false;
@@ -2277,30 +2235,27 @@ function play(t){
     if(outgoing && outgoing !== cur){ outgoing.pause(); outgoing.removeAttribute("src"); outgoing.load(); }
   }
   let start;
-  if(S.crossfade > 0 && S.playing){ start = crossfadeTo(t); }
+  if(S.crossfade > 0 && S.playing && !(startAt>0)){ start = crossfadeTo(t); }
   else {
     cur.pause(); cur.src = streamUrl(t); cur.playbackRate = S.speed; cur.volume = nightCap(1);
+    if(startAt > 2){
+      const seek = () => { try{ cur.currentTime = startAt; }catch(e){} };
+      cur.addEventListener("loadedmetadata", seek, {once:true});
+    }
     start = cur.play();
   }
   S.playing = true;
   paint(t);
-  publishDeviceState();
-  return Promise.resolve(start).then(async()=>{
+  return Promise.resolve(start).then(()=>{
     S.playing = true;
     reportPlay(t); // історія лише після фактичного старту аудіо
     paintPlayState();
-    publishDeviceState();
-    const claimed=await claimLocalPlayback();
-    if(!claimed){
-      cur.pause();S.playing=false;paintPlayState();
-      await syncAccountSession(false);
-      toast("Відтворення вже активне на іншому пристрої. Синхронізували стан акаунта.");
-      return false;
-    }
+    claimLocalPlayback();          // цей пристрій стає активним, інші — пультами
     return true;
-  }).catch(()=>{
+  }).catch((e)=>{
+    CN.lastPlayError = (e && e.name) || "";
     S.playing = false; paintPlayState();
-    toast("Джерело не віддало потік");
+    if(!CN.bypass) toast("Джерело не віддало потік");
     return false;
   });
 }
@@ -2351,30 +2306,19 @@ function toggleNightQuiet(){
 
 function togglePlay(){
   tap();
-  if(DEVICE_SYNC.remoteTarget){
-    const state=DEVICE_SYNC.remoteStates[DEVICE_SYNC.remoteTarget]||{};
-    sendDeviceCommand(DEVICE_SYNC.remoteTarget,state.playing?"pause":"play");
-    return;
-  }
+  if(CN.remote()){ const st=CN.state||{}; cnCmd(st.playing?"pause":"play"); return; }
   if(!current()) return;
   if(RESUME.pending){ startPending(); return; }
   if(cur.paused){
-    cur.play().then(async()=>{
+    cur.play().then(()=>{
       S.playing = true; paintPlayState();
-      const claimed = await claimLocalPlayback();
-      if(!claimed){
-        cur.pause(); S.playing=false; paintPlayState();
-        await syncAccountSession(false);
-        toast("Відтворення активне на іншому пристрої");
-        return;
-      }
-      publishDeviceState();
+      claimLocalPlayback();
     }).catch(()=>{
       S.playing = false; paintPlayState();
       toast("Не вдалося відновити відтворення");
     });
   }else{
-    cur.pause(); S.playing = false; paintPlayState(); publishDeviceState();
+    cur.pause(); S.playing = false; paintPlayState(); publishDeviceState(true);
   }
 }
 
@@ -2393,7 +2337,7 @@ async function continueWithRadio(){
 }
 
 function nextTrack(auto){
-  if(DEVICE_SYNC.remoteTarget){sendDeviceCommand(DEVICE_SYNC.remoteTarget,"next");return;}
+  if(CN.remote()){ cnCmd("next"); return; }
   if(!S.queue.length) return;
   if(S.repeat === "one" && auto){ cur.currentTime = 0; cur.play(); return; }
   let i;
@@ -2406,7 +2350,7 @@ function nextTrack(auto){
       cur.pause();
       S.playing = false;
       paintPlayState();
-      publishDeviceState();
+      publishDeviceState(true);
       return;
     }
   }
@@ -2415,7 +2359,7 @@ function nextTrack(auto){
 }
 
 function prevTrack(){
-  if(DEVICE_SYNC.remoteTarget){sendDeviceCommand(DEVICE_SYNC.remoteTarget,"previous");return;}
+  if(CN.remote()){ cnCmd("previous"); return; }
   if(cur.currentTime > 4){ cur.currentTime = 0; return; }
   S.index = S.index > 0 ? S.index-1 : 0; play(current());
 }
@@ -2502,7 +2446,9 @@ function toggleRepeat(){
 [A,B].forEach(el=>{
   el.addEventListener("ended", ()=>{ if(el===cur) nextTrack(true); });
   el.addEventListener("timeupdate", ()=>{ if(el===cur){ paintProgress(); resumeSave(false); } });
-  el.addEventListener("pause", ()=>{ if(el===cur) resumeSave(true); });
+  el.addEventListener("pause", ()=>{ if(el===cur){ resumeSave(true); setTimeout(()=>publishDeviceState(true),250); } });
+  el.addEventListener("play", ()=>{ if(el===cur) setTimeout(()=>publishDeviceState(true),250); });
+  el.addEventListener("seeked", ()=>{ if(el===cur) publishDeviceState(true); });
   el.addEventListener("loadedmetadata", ()=>{ if(el===cur) renderBkmkTicks(current()); });
   el.addEventListener("error", ()=>{ if(el===cur && S.playing) reconnect("error"); });
   el.addEventListener("stalled", ()=>{ if(el===cur && S.playing) reconnect("stalled"); });
@@ -2602,7 +2548,7 @@ function pillLikeHTML(liked){
 }
 
 function paintPlayState(){
-  const playing = S.playing && !cur.paused;
+  const playing = (typeof CN!=="undefined" && CN.remote()) ? !!(CN.state && CN.state.playing) : (S.playing && !cur.paused);
   const name = playing ? "pause" : "play";
   $("barPlay").innerHTML = ICON(name); $("npPlay").innerHTML = ICON(name);
   $("coverWrap").classList.toggle("playing", playing);
@@ -2655,10 +2601,9 @@ $("npSeek").addEventListener("change", e=>{
   seeking = false;
   if(RESUME.pending){ const d = (current()||{}).duration || 0;
     if(d) RESUME.pending.t = d * (e.target.value/1000); return; }
-  if(DEVICE_SYNC.remoteTarget){
-    const state=DEVICE_SYNC.remoteStates[DEVICE_SYNC.remoteTarget]||{};
-    const duration=Number((state.track||current()||{}).duration)||Number((current()||{}).duration)||0;
-    if(duration) sendDeviceCommand(DEVICE_SYNC.remoteTarget,"seek",{position:duration*(e.target.value/1000)});
+  if(CN.remote()){
+    const d=(CN.state&&(CN.state.duration||(CN.state.track||{}).duration))||0;
+    if(d) cnCmd("seek",{position:d*(e.target.value/1000)});
     return;
   }
   if(isFinite(cur.duration)) cur.currentTime = cur.duration * (e.target.value/1000);
@@ -3050,8 +2995,7 @@ async function renderEq(){
     </div>
     <div class="eqrow">${EQ_FREQ.map((f,i)=>`
       <div class="eqband">
-        <input type="range" min="-12" max="12" step="1" value="${S.eq[i]}" data-band="${i}" orient="vertical">
-        <span>${f>=1000?(f/1000)+"k":f}</span>
+        <input type="range" min="-12" max="12" step="1" value="${S.eq[i]}" data-band="${i}" orient="vertical">        <span>${f>=1000?(f/1000)+"k":f}</span>
       </div>`).join("")}</div>
     <div style="font-size:12px;color:var(--muted);margin:12px 0 6px">Мої пресети</div>
     <div id="myPresets" style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px"></div>
@@ -3551,20 +3495,14 @@ async function startPending(){
   RESUME.pending = null;
   cur.pause(); cur.src = streamUrl(t); cur.playbackRate = S.speed; cur.volume = nightCap(1);
   if(p.t > 2){
-    const seek = () => { try{ cur.currentTime = p.t; }catch(e){} cur.removeEventListener("loadedmetadata", seek); };
+    const seek = () => { try{ cur.currentTime = p.t; }catch(e){} };
     cur.addEventListener("loadedmetadata", seek, {once:true});
   }
   try{
     await cur.play();
     S.playing = true; paintPlayState();
-    const claimed = await claimLocalPlayback();
-    if(!claimed){
-      cur.pause(); S.playing=false; paintPlayState();
-      await syncAccountSession(false);
-      toast("Не вдалося відновити відтворення на цьому пристрої");
-      return;
-    }
-    reportPlay(t); publishDeviceState();
+    claimLocalPlayback();
+    reportPlay(t);
   }catch(e){
     S.playing = false; paintPlayState();
     toast("Джерело не віддало потік");
@@ -3638,7 +3576,6 @@ paintStaticIcons();
 </script>
 </body>
 </html>
-
 
 
 
