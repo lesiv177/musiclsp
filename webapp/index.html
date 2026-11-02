@@ -152,9 +152,6 @@
   <div class="tt dspl" id="npTitle">—</div>
   <div class="aa" id="npArtist">—</div>
   <div class="lic" id="npLic"></div>
-  <div style="text-align:center;margin-top:2px">
-    <a href="javascript:void(0)" style="font-size:12px;color:var(--muted)" onclick="openReportTrack()">🚩 Поскаржитися на трек</a>
-  </div>
 
   <div class="seek">
     <button class="bkmkBtn" id="bkmkBtn" title="Позначити момент" onclick="addBookmark()">🔖</button>
@@ -172,14 +169,13 @@
   </div>
 
   <div class="sheetacts">
-    <button class="pill" id="pillLike" onclick="toggleLike()"><span data-icon="heart"></span>Зберегти</button>
-    <button class="pill" onclick="openAddToPlaylist()"><span data-icon="playlist-add"></span>У плейлист</button>
-    <button class="pill" onclick="startRadio()"><span data-icon="radio"></span>Радіо</button>
-    <button class="pill" onclick="shareCurrentTrack()"><span data-icon="share"></span>Поділитися</button>
-    <button class="pill" onclick="downloadCurrent()"><span data-icon="download"></span>MP3</button>
-    <button class="pill" onclick="openQueue()"><span data-icon="queue"></span>Черга</button>
-    <button class="pill" onclick="openDevices()"><span data-icon="devices"></span><span data-i18n="pr_devices">Мої пристрої</span></button>
-    <button class="pill" onclick="closeSheet()"><span data-icon="close"></span>Згорнути</button>
+    <button class="qa" data-qa="like" id="pillLike" onclick="toggleLike()" aria-label="Зберегти"><span data-icon="heart"></span></button>
+    <button class="qa" data-qa="playlist" onclick="openAddToPlaylist()" aria-label="У плейлист"><span data-icon="playlist-add"></span></button>
+    <button class="qa" data-qa="radio" onclick="startRadio()" aria-label="Радіо"><span data-icon="radio"></span></button>
+    <button class="qa" data-qa="share" onclick="shareCurrentTrack()" aria-label="Поділитися"><span data-icon="share"></span></button>
+    <button class="qa" data-qa="queue" onclick="openQueue()" aria-label="Черга"><span data-icon="queue"></span></button>
+    <button class="qa" data-qa="devices" onclick="openDevices()" aria-label="Пристрої"><span data-icon="devices"></span></button>
+    <button class="qa" data-qa="more" onclick="openMoreMenu()" aria-label="Ще"><span style="font-size:28px;line-height:1">⋯</span></button>
   </div>
 </div>
 
@@ -997,12 +993,14 @@ function rowsHtml(list, ctxKey){
            onerror="this.style.visibility='hidden'">
       <div class="meta">
         <div class="t">${esc(t.title)}</div>
-        <div class="s">${t.artist_id?("<button class=\"artist-link\" type=\"button\" data-artist-id=\""+esc(t.artist_id)+"\" data-artist-name=\""+esc(t.artist)+"\">"+esc(t.artist)+"</button>"):esc(t.artist)}${t.duration_str?" · "+esc(t.duration_str):""}</div>      </div>
+        <div class="s">${t.artist_id?("<button class=\"artist-link\" type=\"button\" data-artist-id=\""+esc(t.artist_id)+"\" data-artist-name=\""+esc(t.artist)+"\">"+esc(t.artist)+"</button>"):esc(t.artist)}${t.duration_str?" · "+esc(t.duration_str):""}</div>
+      </div>
       <button class="act" data-menu="${i}">${ICON("kebab")}</button>
     </div>`).join("") + `</div>`;
 }
 const CTX = {};
 function mountRows(el, list, ctxKey){
+  list = noBlocked(list);
   CTX[ctxKey] = list;
   el.innerHTML = list.length ? rowsHtml(list, ctxKey)
     : `<div class="empty"><b>Порожньо</b>Тут поки нічого немає.</div>`;
@@ -1149,7 +1147,7 @@ async function loadHome(){
       loadDaily()
     ]);
     S.playlists=Array.isArray(playlistData.playlists)?playlistData.playlists:[];
-    const sections=(homeData.sections||[]).filter(x=>Array.isArray(x.tracks)&&x.tracks.length);
+    const sections=(homeData.sections||[]).map(x=>Array.isArray(x.tracks)?{...x,tracks:noBlocked(x.tracks)}:x).filter(x=>Array.isArray(x.tracks)&&x.tracks.length);
     const byId=Object.fromEntries(sections.map(s=>[s.id,s]));
     const recent=byId.recent?.tracks||[];
     const popular=byId.popular?.tracks||[];
@@ -1166,6 +1164,11 @@ async function loadHome(){
     ].filter(item=>item.tracks?.length);
     featureItems.forEach((item,i)=>CTX["feature"+i]=item.tracks);
 
+    const albumMap=new Map();
+    sections.forEach(s=>s.tracks.forEach(t=>{ if(t.album_id&&!albumMap.has(t.album_id)) albumMap.set(t.album_id,{id:t.album_id,title:t.album||t.title,artist:t.artist,cover:t.cover}); }));
+    const albums=[...albumMap.values()].slice(0,12); CTX.homeAlbums=albums;
+    const albumsHtml=albums.length?`<section class="home-section home-albums-section" data-home-section="albums"><div class="section-head"><div><h2>Альбоми для тебе</h2></div></div>
+      <div class="alb-row">${albums.map((a,i)=>`<button class="alb-card" data-alb="${i}"><img src="${esc(a.cover||"")}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><b>${esc(a.title)}</b><small>${esc(a.artist)}</small></button>`).join("")}</div></section>`:"";
     let out=`
       <section class="welcome-block">
         <div class="welcome-copy">
@@ -1208,7 +1211,7 @@ async function loadHome(){
         <button class="home-category" type="button" data-home-category="audiobooks">Аудіокниги</button>
       </div>
       <section class="home-section home-feature-section">
-        <div class="section-head"><div><h2>Для тебе</h2></div><button class="home-section-arrow" type="button" data-home-category="music" aria-label="Більше рекомендацій">›</button></div>
+        <div class="section-head"><div><h2>Підбірки для тебе</h2></div><button class="home-section-arrow" type="button" data-home-category="music" aria-label="Більше рекомендацій">›</button></div>
         <div class="home-feature-grid">
           ${featureItems.map((item,i)=>`
             <button class="home-feature-card tone-${item.tone}" type="button" data-home-feature="${i}" ${item.id==="mix"?"data-personal-radio=\"true\"":""}>
@@ -1237,7 +1240,9 @@ async function loadHome(){
     if(!featureItems.length&&!recent.length){
       out+=`<div class="empty"><b>Поки немає рекомендацій</b><span>Знайди улюбленого виконавця або трек — і ми підберемо музику.</span></div>`;
     }
-    root.innerHTML=out;
+    out=out.replace('<section class="home-section home-feature-section">',albumsHtml+'<section class="home-section home-feature-section">');
+    root.innerHTML=out; applyHomePrefs();
+    root.querySelectorAll("[data-alb]").forEach(b=>b.onclick=()=>openAlbum(CTX.homeAlbums[+b.dataset.alb]));
     const homeSearch=$("homeSearchInput");
     if(homeSearch){
       homeSearch.oninput=()=>{if($("qInput"))$("qInput").value=homeSearch.value;};
@@ -1638,7 +1643,7 @@ function showCollection(x, d, kind){
   const by=kind==="album"?(x.artist||al.artist||""):"Артист", yr=String(al.release_date||x.release_date||"").slice(0,4);
   const src=(tr[0]&&tr[0].source_label)||"";
   const meta=[tr.length+" трек.", total?Math.max(1,Math.round(total/60))+" хв":"", yr, src].filter(Boolean).join(" · ");
-  $("qBody").innerHTML=`<div class="coll-hero"><img class="coll-cover" src="${esc(cover)}" alt="" onerror="this.style.visibility='hidden'">
+  $("qBody").innerHTML=`<button class="coll-back" onclick="go('Home')">‹ Назад</button><div class="coll-hero"><img class="coll-cover" src="${esc(cover)}" alt="" onerror="this.style.visibility='hidden'">
     <div class="coll-info"><div class="coll-kind">${kind==="album"?"Альбом":"Артист"}</div><h2>${esc(title)}</h2>
     <div class="coll-by">${esc(by)}</div><div class="coll-meta">${esc(meta)}</div></div></div>
     <div class="coll-actions"><button class="btn" id="collPlay">▶ Слухати</button><button class="btn ghost" id="collShuffle">Перемішати</button></div>
@@ -1996,7 +2001,8 @@ function cnAdoptRemote(){
 }
 /* Активного пристрою немає, але є остання сесія — показуємо її й даємо продовжити тут. */
 function cnAdoptLastSession(){
-  const st=CN.state; if(!st||!st.track) return;  S.queue=(st.queue&&st.queue.length?st.queue:[st.track]).slice();
+  const st=CN.state; if(!st||!st.track) return;
+  S.queue=(st.queue&&st.queue.length?st.queue:[st.track]).slice();
   S.index=Math.max(0,Math.min(S.queue.length-1,st.index||0));
   RESUME.pending={t:st.position||0};
   CN.paintedId=st.track.id; paint(st.track); S.playing=false; paintPlayState();
@@ -2251,6 +2257,55 @@ function nightCap(base){
 
 let fadeTimer = null;
 let fadeInProgress = false;
+
+/* ── особисті налаштування (Premium-студія) ── */
+const PREF=(()=>{ let p={}; try{ p=JSON.parse(localStorage.getItem("mlsp_prefs")||"{}")||{}; }catch(e){}
+  p.home=(p.home&&typeof p.home==="object")?p.home:{}; p.block=Array.isArray(p.block)?p.block:[];
+  p.quick=(Array.isArray(p.quick)&&p.quick.length)?p.quick.slice(0,3):["like","queue","devices"]; return p; })();
+function prefSave(){ try{ localStorage.setItem("mlsp_prefs",JSON.stringify(PREF)); }catch(e){} }
+function isPrem(){ return !!(S.me&&S.me.premium); }
+function noBlocked(list){
+  if(!isPrem()||!PREF.block.length||!Array.isArray(list)) return list;
+  return list.filter(t=>{ const a=String(t.artist||"").toLowerCase(); return !PREF.block.some(b=>a.includes(b)); });
+}
+function applyQuick(){
+  const q=isPrem()?PREF.quick:["like","queue","devices"];
+  document.querySelectorAll(".sheetacts .qa").forEach(b=>{ const k=b.dataset.qa; b.hidden=!(k==="more"||q.includes(k)); });
+}
+function applyHomePrefs(){
+  const root=$("homeBody"); if(!root) return;
+  const map={albums:".home-albums-section",feature:".home-feature-section",recent:'[data-home-section="recent"]',
+    playlists:".home-playlists-section",daily:".home-daily-section"};
+  Object.keys(map).forEach(k=>root.querySelectorAll(map[k]).forEach(el=>{ el.style.display=(isPrem()&&PREF.home[k]===0)?"none":""; }));
+}
+function blockCurrentArtist(){
+  const t=current(); if(!t) return; if(!isPrem()) return toast("Доступно в Premium");
+  const a=String(t.artist||"").trim().toLowerCase(); if(a.length<2) return;
+  if(!PREF.block.includes(a)) PREF.block.push(a); prefSave(); toast("Виконавця приховано"); nextTrack(false);
+}
+async function openAlbum(a){
+  tap(); go("Search"); $("qBody").innerHTML='<div class="skel"></div><div class="skel"></div>';
+  try{ const d=await get("/api/album/"+encodeURIComponent(a.id)); showCollection(a,d,"album"); }
+  catch(e){ $("qBody").innerHTML=""; toast(e.message||"Альбом недоступний"); }
+}
+function openAlbumFromTrack(){
+  const t=current(); if(!t||!t.album_id) return toast("Для цього треку альбому немає");
+  closeSheet(); openAlbum({id:t.album_id,title:t.album,artist:t.artist,cover:t.cover});
+}
+function openMoreMenu(){
+  const t=current(); if(!t) return;
+  const it=(ic,label,fn,sub)=>`<button class="mm-item" onclick="closeModal();${fn}">${ICON(ic,"sm")}<span><b>${label}</b>${sub?`<small>${sub}</small>`:""}</span></button>`;
+  showModal(`<div class="mm-head"><img src="${esc(t.cover||"")}" alt="" onerror="this.style.visibility='hidden'"><div><b>${esc(t.title)}</b><span>${esc(t.artist)}</span></div></div>
+    <div class="mm-list">
+    ${it("playlist-add","Додати в плейлист","openAddToPlaylist()")}
+    ${it("radio","Запустити радіо","startRadio()","Схожі треки")}
+    ${t.album_id?it("library","Відкрити альбом","openAlbumFromTrack()",esc(t.album||"")):""}
+    ${it("share","Поділитися","shareCurrentTrack()")}
+    ${it("download","Завантажити MP3","downloadCurrent()",isPrem()?"":"Premium")}
+    ${it("close","Не показувати цього виконавця","blockCurrentArtist()",isPrem()?"":"Premium")}
+    ${it("close","Поскаржитись на трек","openReportTrack()")}
+    </div>`);
+}
 function openYouTube(t){
   try{ cur.pause(); S.playing=false; paintPlayState(); }catch(e){}
   const id=String(t.id).replace(/^yt:/,"");
@@ -2652,7 +2707,7 @@ $("npSeek").addEventListener("change", e=>{
   if(isFinite(cur.duration)) cur.currentTime = cur.duration * (e.target.value/1000);
 });
 
-function openSheet(){ $("sheet").classList.add("on"); tap(); }
+function openSheet(){ applyQuick(); $("sheet").classList.add("on"); tap(); }
 function closeSheet(){ $("sheet").classList.remove("on"); }
 
 /* ════════ Дії з треком ════════ */
@@ -2812,12 +2867,20 @@ function renderProfile(){
       <button class="btn ghost" id="devicesBtn" data-i18n="devices_manage">Керувати пристроями</button>
     </div>
 
-    <div class="sect pm-tools"><h2>Premium-інструменти</h2>
+    <div class="sect pm-tools"><h2>Premium-студія</h2>
+      <div class="pm-sub">${p?"Налаштуй MusicLSP під себе":"Відкриється з Premium. Авто-підхоплення доступне всім."}</div>
+      <div class="pm-h">Головна сторінка</div>
+      <div class="pm-chips" id="pmHome">${[["albums","Альбоми"],["feature","Підбірки"],["recent","Слухати знову"],["playlists","Плейлисти"],["daily","Щоденний мікс"]].map(([k,n])=>`<button class="fchip ${PREF.home[k]!==0?"on":""}" data-pmh="${k}">${n}</button>`).join("")}</div>
+      <div class="pm-h">Швидкі кнопки в плеєрі (до 3)</div>
+      <div class="pm-chips" id="pmQuick">${[["like","Зберегти"],["playlist","У плейлист"],["radio","Радіо"],["share","Поділитися"],["queue","Черга"],["devices","Пристрої"]].map(([k,n])=>`<button class="fchip ${PREF.quick.includes(k)?"on":""}" data-pmq="${k}">${n}</button>`).join("")}</div>
+      <div class="pm-h">Не показувати виконавців</div>
+      <div class="pm-block"><input id="pmBlockIn" placeholder="Ім’я виконавця" autocomplete="off"><button class="pill" id="pmBlockAdd">Додати</button></div>
+      <div class="pm-chips" id="pmBlockList">${PREF.block.map(x=>`<button class="fchip on" data-pmb="${esc(x)}">${esc(x)} ✕</button>`).join("")}</div>
       <div class="opt"><div class="lbl"><b>Авто-підхоплення</b><span>Вимкнули MusicLSP на ПК — музика продовжиться тут із тієї ж секунди</span></div>
         <div class="sw ${S.autoTakeover!==false?"on":""}" id="swTake" role="switch"></div></div>
-      <div class="opt"><div class="lbl"><b>Таймер сну</b><span>${p?"Музика сама вимкнеться":"Доступно в Premium"}</span></div></div>
-      <div class="frow" id="sleepPresets">${[15,30,45,60].map(m=>`<button class="fchip" data-sl="${m}">${m} хв</button>`).join("")}<button class="fchip" data-sl="0">Вимк.</button></div>
-      <div class="opt"><div class="lbl"><b>Експорт «Збереженого»</b><span>${p?"Список «Виконавець — Назва» у буфер обміну":"Доступно в Premium"}</span></div>
+      <div class="pm-h">Таймер сну</div>
+      <div class="pm-chips" id="sleepPresets">${[15,30,45,60].map(m=>`<button class="fchip" data-sl="${m}">${m} хв</button>`).join("")}<button class="fchip" data-sl="0">Вимк.</button></div>
+      <div class="opt"><div class="lbl"><b>Експорт «Збереженого»</b><span>Список «Виконавець — Назва» у буфер обміну</span></div>
         <button class="pill" id="exportLiked">Копіювати</button></div>
     </div>
 
@@ -2961,6 +3024,15 @@ function bindProfile(){
   };
 
   $("swNight").onclick = () => { tap(); toggleNightQuiet(); };
+  const need=()=>{ if(isPrem()) return true; toast("Доступно в Premium"); return false; };
+  document.querySelectorAll("#pmHome [data-pmh]").forEach(b=>b.onclick=()=>{ if(!need()) return; const k=b.dataset.pmh;
+    PREF.home[k]=PREF.home[k]===0?1:0; b.classList.toggle("on",PREF.home[k]!==0); prefSave(); applyHomePrefs(); tap(); });
+  document.querySelectorAll("#pmQuick [data-pmq]").forEach(b=>b.onclick=()=>{ if(!need()) return; const k=b.dataset.pmq, i=PREF.quick.indexOf(k);
+    if(i>=0) PREF.quick.splice(i,1); else if(PREF.quick.length<3) PREF.quick.push(k); else return toast("Максимум 3 кнопки");
+    b.classList.toggle("on",PREF.quick.includes(k)); prefSave(); applyQuick(); tap(); });
+  if($("pmBlockAdd")) $("pmBlockAdd").onclick=()=>{ if(!need()) return; const v=$("pmBlockIn").value.trim().toLowerCase();
+    if(v.length<2) return toast("Введіть ім’я виконавця"); if(!PREF.block.includes(v)) PREF.block.push(v); prefSave(); renderProfile(); };
+  document.querySelectorAll("#pmBlockList [data-pmb]").forEach(b=>b.onclick=()=>{ PREF.block=PREF.block.filter(x=>x!==b.dataset.pmb); prefSave(); renderProfile(); });
   if($("swTake")) $("swTake").onclick = () => {
     S.autoTakeover = !(S.autoTakeover!==false); $("swTake").classList.toggle("on", S.autoTakeover);
     try{ localStorage.setItem("mlsp_autotake", S.autoTakeover?"1":"0"); }catch(e){} tap();
@@ -2996,6 +3068,7 @@ function bindProfile(){
     if(!S.dataSaver) prefetchNext();
     tap();
   };
+
   $("themeRow").querySelectorAll(".swatch").forEach(b => b.onclick = async () => {
     const t = b.dataset.theme;
     try{
