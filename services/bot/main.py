@@ -797,7 +797,8 @@ async def do_search(msg, uid, query):
     nums = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣"]
     lines = [f"🔎 <b>«{esc(query)}»</b> — знайдено {len(results)}\n"]
     kb = []
-    for i, t in enumerate(results):        dur = f" · {t['duration_str']}" if t.get("duration_str") else ""
+    for i, t in enumerate(results):
+        dur = f" · {t['duration_str']}" if t.get("duration_str") else ""
         lines.append(f"{nums[i]} <b>{esc(t['title'])}</b>\n      {esc(t['artist'])}{dur} · <i>{esc(t['source_label'])}</i>")
         kb.append([InlineKeyboardButton(
             f"▶️ {t['title'][:26]} — {t['artist'][:16]}",
