@@ -223,6 +223,7 @@ async def _connect_persist(uid, state):
 
 
 CONNECT = Hub(load=_connect_load, persist=_connect_persist)
+_STARTED = time.time()
 
 
 async def h_connect_ws(request):
@@ -996,7 +997,6 @@ async def h_admin_report_resolve(request, u):
     await to_thread(db.report_resolve, int(body.get("id") or 0))
     await to_thread(db.audit, int(u["uid"]), "web_admin_report_resolve", str(body.get("id")), "")
     return ok({"ok": True})
-
 @require_admin
 async def h_admin_promos(request, u):
     if request.method == "POST":
@@ -1022,6 +1022,31 @@ async def h_admin_promos(request, u):
     promos = await to_thread(db.promo_list)
     return ok({"ok": True, "promos": [
         {"code": p["code"], "days": int(p["days"]), "uses_left": int(p["uses_left"])} for p in promos]})
+
+
+@require_admin
+async def h_admin_system(request, u):
+    """Стан системи: джерела, Connect, аптайм, прапорці оточення."""
+    import sys
+    from core import config as CFG
+    accounts = list(CONNECT.accounts.values())
+    stats = await to_thread(db.global_stats)
+    return ok({
+        "ok": True,
+        "providers": {
+            "jamendo": bool(JAMENDO_CLIENT_ID), "audius": True,
+            "archive": bool(getattr(CFG, "ARCHIVE_ENABLED", True)),
+            "soundcloud": bool(P.soundcloud_enabled()),
+            "youtube": bool(P.youtube_enabled()),
+        },
+        "connect": {"accounts": sum(1 for a in accounts if a.devices),
+                    "devices": sum(len(a.devices) for a in accounts)},
+        "uptime": int(time.time() - _STARTED),
+        "python": sys.version.split()[0],
+        "engine": stats.get("engine", ""),
+        "version": APP_VERSION,
+        "env": {"web_app_url": bool(getattr(CFG, "WEB_APP_URL", "")), "api_url": bool(getattr(CFG, "API_URL", ""))},
+    })
 
 
 @require_admin
@@ -1198,6 +1223,7 @@ def build_app():
     r.add_post("/api/admin/login", h_admin_login)
     r.add_get("/api/admin/status", h_admin_status)
     r.add_get("/api/admin/overview", h_admin_overview)
+    r.add_get("/api/admin/system", h_admin_system)
     r.add_get("/api/admin/users", h_admin_users)
     r.add_post("/api/admin/user", h_admin_user_action)
     r.add_get("/api/admin/user_info", h_admin_user_info)

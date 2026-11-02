@@ -234,3 +234,17 @@ html,body{background:var(--mx-bg)!important;color:var(--mx-text)}
 .pm-block{display:flex;gap:8px;margin-bottom:10px}
 .pm-block input{flex:1;min-width:0;padding:10px 14px;border-radius:999px;border:1px solid var(--mx-line);
   background:rgba(255,255,255,.06);color:#fff}
+
+/* ══ v5: Premium-налаштування, адмін-вхід, свайп футбару ══ */
+#bar.bar{touch-action:pan-y;will-change:transform}
+.pm-open{display:flex;flex-direction:column;align-items:flex-start;gap:3px;width:100%;margin:10px 0;padding:16px 18px;
+  text-align:left;border-radius:20px;color:#fff;border:1px solid rgba(167,139,250,.45);
+  background:linear-gradient(135deg,rgba(124,58,237,.5),rgba(34,211,238,.18))}
+.pm-open b{font:700 17px "Space Grotesk",sans-serif}.pm-open small{font-size:12.5px;color:#d8ccff}
+.pm-open.adm-open{border-color:rgba(251,191,36,.5);background:linear-gradient(135deg,rgba(245,158,11,.35),rgba(124,58,237,.25))}
+.admin-chip{background:linear-gradient(135deg,#f59e0b,#ef4444)!important;color:#fff!important;border:0!important;font-weight:700}
+.admin-chip[hidden]{display:none!important}
+.pm-modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.pm-modal-head h3{font:700 20px "Space Grotesk",sans-serif;margin:0}
+.pm-scroll{max-height:68vh;overflow-y:auto;padding-right:2px;-webkit-overflow-scrolling:touch}
+.pm-scroll .pm-tools{padding:0;border:0;background:none}

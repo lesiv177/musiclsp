@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="./ui-polish.css?v=2">
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
   <link rel="stylesheet" href="./v3.css?v=1">
-  <link rel="stylesheet" href="./theme.css?v=4">
+  <link rel="stylesheet" href="./theme.css?v=5">
   <script defer src="./v3.js?v=1"></script>
 </head>
 <body>
@@ -48,6 +48,7 @@
       <div class="name dspl" id="topTitle">MusicLSP</div>
     </div>
     <div class="spacer"></div>
+    <button class="chip admin-chip" id="adminChip" type="button" hidden onclick="openAdmin()">Admin</button>
     <button class="chip plan-chip" id="planChip" type="button" onclick="openPlan()">Free</button>
   </header>
 
@@ -196,6 +197,7 @@
     <button class="tab" data-t="reports">Скарги</button>
     <button class="tab" data-t="promo">Промокоди</button>
     <button class="tab" data-t="bc">Розсилка</button>
+    <button class="tab" data-t="sys">Система</button>
     <button class="tab" data-t="log">Журнал</button>
   </div>
   <div class="admBody" id="admBody"></div>
@@ -915,6 +917,7 @@ function revealApp(){
     S.eq = S.me.eq || null;
     $("planChip").textContent = S.me.premium ? "Premium" : "Free";
     $("planChip").classList.toggle("pro", !!S.me.premium);
+    if($("adminChip")) $("adminChip").hidden = !S.me.is_admin;
     applyI18n();
     startSplashShow(S.me.lang);
   }catch(e){
@@ -994,8 +997,7 @@ function rowsHtml(list, ctxKey){
       <div class="meta">
         <div class="t">${esc(t.title)}</div>
         <div class="s">${t.artist_id?("<button class=\"artist-link\" type=\"button\" data-artist-id=\""+esc(t.artist_id)+"\" data-artist-name=\""+esc(t.artist)+"\">"+esc(t.artist)+"</button>"):esc(t.artist)}${t.duration_str?" · "+esc(t.duration_str):""}</div>
-      </div>
-      <button class="act" data-menu="${i}">${ICON("kebab")}</button>
+      </div>      <button class="act" data-menu="${i}">${ICON("kebab")}</button>
     </div>`).join("") + `</div>`;
 }
 const CTX = {};
@@ -1994,8 +1996,7 @@ function cnApplySnapshot(m){
 /* Пульт: дзеркалимо чергу й трек активного пристрою. */
 function cnAdoptRemote(){
   const st=CN.state; if(!st||!st.track) return;
-  RESUME.pending=null; S.playing=false;
-  if(Array.isArray(st.queue)&&st.queue.length){ S.queue=st.queue.slice(); S.index=Math.max(0,Math.min(S.queue.length-1,st.index||0)); }
+  RESUME.pending=null; S.playing=false;  if(Array.isArray(st.queue)&&st.queue.length){ S.queue=st.queue.slice(); S.index=Math.max(0,Math.min(S.queue.length-1,st.index||0)); }
   else { S.queue=[st.track]; S.index=0; }
   if(CN.paintedId!==st.track.id){ CN.paintedId=st.track.id; paint(st.track); }
 }
@@ -2306,6 +2307,74 @@ function openMoreMenu(){
     ${it("close","Поскаржитись на трек","openReportTrack()")}
     </div>`);
 }
+function pmStudioHtml(){
+  const p=isPrem();
+  return `<div class="pm-tools">
+      <div class="pm-sub">${p?"Налаштуй MusicLSP під себе":"Відкриється з Premium. Авто-підхоплення доступне всім."}</div>
+      <div class="pm-h">Головна сторінка</div>
+      <div class="pm-chips" id="pmHome">${[["albums","Альбоми"],["feature","Підбірки"],["recent","Слухати знову"],["playlists","Плейлисти"],["daily","Щоденний мікс"]].map(([k,n])=>`<button class="fchip ${PREF.home[k]!==0?"on":""}" data-pmh="${k}">${n}</button>`).join("")}</div>
+      <div class="pm-h">Швидкі кнопки в плеєрі (до 3)</div>
+      <div class="pm-chips" id="pmQuick">${[["like","Зберегти"],["playlist","У плейлист"],["radio","Радіо"],["share","Поділитися"],["queue","Черга"],["devices","Пристрої"]].map(([k,n])=>`<button class="fchip ${PREF.quick.includes(k)?"on":""}" data-pmq="${k}">${n}</button>`).join("")}</div>
+      <div class="pm-h">Не показувати виконавців</div>
+      <div class="pm-block"><input id="pmBlockIn" placeholder="Ім’я виконавця" autocomplete="off"><button class="pill" id="pmBlockAdd">Додати</button></div>
+      <div class="pm-chips" id="pmBlockList">${PREF.block.map(x=>`<button class="fchip on" data-pmb="${esc(x)}">${esc(x)} ✕</button>`).join("")}</div>
+      <div class="opt"><div class="lbl"><b>Авто-підхоплення</b><span>Вимкнули MusicLSP на ПК — музика продовжиться тут із тієї ж секунди</span></div>
+        <div class="sw ${S.autoTakeover!==false?"on":""}" id="swTake" role="switch"></div></div>
+      <div class="pm-h">Таймер сну</div>
+      <div class="pm-chips" id="sleepPresets">${[15,30,45,60].map(m=>`<button class="fchip" data-sl="${m}">${m} хв</button>`).join("")}<button class="fchip" data-sl="0">Вимк.</button></div>
+      <div class="opt"><div class="lbl"><b>Експорт «Збереженого»</b><span>Список «Виконавець — Назва» у буфер обміну</span></div>
+        <button class="pill" id="exportLiked">Копіювати</button></div>
+    </div>
+  ${p?"":`<button class="btn" style="margin-top:14px" onclick="closeModal();openPlan()">Отримати Premium</button>`}`;
+}
+function bindStudio(){
+  const need=()=>{ if(isPrem()) return true; toast("Доступно в Premium"); return false; };
+  document.querySelectorAll("#pmHome [data-pmh]").forEach(b=>b.onclick=()=>{ if(!need()) return; const k=b.dataset.pmh;
+    PREF.home[k]=PREF.home[k]===0?1:0; b.classList.toggle("on",PREF.home[k]!==0); prefSave(); applyHomePrefs(); tap(); });
+  document.querySelectorAll("#pmQuick [data-pmq]").forEach(b=>b.onclick=()=>{ if(!need()) return; const k=b.dataset.pmq, i=PREF.quick.indexOf(k);
+    if(i>=0) PREF.quick.splice(i,1); else if(PREF.quick.length<3) PREF.quick.push(k); else return toast("Максимум 3 кнопки");
+    b.classList.toggle("on",PREF.quick.includes(k)); prefSave(); applyQuick(); tap(); });
+  if($("pmBlockAdd")) $("pmBlockAdd").onclick=()=>{ if(!need()) return; const v=$("pmBlockIn").value.trim().toLowerCase();
+    if(v.length<2) return toast("Введіть ім’я виконавця"); if(!PREF.block.includes(v)) PREF.block.push(v); prefSave(); openPremiumSettings(); };
+  document.querySelectorAll("#pmBlockList [data-pmb]").forEach(b=>b.onclick=()=>{ PREF.block=PREF.block.filter(x=>x!==b.dataset.pmb); prefSave(); openPremiumSettings(); });
+  if($("swTake")) $("swTake").onclick = () => {
+    S.autoTakeover = !(S.autoTakeover!==false); $("swTake").classList.toggle("on", S.autoTakeover);
+    try{ localStorage.setItem("mlsp_autotake", S.autoTakeover?"1":"0"); }catch(e){} tap();
+  };
+  document.querySelectorAll("#sleepPresets [data-sl]").forEach(b=>b.onclick=()=>{
+    if(!S.me.premium) return toast("Доступно в Premium"); setSleep(+b.dataset.sl); tap();
+  });
+  if($("exportLiked")) $("exportLiked").onclick = async () => {
+    if(!S.me.premium) return toast("Доступно в Premium");
+    await loadLiked(); const txt=likedTracks.map(t=>t.artist+" — "+t.title).join("\n");
+    if(!txt) return toast("Немає збережених треків");
+    try{ await navigator.clipboard.writeText(txt); toast("Скопійовано: "+likedTracks.length+" треків"); }catch(e){ toast("Не вдалося скопіювати"); }
+  };
+}
+function openPremiumSettings(){
+  showModal(`<div class="pm-modal-head"><h3>✦ Premium-налаштування</h3><button class="connect-close" onclick="closeModal()" aria-label="Закрити">✕</button></div>
+    <div class="pm-scroll">${pmStudioHtml()}</div>`);
+  bindStudio();
+}
+
+/* свайп по міні-плеєру: вліво — наступний, вправо — попередній */
+(function(){
+  const bar=$("bar"); if(!bar) return;
+  let x0=0,y0=0,dx=0,drag=false,moved=false;
+  bar.addEventListener("touchstart",e=>{ const t=e.touches[0]; x0=t.clientX; y0=t.clientY; dx=0; drag=true; moved=false; bar.style.transition="none"; },{passive:true});
+  bar.addEventListener("touchmove",e=>{
+    if(!drag) return; const t=e.touches[0]; dx=t.clientX-x0; const dy=t.clientY-y0;
+    if(!moved && Math.abs(dy)>Math.abs(dx)){ drag=false; bar.style.transform=""; return; }
+    if(Math.abs(dx)>8) moved=true;
+    if(moved){ bar.style.transform=`translateX(${dx*.55}px)`; bar.style.opacity=String(1-Math.min(.5,Math.abs(dx)/320)); }
+  },{passive:true});
+  bar.addEventListener("touchend",()=>{
+    if(!drag) return; drag=false;
+    bar.style.transition="transform .22s ease,opacity .22s"; bar.style.transform=""; bar.style.opacity="";
+    if(moved){ bar._sw=Date.now(); if(Math.abs(dx)>60){ tap(); if(dx<0) barNext(); else barPrev(); } }
+  });
+  bar.addEventListener("click",e=>{ if(bar._sw && Date.now()-bar._sw<350){ e.stopPropagation(); e.preventDefault(); } },true);
+})();
 function openYouTube(t){
   try{ cur.pause(); S.playing=false; paintPlayState(); }catch(e){}
   const id=String(t.id).replace(/^yt:/,"");
@@ -2847,6 +2916,8 @@ function renderProfile(){
       </div>
       <button class="profile-edit-shortcut" type="button" onclick="openPlan()" aria-label="Твій план">↗</button>
     </div>
+    ${S.me.is_admin?`<button class="pm-open adm-open" type="button" onclick="openAdmin()"><b>Адмін-панель</b><small>Користувачі · скарги · промокоди · розсилка · система</small></button>`:""}
+    <button class="pm-open" type="button" onclick="openPremiumSettings()"><b>✦ Premium-налаштування</b><small>Налаштуй MusicLSP під себе</small></button>
     <div class="profile-quick-actions" aria-label="Швидкі дії профілю">
       <button type="button" onclick="go('Lib')"><span class="pqa-icon">♫</span><span><b data-i18n="lib_liked">Збережене</b><small data-i18n="lib_playlists">Плейлисти</small></span><i>›</i></button>
       <button type="button" onclick="openWrapped()"><span class="pqa-icon">↗</span><span><b data-i18n="pr_wrapped">Мій рік у музиці</b><small data-i18n="pr_stats">Статистика</small></span><i>›</i></button>
@@ -2855,8 +2926,6 @@ function renderProfile(){
     <div class="sect" id="profileStats"><h2 data-i18n="pr_stats">Статистика</h2><div id="statBox"><div class="skel"></div></div>
       <button class="pill" style="margin-top:10px" onclick="openWrapped()">${ICON("gift","sm")}<span data-i18n="pr_wrapped">Мій рік у музиці</span></button>
     </div>
-    ${S.me.is_admin ? `<div class="sect"><h2>Адміністратор</h2>
-      <button class="btn" onclick="openAdmin()">🛠 Відкрити адмін-панель</button></div>` : ""}
 
     <div class="sect"><h2 data-i18n="pr_referral">Запросити друзів</h2>
       <div class="refcard" id="refCard"><div class="skel"></div></div>
@@ -2865,23 +2934,6 @@ function renderProfile(){
     <div class="sect"><h2 data-i18n="pr_devices">Мої пристрої</h2>
       <div style="font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:10px" data-i18n="pr_devices_hint">Передавай музику між відкритими MusicLSP на своїх пристроях</div>
       <button class="btn ghost" id="devicesBtn" data-i18n="devices_manage">Керувати пристроями</button>
-    </div>
-
-    <div class="sect pm-tools"><h2>Premium-студія</h2>
-      <div class="pm-sub">${p?"Налаштуй MusicLSP під себе":"Відкриється з Premium. Авто-підхоплення доступне всім."}</div>
-      <div class="pm-h">Головна сторінка</div>
-      <div class="pm-chips" id="pmHome">${[["albums","Альбоми"],["feature","Підбірки"],["recent","Слухати знову"],["playlists","Плейлисти"],["daily","Щоденний мікс"]].map(([k,n])=>`<button class="fchip ${PREF.home[k]!==0?"on":""}" data-pmh="${k}">${n}</button>`).join("")}</div>
-      <div class="pm-h">Швидкі кнопки в плеєрі (до 3)</div>
-      <div class="pm-chips" id="pmQuick">${[["like","Зберегти"],["playlist","У плейлист"],["radio","Радіо"],["share","Поділитися"],["queue","Черга"],["devices","Пристрої"]].map(([k,n])=>`<button class="fchip ${PREF.quick.includes(k)?"on":""}" data-pmq="${k}">${n}</button>`).join("")}</div>
-      <div class="pm-h">Не показувати виконавців</div>
-      <div class="pm-block"><input id="pmBlockIn" placeholder="Ім’я виконавця" autocomplete="off"><button class="pill" id="pmBlockAdd">Додати</button></div>
-      <div class="pm-chips" id="pmBlockList">${PREF.block.map(x=>`<button class="fchip on" data-pmb="${esc(x)}">${esc(x)} ✕</button>`).join("")}</div>
-      <div class="opt"><div class="lbl"><b>Авто-підхоплення</b><span>Вимкнули MusicLSP на ПК — музика продовжиться тут із тієї ж секунди</span></div>
-        <div class="sw ${S.autoTakeover!==false?"on":""}" id="swTake" role="switch"></div></div>
-      <div class="pm-h">Таймер сну</div>
-      <div class="pm-chips" id="sleepPresets">${[15,30,45,60].map(m=>`<button class="fchip" data-sl="${m}">${m} хв</button>`).join("")}<button class="fchip" data-sl="0">Вимк.</button></div>
-      <div class="opt"><div class="lbl"><b>Експорт «Збереженого»</b><span>Список «Виконавець — Назва» у буфер обміну</span></div>
-        <button class="pill" id="exportLiked">Копіювати</button></div>
     </div>
 
     <div class="sect"><h2 data-i18n="pr_sound">Звук</h2>
@@ -2943,7 +2995,6 @@ function renderProfile(){
         }).join("")}
       </div>
     </div>
-
     <button class="plan-showcase" type="button" onclick="openPlan()">
       <span class="plan-showcase-icon">✦</span><span class="plan-showcase-copy"><small>ТВІЙ ДОСТУП</small><b>${p?"MusicLSP Premium":"MusicLSP Free"}</b><span>${p?"Усі можливості вже відкриті":"Відкрий повний список можливостей"}</span></span><span class="plan-showcase-arrow">↗</span>
     </button>
@@ -3024,28 +3075,6 @@ function bindProfile(){
   };
 
   $("swNight").onclick = () => { tap(); toggleNightQuiet(); };
-  const need=()=>{ if(isPrem()) return true; toast("Доступно в Premium"); return false; };
-  document.querySelectorAll("#pmHome [data-pmh]").forEach(b=>b.onclick=()=>{ if(!need()) return; const k=b.dataset.pmh;
-    PREF.home[k]=PREF.home[k]===0?1:0; b.classList.toggle("on",PREF.home[k]!==0); prefSave(); applyHomePrefs(); tap(); });
-  document.querySelectorAll("#pmQuick [data-pmq]").forEach(b=>b.onclick=()=>{ if(!need()) return; const k=b.dataset.pmq, i=PREF.quick.indexOf(k);
-    if(i>=0) PREF.quick.splice(i,1); else if(PREF.quick.length<3) PREF.quick.push(k); else return toast("Максимум 3 кнопки");
-    b.classList.toggle("on",PREF.quick.includes(k)); prefSave(); applyQuick(); tap(); });
-  if($("pmBlockAdd")) $("pmBlockAdd").onclick=()=>{ if(!need()) return; const v=$("pmBlockIn").value.trim().toLowerCase();
-    if(v.length<2) return toast("Введіть ім’я виконавця"); if(!PREF.block.includes(v)) PREF.block.push(v); prefSave(); renderProfile(); };
-  document.querySelectorAll("#pmBlockList [data-pmb]").forEach(b=>b.onclick=()=>{ PREF.block=PREF.block.filter(x=>x!==b.dataset.pmb); prefSave(); renderProfile(); });
-  if($("swTake")) $("swTake").onclick = () => {
-    S.autoTakeover = !(S.autoTakeover!==false); $("swTake").classList.toggle("on", S.autoTakeover);
-    try{ localStorage.setItem("mlsp_autotake", S.autoTakeover?"1":"0"); }catch(e){} tap();
-  };
-  document.querySelectorAll("#sleepPresets [data-sl]").forEach(b=>b.onclick=()=>{
-    if(!S.me.premium) return toast("Доступно в Premium"); setSleep(+b.dataset.sl); tap();
-  });
-  if($("exportLiked")) $("exportLiked").onclick = async () => {
-    if(!S.me.premium) return toast("Доступно в Premium");
-    await loadLiked(); const txt=likedTracks.map(t=>t.artist+" — "+t.title).join("\n");
-    if(!txt) return toast("Немає збережених треків");
-    try{ await navigator.clipboard.writeText(txt); toast("Скопійовано: "+likedTracks.length+" треків"); }catch(e){ toast("Не вдалося скопіювати"); }
-  };
   if($("swAutoplay")) $("swAutoplay").onclick = () => {
     S.autoplay = !S.autoplay;
     try{ localStorage.setItem("mlsp_autoplay", S.autoplay ? "1" : "0"); }catch(e){}
@@ -3113,7 +3142,7 @@ function setSleep(min){
   clearTimeout(S.sleepTimer); closeModal();
   if(!min){ S.sleepAt = 0; $("sleepBtn").textContent = "Вимкнено"; return toast("Таймер вимкнено"); }
   S.sleepAt = Date.now() + min*60000;
-  $("sleepBtn").textContent = min+" хв";
+  ($("sleepBtn")||{}).textContent = min+" хв";
   S.sleepTimer = setTimeout(()=>{
     let v = cur.volume, t = setInterval(()=>{
       v -= 0.05; cur.volume = Math.max(0, v);
@@ -3427,7 +3456,7 @@ $("admTabs").querySelectorAll(".tab").forEach(b => b.onclick = () => { tap(); ad
 function admTab(t){
   ADM.tab = t; clearInterval(ADM.bcTimer);
   $("admTabs").querySelectorAll(".tab").forEach(x => x.classList.toggle("on", x.dataset.t===t));
-  ({ov:admOverview, users:admUsers, reports:admReports, promo:admPromo, bc:admBroadcast, log:admLog})[t]();
+  ({ov:admOverview, users:admUsers, reports:admReports, promo:admPromo, bc:admBroadcast, sys:admSystem, log:admLog})[t]();
 }
 
 async function admOverview(){
@@ -3443,6 +3472,33 @@ async function admOverview(){
     <h3>Нові користувачі · 14 днів</h3>
     <div class="admBars">${d.signups.map(([day,n])=>`<i title="${esc(day)}: ${n}" style="height:${Math.max(4,n/mx*100)}%"></i>`).join("")||"<span style='color:var(--muted);font-size:13px'>Поки немає даних</span>"}</div>
     <div style="font-size:12.5px;color:var(--muted)">База: ${esc(s.engine)}<br>Плейлистів: ${s.playlists}</div>`;
+
+  const x=d.extra||{}, li=(arr,f)=>(arr||[]).map(f).join("")||"<span style='color:var(--muted);font-size:13px'>немає даних</span>";
+  $("admBody").insertAdjacentHTML("beforeend",`
+    <h3>Активність</h3>
+    <div class="admGrid">
+      <div class="admStat"><b>${x.new_24h??0}</b><span>нових за 24 год</span></div>
+      <div class="admStat"><b>${x.new_7d??0}</b><span>нових за 7 днів</span></div>
+      <div class="admStat"><b>${x.active_24h??0}</b><span>активних за 24 год</span></div>
+      <div class="admStat"><b>${x.active_7d??0}</b><span>активних за 7 днів</span></div>
+      <div class="admStat"><b>${x.plays_24h??0}</b><span>прослуховувань за 24 год</span></div>
+      <div class="admStat"><b>${x.expiring??0}</b><span>Premium спливає за 7 днів</span></div>
+    </div>
+    <h3>Топ треків (7 днів)</h3>${li(x.top_tracks,r=>`<div class="admRow"><div class="m"><b>${esc(r[0])}</b><span>${esc(r[1])}</span></div><span class="admBadge">${r[2]}</span></div>`)}
+    <h3>Топ виконавців</h3>${li(x.top_artists,r=>`<div class="admRow"><div class="m"><b>${esc(r[0])}</b></div><span class="admBadge">${r[1]}</span></div>`)}
+    <h3>Джерела прослуховувань</h3>${li(x.sources,r=>`<div class="admRow"><div class="m"><b>${esc(r[0])}</b></div><span class="admBadge">${r[1]}</span></div>`)}`);
+}
+
+async function admSystem(){
+  const d = await admCall(() => get("/api/admin/system")); if(!d) return;
+  const dot=on=>`<span class="admBadge ${on?"pro":""}">${on?"працює":"вимк."}</span>`;
+  const up=sec=>Math.floor(sec/3600)+" год "+Math.floor(sec%3600/60)+" хв";
+  $("admBody").innerHTML=`<h3>Джерела музики</h3>`+Object.entries(d.providers).map(([k,v])=>
+    `<div class="admRow"><div class="m"><b>${esc(k)}</b><span>${v?"підключено":"немає ключа або вимкнено"}</span></div>${dot(v)}</div>`).join("")+
+   `<h3>Connect</h3><div class="admGrid"><div class="admStat"><b>${d.connect.accounts}</b><span>акаунтів онлайн</span></div>
+      <div class="admStat"><b>${d.connect.devices}</b><span>пристроїв</span></div></div>
+    <h3>Сервер</h3><div style="font-size:12.5px;color:var(--muted);line-height:1.8">Версія: ${esc(String(d.version))}<br>Аптайм: ${up(d.uptime)}<br>Python: ${esc(d.python)}<br>База: ${esc(d.engine)}<br>WEB_APP_URL: ${d.env.web_app_url?"✓":"✗"} · API_URL: ${d.env.api_url?"✓":"✗"}</div>
+    <button class="btn ghost" style="margin-top:12px" onclick="admSystem()">Оновити</button>`;
 }
 
 async function admUsers(){
