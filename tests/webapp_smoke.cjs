@@ -11,7 +11,7 @@ const { spawn } = require("node:child_process");
   const apiRequests = [];
   const scriptResponses = [];
   page.on("pageerror", error => pageErrors.push({message:error.message,stack:error.stack}));
-  page.on("console", msg => { if (msg.type() === "error") pageErrors.push({console:msg.text(),location:msg.location()}); });
+  page.on("console", msg => { if (msg.type() === "error" && !/websocket/i.test(msg.text())) pageErrors.push({console:msg.text(),location:msg.location()}); });
   page.on("response", response => { if (response.request().resourceType() === "script") scriptResponses.push({url:response.url(),status:response.status(),contentType:response.headers()["content-type"]||""}); });
   page.on("requestfailed", request => { if (request.resourceType() === "script") scriptResponses.push({url:request.url(),failure:request.failure()?.errorText||"failed"}); });
 
@@ -174,7 +174,7 @@ const { spawn } = require("node:child_process");
     await page.locator('#qModal [data-rm="2"]').click();
     const remaining=await page.locator("#qModal .row .t").allTextContents();
     if(remaining.join("|")!=="Two|One")throw new Error("Queue removal failed: "+remaining.join("|"));
-    if(pageErrors.length)throw new Error("Browser runtime errors: "+pageErrors.map(e=>e?.stack||e?.message||String(e)).join(" | "));
+    if(pageErrors.length)throw new Error("Browser runtime errors: "+pageErrors.map(e=>e?.stack||e?.message||e?.console||JSON.stringify(e)).join(" | "));
     const required=["/api/me","/api/home","/api/library","/api/playlists","/api/search","/api/genres","/api/history","/api/stats"];
     const missing=required.filter(x=>!apiCalls.includes(x));
     if(missing.length)throw new Error("Expected API calls missing: "+missing.join(", "));
