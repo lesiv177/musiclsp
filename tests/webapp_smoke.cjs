@@ -161,7 +161,7 @@ const { spawn } = require("node:child_process");
     if (new Set(Object.values(themeSamples).map(x=>x.panel)).size !== 5)
       throw new Error("V3 panel did not change across all account themes: "+JSON.stringify(themeSamples));
 
-    await page.evaluate(() => openDevices());
+    await page.evaluate(() => { window.cnWake = () => {}; openDevices(); });
     await page.waitForSelector("#devicesList",{timeout:5000});
     await page.locator("#modal").evaluate(el=>el.classList.remove("on"));
     for(const id of ["barRemote","devicesList","barOutput"])if(!(await page.locator("#"+id).count()))throw new Error("Connect control missing: "+id);
@@ -174,7 +174,7 @@ const { spawn } = require("node:child_process");
     await page.locator('#qModal [data-rm="2"]').click();
     const remaining=await page.locator("#qModal .row .t").allTextContents();
     if(remaining.join("|")!=="Two|One")throw new Error("Queue removal failed: "+remaining.join("|"));
-    if(pageErrors.length)throw new Error("Browser runtime errors: "+pageErrors.join(" | "));
+    if(pageErrors.length)throw new Error("Browser runtime errors: "+pageErrors.map(e=>e?.stack||e?.message||String(e)).join(" | "));
     const required=["/api/me","/api/home","/api/library","/api/playlists","/api/search","/api/genres","/api/history","/api/stats"];
     const missing=required.filter(x=>!apiCalls.includes(x));
     if(missing.length)throw new Error("Expected API calls missing: "+missing.join(", "));
