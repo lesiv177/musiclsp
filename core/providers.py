@@ -797,7 +797,8 @@ def _ccm_from_xml(xml_text, limit):
             "stream": audio_url,
             "downloadable": True,
             "download_url": audio_url,
-        })    return out
+        })
+    return out
 
 
 def ccmixter_search(query, limit=15):
