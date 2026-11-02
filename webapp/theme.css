@@ -64,3 +64,105 @@ html,body{background:var(--mx-bg)!important;color:var(--mx-text)}
   .screen{max-width:1180px;padding:16px 4px 8px}
   .top.app-top{max-width:1180px}
 }
+
+/* ══ v2: віджети Connect, футбар, плеєр, альбом ══ */
+.modal .box{background:linear-gradient(180deg,#221044,#120a26)!important;border:1px solid var(--mx-line)!important;
+  border-radius:28px!important;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.spotify-connect-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.spotify-connect-head span{font:700 21px "Space Grotesk",sans-serif;color:#fff!important}
+.connect-close{width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.1)!important;color:#fff}
+.cn-sec{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--mx-muted);margin:16px 4px 8px}
+.cn-dev{display:flex;align-items:center;gap:14px;width:100%;padding:12px 14px;margin-bottom:8px;text-align:left;
+  background:rgba(255,255,255,.06)!important;border:1px solid var(--mx-line)!important;border-radius:18px;color:#fff;
+  transition:transform .15s,background .2s}
+.cn-dev:active{transform:scale(.98)}
+.cn-dev .cn-ic{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;
+  background:rgba(255,255,255,.1)!important;color:#fff}
+.cn-dev .cn-ic svg{width:24px;height:24px}
+.cn-dev .cn-meta{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.cn-dev .cn-meta b{font-size:15.5px;font-weight:600}
+.cn-dev .cn-meta em{font-style:normal;font-size:12.5px;color:var(--mx-muted);display:flex;align-items:center;gap:6px}
+.cn-dev.active{background:linear-gradient(135deg,rgba(124,58,237,.55),rgba(34,211,238,.28))!important;
+  border-color:rgba(167,139,250,.7)!important;box-shadow:0 8px 28px rgba(124,58,237,.35)}
+.cn-dev.active .cn-ic{background:rgba(255,255,255,.2)!important}
+.cn-dev.active .cn-meta em{color:#e9ddff}
+.cn-dev.busy{opacity:.8}
+.cn-off,.cn-hint{padding:14px;border-radius:16px;background:rgba(255,255,255,.04);color:var(--mx-muted);font-size:13px;line-height:1.5}
+.cn-vol{margin-top:12px;padding:14px;border-radius:18px;background:rgba(255,255,255,.06);border:1px solid var(--mx-line)}
+.cn-vol span{display:block;font-size:13px;color:var(--mx-muted);margin-bottom:10px}
+.cn-vol input[type=range],#npSeek,#cfRange{accent-color:#a78bfa}
+.cn-tap{backdrop-filter:blur(14px);background:rgba(8,4,18,.7)!important}
+.cn-tap-card{background:linear-gradient(180deg,#2a1358,#150b2e)!important;border:1px solid var(--mx-line);border-radius:28px!important}
+.bar-output{color:#c4b5fd!important;font-size:11.5px}
+
+/* футбар: [обкладинка][назва] … [пристрої][▶][⏭] */
+.bar{align-items:center;gap:10px;padding:8px 12px!important;border-radius:22px!important;border:1px solid var(--mx-line)!important}
+.bar #barShuffle,.bar #barPrev,.bar #barRepeat{display:none!important}
+.bar .art{width:46px!important;height:46px!important;border-radius:12px!important;flex:0 0 auto}
+.bar .meta{flex:1;min-width:0;order:1}
+.bar .meta .t{font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .meta .s{font-size:12.5px;color:var(--mx-muted)}
+.bar #barRemote{order:2}.bar #barPlay{order:3}.bar #barNext{order:4}
+.bar .iconbtn{width:40px;height:40px}
+.bar .iconbtn.main{width:46px!important;height:46px!important;background:#fff!important;color:#140a28!important;
+  border-radius:50%;box-shadow:0 6px 18px rgba(124,58,237,.45)}
+
+/* повний плеєр */
+.sheet .tt{font:700 24px "Space Grotesk",sans-serif;text-align:center;line-height:1.2}
+.sheet .aa{text-align:center;color:var(--mx-muted);font-size:16px}
+.sheet .controls{display:flex;align-items:center;justify-content:space-between;max-width:420px;margin:18px auto}
+.sheet .iconbtn.main.big{width:76px;height:76px;background:#fff!important;color:#140a28!important;border-radius:50%;
+  box-shadow:0 10px 30px rgba(124,58,237,.5)}
+.sheetacts{display:grid!important;grid-template-columns:repeat(4,1fr);gap:10px;max-width:460px;margin:14px auto 28px;padding:0 6px}
+.sheetacts .pill{display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  height:74px;padding:6px 4px!important;border-radius:18px!important;font-size:11.5px;text-align:center;line-height:1.15;
+  background:rgba(255,255,255,.06)!important;border:1px solid var(--mx-line)!important}
+.sheetacts .pill .icon{width:22px;height:22px}
+
+/* сторінка альбому / артиста */
+.coll-hero{display:flex;gap:16px;align-items:flex-end;margin:6px 0 14px}
+.coll-cover{width:132px;height:132px;border-radius:18px;object-fit:cover;box-shadow:0 14px 34px rgba(0,0,0,.5);flex:0 0 auto}
+.coll-kind{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:#c4b5fd}
+.coll-info h2{font:700 24px "Space Grotesk",sans-serif;margin:4px 0;line-height:1.15}
+.coll-by{color:#fff;opacity:.9;font-size:15px}.coll-meta{color:var(--mx-muted);font-size:12.5px;margin-top:4px}
+.coll-actions{display:flex;gap:10px;margin-bottom:12px}.coll-actions .btn{flex:1}
+
+/* профіль */
+.pm-tools{padding:16px;border-radius:22px;border:1px solid rgba(167,139,250,.35);
+  background:linear-gradient(135deg,rgba(124,58,237,.22),rgba(34,211,238,.08))}
+.pm-tools .opt .lbl span{color:var(--mx-muted)}
+.sect>h2{font:700 21px "Space Grotesk",sans-serif}
+@media (min-width:900px){.bar{left:calc(var(--mx-side) + 16px)!important;right:16px!important;bottom:14px!important;width:auto!important}}
+
+/* ══ v3: головна як у зразку + YouTube embed ══ */
+.welcome-wave,.home-greeting-sub{display:none!important}
+.welcome-block{padding:4px 0 8px!important;min-height:0!important;background:none!important}
+.welcome-copy h1{font:700 26px "Space Grotesk",sans-serif!important;margin:2px 0 10px!important}
+.welcome-kicker{font-size:11px;letter-spacing:.16em;color:#c4b5fd}
+.home-category-row{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:4px 0 12px}
+.home-category-row::-webkit-scrollbar{display:none}
+.home-category{flex:0 0 auto;padding:8px 16px;border-radius:999px;border:1px solid var(--mx-line);
+  background:var(--mx-card);color:#fff}
+.home-category.on{background:#fff;color:#120a22;border-color:#fff}
+.section-head h2{font:700 22px "Space Grotesk",sans-serif!important}
+.home-feature-grid,.home-user-playlists{display:flex!important;gap:12px;overflow-x:auto;scroll-snap-type:x proximity;
+  scrollbar-width:none;padding:4px 2px 10px;grid-template-columns:none!important}
+.home-feature-grid::-webkit-scrollbar,.home-user-playlists::-webkit-scrollbar{display:none}
+.home-feature-card{flex:0 0 158px!important;width:158px!important;height:196px!important;scroll-snap-align:start;
+  position:relative;overflow:hidden;padding:0!important}
+.home-feature-card .feature-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.home-user-playlist{flex:0 0 150px;scroll-snap-align:start}
+[data-home-section="recent"] .rows{display:flex;gap:12px;overflow-x:auto;scrollbar-width:none;padding-bottom:8px}
+[data-home-section="recent"] .rows::-webkit-scrollbar{display:none}
+[data-home-section="recent"] .row{flex:0 0 150px;flex-direction:column;align-items:flex-start;gap:8px;padding:10px;
+  border:1px solid var(--mx-line);border-radius:20px;background:var(--mx-card)}
+[data-home-section="recent"] .row .art{width:100%!important;height:auto!important;aspect-ratio:1;border-radius:14px}
+[data-home-section="recent"] .row .act,[data-home-section="recent"] .row .qact{display:none}
+[data-home-section="recent"] .row .meta{width:100%}
+@media (min-width:900px){.home-feature-card{flex-basis:190px!important;width:190px!important;height:230px!important}}
+
+.yt-head{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}
+.yt-head b{font:700 18px "Space Grotesk",sans-serif}.yt-head span{color:var(--mx-muted);font-size:13px}
+.yt-frame{position:relative;aspect-ratio:16/9;border-radius:18px;overflow:hidden;background:#000;margin-bottom:12px}
+.yt-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.yt-note{margin-top:10px;font-size:12px;color:var(--mx-muted);line-height:1.5}

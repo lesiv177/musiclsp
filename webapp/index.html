@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="./ui-polish.css?v=2">
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
   <link rel="stylesheet" href="./v3.css?v=1">
-  <link rel="stylesheet" href="./theme.css?v=1">
+  <link rel="stylesheet" href="./theme.css?v=4">
   <script defer src="./v3.js?v=1"></script>
 </head>
 <body>
@@ -49,7 +49,6 @@
     </div>
     <div class="spacer"></div>
     <button class="chip plan-chip" id="planChip" type="button" onclick="openPlan()">Free</button>
-    <button class="chip device-chip" id="deviceChip" onclick="openDevices()" aria-label="Керування пристроями"><span data-icon="devices"></span></button>
   </header>
 
   <!-- HOME -->
@@ -179,7 +178,7 @@
     <button class="pill" onclick="shareCurrentTrack()"><span data-icon="share"></span>Поділитися</button>
     <button class="pill" onclick="downloadCurrent()"><span data-icon="download"></span>MP3</button>
     <button class="pill" onclick="openQueue()"><span data-icon="queue"></span>Черга</button>
-    <button class="pill" onclick="openDevices()"><span data-icon="queue"></span><span data-i18n="pr_devices">Мої пристрої</span></button>
+    <button class="pill" onclick="openDevices()"><span data-icon="devices"></span><span data-i18n="pr_devices">Мої пристрої</span></button>
     <button class="pill" onclick="closeSheet()"><span data-icon="close"></span>Згорнути</button>
   </div>
 </div>
@@ -798,6 +797,7 @@ function paintStaticIcons(root){
     el.innerHTML = ICON(el.dataset.icon, el.dataset.size || '');
   });
 }
+
 const A = new Audio();            // основний елемент
 const B = new Audio();            // допоміжний для кросфейду
 [A,B].forEach(el => { el.preload = "auto"; el.volume = 1; });
@@ -997,8 +997,7 @@ function rowsHtml(list, ctxKey){
            onerror="this.style.visibility='hidden'">
       <div class="meta">
         <div class="t">${esc(t.title)}</div>
-        <div class="s">${t.artist_id?("<button class=\"artist-link\" type=\"button\" data-artist-id=\""+esc(t.artist_id)+"\" data-artist-name=\""+esc(t.artist)+"\">"+esc(t.artist)+"</button>"):esc(t.artist)}${t.duration_str?" · "+esc(t.duration_str):""}</div>
-      </div>
+        <div class="s">${t.artist_id?("<button class=\"artist-link\" type=\"button\" data-artist-id=\""+esc(t.artist_id)+"\" data-artist-name=\""+esc(t.artist)+"\">"+esc(t.artist)+"</button>"):esc(t.artist)}${t.duration_str?" · "+esc(t.duration_str):""}</div>      </div>
       <button class="act" data-menu="${i}">${ICON("kebab")}</button>
     </div>`).join("") + `</div>`;
 }
@@ -1594,9 +1593,8 @@ function renderAllResults(r){
       const path = c.dataset.ctx === "all_albums" ? "/api/album/" : "/api/artist/";
       try{
         const d = await get(path + encodeURIComponent(x.id));
-        go("Search"); $("qBody").innerHTML = `<div class="sect"><h2>${esc(x.title||x.name)}</h2></div>`;
-        const wrap = document.createElement("div"); $("qBody").appendChild(wrap);
-        mountRows(wrap, d.tracks, "coll_tracks");      }catch(e){ toast(e.message); }
+        go("Search"); showCollection(x, d, c.dataset.ctx==="all_albums"?"album":"artist");
+      }catch(e){ toast(e.message); }
     };
   });
 }
@@ -1629,9 +1627,25 @@ function renderCollections(list, kind){
     try{
       const path = kind==="albums" ? "/api/album/" : "/api/artist/";
       const d = await get(path + encodeURIComponent(x.id));
-      mountRows($("qBody"), d.tracks, "coll_tracks");
+      showCollection(x, d, kind==="albums"?"album":"artist");
     }catch(e){ toast(e.message); }
   });
+}
+
+function showCollection(x, d, kind){
+  const tr=d.tracks||[], al=d.album||{}, total=tr.reduce((s,t)=>s+(+t.duration||0),0);
+  const cover=x.cover||al.cover||(tr[0]&&tr[0].cover)||"", title=x.title||x.name||al.title||"";
+  const by=kind==="album"?(x.artist||al.artist||""):"Артист", yr=String(al.release_date||x.release_date||"").slice(0,4);
+  const src=(tr[0]&&tr[0].source_label)||"";
+  const meta=[tr.length+" трек.", total?Math.max(1,Math.round(total/60))+" хв":"", yr, src].filter(Boolean).join(" · ");
+  $("qBody").innerHTML=`<div class="coll-hero"><img class="coll-cover" src="${esc(cover)}" alt="" onerror="this.style.visibility='hidden'">
+    <div class="coll-info"><div class="coll-kind">${kind==="album"?"Альбом":"Артист"}</div><h2>${esc(title)}</h2>
+    <div class="coll-by">${esc(by)}</div><div class="coll-meta">${esc(meta)}</div></div></div>
+    <div class="coll-actions"><button class="btn" id="collPlay">▶ Слухати</button><button class="btn ghost" id="collShuffle">Перемішати</button></div>
+    <div id="collRows"></div>`;
+  mountRows($("collRows"), tr, "coll_tracks");
+  $("collPlay").onclick=()=>{ if(tr.length) setQueue(tr,0); };
+  $("collShuffle").onclick=()=>{ if(tr.length) setQueue(tr.slice().sort(()=>Math.random()-.5),0); };
 }
 
 /* ════════ Бібліотека ════════ */
@@ -1806,6 +1820,7 @@ async function createPlaylist(){
      лише тоді попередній замовкає — музика не обривається при невдачі.
    • Локальний запуск треку завжди забирає відтворення на себе (claim).
    ════════════════════════════════════════════════════════════════════════════ */
+try{ S.autoTakeover = localStorage.getItem("mlsp_autotake")!=="0"; }catch(e){ S.autoTakeover=true; }
 const CN = {
   id:"", started:false, ws:null, ready:false, retry:1000, retryTimer:null, pingTimer:null,
   devices:[], owner:"", state:null, stateAt:0, transfer:"",
@@ -1951,6 +1966,7 @@ function cnOnMessage(m){
   if(m.type==="error") return cnError(m);
 }
 function cnApplySnapshot(m){
+  const wasRemote=CN.remote(), prevPlaying=!!(CN.state&&CN.state.playing);
   CN.devices=m.devices||[]; CN.owner=m.owner||""; CN.transfer=m.transfer||"";
   CN.state=m.state||null; CN.stateAt=Date.now();
   const mine=CN.owner===CN.id;
@@ -1961,7 +1977,13 @@ function cnApplySnapshot(m){
     else if(!CN.owner){ claimLocalPlayback(); }                                 // втратили зʼєднання — забираємо назад
   }
   if(CN.remote()) cnAdoptRemote();
-  else if(!CN.owner && CN.state && !current()) cnAdoptLastSession();
+  else if(!CN.owner && CN.state && CN.state.track){
+    // активний пристрій зник (вийшов із бота): лишаємось із тим самим треком і секундою
+    if(!current() || wasRemote) cnAdoptLastSession();
+    if(wasRemote && prevPlaying && S.autoTakeover!==false){
+      setTimeout(()=>{ try{ if(RESUME.pending && !CN.owner) startPending(); }catch(e){} },350);
+    }
+  }
   cnRender();
 }
 /* Пульт: дзеркалимо чергу й трек активного пристрою. */
@@ -1974,8 +1996,7 @@ function cnAdoptRemote(){
 }
 /* Активного пристрою немає, але є остання сесія — показуємо її й даємо продовжити тут. */
 function cnAdoptLastSession(){
-  const st=CN.state; if(!st||!st.track) return;
-  S.queue=(st.queue&&st.queue.length?st.queue:[st.track]).slice();
+  const st=CN.state; if(!st||!st.track) return;  S.queue=(st.queue&&st.queue.length?st.queue:[st.track]).slice();
   S.index=Math.max(0,Math.min(S.queue.length-1,st.index||0));
   RESUME.pending={t:st.position||0};
   CN.paintedId=st.track.id; paint(st.track); S.playing=false; paintPlayState();
@@ -2230,8 +2251,18 @@ function nightCap(base){
 
 let fadeTimer = null;
 let fadeInProgress = false;
+function openYouTube(t){
+  try{ cur.pause(); S.playing=false; paintPlayState(); }catch(e){}
+  const id=String(t.id).replace(/^yt:/,"");
+  showModal(`<div class="yt-head"><b>${esc(t.title)}</b><span>${esc(t.artist)}</span></div>
+    <div class="yt-frame"><iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&playsinline=1&rel=0"
+      allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>
+    <a class="btn" href="https://music.youtube.com/watch?v=${encodeURIComponent(id)}" target="_blank" rel="noopener">Відкрити в YouTube Music</a>
+    <div class="yt-note">Грає офіційний плеєр YouTube: у фоні не працює, а Connect цим треком не керує.</div>`);
+}
 function play(t, startAt){
   if(!t) return Promise.resolve(false);
+  if(t.source==="youtube"){ openYouTube(t); return Promise.resolve(false); }
   if(CN.remote() && !CN.bypass){
     /* Пульт: самі не граємо — просимо активний пристрій зіграти цю чергу. */
     const w=cnWindow();
@@ -2395,7 +2426,8 @@ function prevTrack(){
     const dx = e.touches[0].clientX - sx, dy = e.touches[0].clientY - sy;
     if(Math.abs(dx) > Math.abs(dy)){
       el.style.transform = `translateX(${dx*0.6}px) rotate(${dx*0.025}deg)`;
-      el.style.opacity = String(Math.max(0.35, 1 - Math.abs(dx)/280));    }
+      el.style.opacity = String(Math.max(0.35, 1 - Math.abs(dx)/280));
+    }
   }, {passive:true});
   el.addEventListener("touchend", e => {
     if(!dragging) return;
@@ -2780,6 +2812,15 @@ function renderProfile(){
       <button class="btn ghost" id="devicesBtn" data-i18n="devices_manage">Керувати пристроями</button>
     </div>
 
+    <div class="sect pm-tools"><h2>Premium-інструменти</h2>
+      <div class="opt"><div class="lbl"><b>Авто-підхоплення</b><span>Вимкнули MusicLSP на ПК — музика продовжиться тут із тієї ж секунди</span></div>
+        <div class="sw ${S.autoTakeover!==false?"on":""}" id="swTake" role="switch"></div></div>
+      <div class="opt"><div class="lbl"><b>Таймер сну</b><span>${p?"Музика сама вимкнеться":"Доступно в Premium"}</span></div></div>
+      <div class="frow" id="sleepPresets">${[15,30,45,60].map(m=>`<button class="fchip" data-sl="${m}">${m} хв</button>`).join("")}<button class="fchip" data-sl="0">Вимк.</button></div>
+      <div class="opt"><div class="lbl"><b>Експорт «Збереженого»</b><span>${p?"Список «Виконавець — Назва» у буфер обміну":"Доступно в Premium"}</span></div>
+        <button class="pill" id="exportLiked">Копіювати</button></div>
+    </div>
+
     <div class="sect"><h2 data-i18n="pr_sound">Звук</h2>
       <div class="opt"><div class="lbl"><b data-i18n="pr_eq">Еквалайзер</b>
         <span data-i18n="${p?"pr_eq_on":"pr_eq_off"}">${p?"10 смуг із пресетами":"Доступно у Premium"}</span></div>
@@ -2920,6 +2961,19 @@ function bindProfile(){
   };
 
   $("swNight").onclick = () => { tap(); toggleNightQuiet(); };
+  if($("swTake")) $("swTake").onclick = () => {
+    S.autoTakeover = !(S.autoTakeover!==false); $("swTake").classList.toggle("on", S.autoTakeover);
+    try{ localStorage.setItem("mlsp_autotake", S.autoTakeover?"1":"0"); }catch(e){} tap();
+  };
+  document.querySelectorAll("#sleepPresets [data-sl]").forEach(b=>b.onclick=()=>{
+    if(!S.me.premium) return toast("Доступно в Premium"); setSleep(+b.dataset.sl); tap();
+  });
+  if($("exportLiked")) $("exportLiked").onclick = async () => {
+    if(!S.me.premium) return toast("Доступно в Premium");
+    await loadLiked(); const txt=likedTracks.map(t=>t.artist+" — "+t.title).join("\n");
+    if(!txt) return toast("Немає збережених треків");
+    try{ await navigator.clipboard.writeText(txt); toast("Скопійовано: "+likedTracks.length+" треків"); }catch(e){ toast("Не вдалося скопіювати"); }
+  };
   if($("swAutoplay")) $("swAutoplay").onclick = () => {
     S.autoplay = !S.autoplay;
     try{ localStorage.setItem("mlsp_autoplay", S.autoplay ? "1" : "0"); }catch(e){}
@@ -2942,7 +2996,6 @@ function bindProfile(){
     if(!S.dataSaver) prefetchNext();
     tap();
   };
-
   $("themeRow").querySelectorAll(".swatch").forEach(b => b.onclick = async () => {
     const t = b.dataset.theme;
     try{
@@ -3194,7 +3247,8 @@ function showPlanTier(tier){
   showModal(`
     <div class="plan-modal-head"><button class="plan-back" onclick="openPlan()">← Усі тарифи</button><div class="explore-kicker">${premium?"ПОВНИЙ ДОСТУП":"БЕЗКОШТОВНИЙ ПЛАН"}</div><h2>${premium?"✦ Premium":"Free"}</h2><p>${premium?"Усі можливості для комфортного прослуховування.":"Базові функції MusicLSP без оплати — щоб слухати, шукати й збирати свою музику."}</p></div>
     <div class="plan-detail-list">${rows.map(([title,desc],i)=>`<div class="plan-detail-row"><span>${["♫","⌕","♡","✦","▣","◉"][i%6]}</span><div><b>${esc(title)}</b><small>${esc(desc)}</small></div><i>✓</i></div>`).join("")}</div>
-    ${!premium&&limit?'<p class="plan-limit">Ліміт плейлистів у твоєму плані: '+esc(String(limit))+'</p>':""}    ${premium&&!S.me?.premium?'<button class="btn plan-promo" onclick="openPromo()">Ввести промокод</button>':""}
+    ${!premium&&limit?'<p class="plan-limit">Ліміт плейлистів у твоєму плані: '+esc(String(limit))+'</p>':""}
+    ${premium&&!S.me?.premium?'<button class="btn plan-promo" onclick="openPromo()">Ввести промокод</button>':""}
     <div class="plan-switch"><button onclick="showPlanTier('free')" class="${!premium?'active':''}">Free</button><button onclick="showPlanTier('premium')" class="${premium?'active':''}">Premium</button></div>`);
 }
 

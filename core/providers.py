@@ -31,7 +31,7 @@ from core.config import (
     JAMENDO_CLIENT_ID, JAMENDO_API,
     AUDIUS_APP_NAME, AUDIUS_BOOTSTRAP,
     ARCHIVE_ENABLED, HTTP_TIMEOUT, USER_AGENT,
-    SOUNDCLOUD_CLIENT_ID, SOUNDCLOUD_CLIENT_SECRET,
+    SOUNDCLOUD_CLIENT_ID, SOUNDCLOUD_CLIENT_SECRET, YOUTUBE_API_KEY,
 )
 
 logger = logging.getLogger(__name__)
@@ -997,8 +997,7 @@ def wikimedia_search(query, limit=15):
             "action": "query", "format": "json",
             "generator": "search", "gsrsearch": f"filetype:audio {query}",
             "gsrnamespace": 6, "gsrlimit": min(limit * 2, 40),
-            "prop": "imageinfo", "iiprop": "url|mime|extmetadata",
-        })
+            "prop": "imageinfo", "iiprop": "url|mime|extmetadata",        })
     except Exception as e:
         logger.warning("Wikimedia Commons запит не вдався: %s", e)
         return []
@@ -1141,6 +1140,50 @@ def soundcloud_track(raw):
         return None
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  YouTube Music — ЛИШЕ каталог (офіційний Data API). Звук не проксується:
+#  клієнт грає трек через офіційний embed-плеєр YouTube.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def youtube_enabled():
+    return bool(YOUTUBE_API_KEY)
+
+
+def youtube_search(query, limit=8):
+    if not youtube_enabled():
+        return []
+    try:
+        r = _http_session().get("https://www.googleapis.com/youtube/v3/search", timeout=HTTP_TIMEOUT, params={
+            "part": "snippet", "type": "video", "videoCategoryId": "10", "videoEmbeddable": "true",
+            "maxResults": max(1, min(int(limit), 15)), "q": query, "key": YOUTUBE_API_KEY})
+        if r.status_code != 200:
+            logger.warning("YouTube search -> %s", r.status_code)
+            return []
+        out = []
+        for it in r.json().get("items", []):
+            vid = (it.get("id") or {}).get("videoId")
+            sn = it.get("snippet") or {}
+            if not vid:
+                continue
+            th = sn.get("thumbnails") or {}
+            cover = (th.get("high") or th.get("medium") or th.get("default") or {}).get("url", "")
+            out.append({
+                "id": f"yt:{vid}", "title": sn.get("title") or "Без назви",
+                "artist": (sn.get("channelTitle") or "").replace(" - Topic", ""),
+                "artist_id": "", "album": "", "album_id": "", "cover": cover,
+                "duration": 0, "duration_str": "",
+                "source": "youtube", "source_label": "YouTube Music",
+                "source_url": f"https://music.youtube.com/watch?v={vid}",
+                "license": "YouTube (офіційний плеєр)", "license_short": "YouTube",
+                "stream": "", "downloadable": False, "download_url": "", "embed_only": True,
+            })
+        return out
+    except Exception as e:
+        logger.warning("YouTube search failed: %s", e)
+        return []
+
+
+
 def split_id(full_id):
     """'jam:123' -> ('jam', '123')"""
     if not full_id or ":" not in full_id:
@@ -1185,10 +1228,14 @@ def search_tracks(query, limit=30, quality="mp32", sources=None, sort="relevance
     Тепер типово шукаємо по всіх шести джерелах відразу (додано Wikimedia
     Commons напряму — Openverse і так частково тягне звідти, але напряму
     дістаємо більше й точніше фільтруємо)."""
-    sources = [s for s in (sources or ["jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia"]) if s != "soundcloud"]
+    yt_on = youtube_enabled() and (not sources or "youtube" in sources)
+    sc_on = soundcloud_enabled() and (not sources or "soundcloud" in sources)
+    sources = [s for s in (sources or ["jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia"]) if s not in ("soundcloud", "youtube")]
     # Джерела опитуємо ПАРАЛЕЛЬНО (раніше — по черзі, і найповільніше гальмувало всіх).
     # Порядок результатів лишається детермінованим: jamendo, audius, archive, …
     jobs = []
+    if sc_on:                       # SoundCloud — основне джерело
+        jobs.append(lambda: soundcloud_search(query, limit=limit))
     # SoundCloud вимкнено: пошук працює лише з джерелами, які підтримуємо.
     if "jamendo" in sources:
         jobs.append(lambda: jamendo_search_tracks(query, limit=limit, audioformat=quality, sort=sort))
@@ -1202,7 +1249,11 @@ def search_tracks(query, limit=30, quality="mp32", sources=None, sort="relevance
         jobs.append(lambda: openverse_search(query, limit=10))
     if "wikimedia" in sources:
         jobs.append(lambda: wikimedia_search(query, limit=10))
-    results = _run_parallel(jobs, timeout=4)
+    if yt_on:                       # YouTube — лише каталог, в кінці списку
+        jobs.append(lambda: youtube_search(query, limit=8))
+    results = _run_parallel(jobs, timeout=5)
+    _rank = {"soundcloud": 0, "youtube": 2}
+    results = sorted(results, key=lambda t: _rank.get(t.get("source"), 1))   # SC першим, YouTube останнім
 
     seen, out = set(), []
     for t in results:

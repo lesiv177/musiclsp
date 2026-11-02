@@ -68,6 +68,8 @@ ARCHIVE_ENABLED = _env("ARCHIVE_ENABLED", "1") == "1"
 # SoundCloud — офіційне API; працює лише з ключами зареєстрованого застосунку
 SOUNDCLOUD_CLIENT_ID = _env("SOUNDCLOUD_CLIENT_ID")
 SOUNDCLOUD_CLIENT_SECRET = _env("SOUNDCLOUD_CLIENT_SECRET")
+# YouTube Data API v3 (офіційний, безкоштовна квота) — лише каталог + офіційний embed-плеєр
+YOUTUBE_API_KEY = _env("YOUTUBE_API_KEY")
 
 HTTP_TIMEOUT = 12
 USER_AGENT = f"{APP_NAME}/{APP_VERSION}"
