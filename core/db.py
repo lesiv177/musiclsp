@@ -11,6 +11,7 @@ import string
 import logging
 import sqlite3
 import datetime
+import re
 from contextlib import contextmanager
 
 from core.config import (
@@ -1042,25 +1043,40 @@ def all_user_ids():
 
 # ─── Промокоди ───────────────────────────────────────────────────────────────
 
+PROMO_CODE_RE = re.compile(r"^[A-Z0-9_-]{3,32}$")
+
+
 def promo_create(code, days=30, uses=1):
+    code = str(code or "").strip().upper()
+    days, uses = int(days), int(uses)
+    if not PROMO_CODE_RE.fullmatch(code):
+        raise ValueError("Промокод має містити 3–32 символи: A–Z, 0–9, _ або -")
+    if not 1 <= days <= 3650 or not 1 <= uses <= 100000:
+        raise ValueError("Некоректний термін або кількість активацій")
     with conn_cursor() as (conn, cur):
         cur.execute(q("INSERT INTO promo_codes (code,days,uses_left,created_at) "
-                      "VALUES (%s,%s,%s,%s)"),
-                    (code.upper(), days, uses, now_str()))
-    return True
+                      "VALUES (%s,%s,%s,%s) ON CONFLICT (code) DO NOTHING"),
+                    (code, days, uses, now_str()))
+        return cur.rowcount == 1
 
 
 def promo_redeem(uid, code):
-    code = (code or "").strip().upper()
+    code = str(code or "").strip().upper()
+    if not PROMO_CODE_RE.fullmatch(code):
+        return False, 0
     with conn_cursor() as (conn, cur):
-        cur.execute(q("SELECT * FROM promo_codes WHERE code=%s"), (code,))
+        cur.execute(q("SELECT days FROM promo_codes WHERE code=%s"), (code,))
         p = one(cur)
-        if not p or int(p["uses_left"]) <= 0:
+        if not p:
             return False, 0
-        cur.execute(q("UPDATE promo_codes SET uses_left=%s WHERE code=%s"),
-                    (int(p["uses_left"]) - 1, code))
         days = int(p["days"])
-    set_premium(uid, True, days)
+        # The conditional decrement is atomic in both PostgreSQL and SQLite.
+        # Two requests cannot consume the same final activation.
+        cur.execute(q("UPDATE promo_codes SET uses_left=uses_left-1 "
+                      "WHERE code=%s AND uses_left>0"), (code,))
+        if cur.rowcount != 1:
+            return False, 0
+    extend_premium(uid, days)
     return True, days
 
 
