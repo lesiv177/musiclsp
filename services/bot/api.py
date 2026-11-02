@@ -797,7 +797,8 @@ def _download_bounded(url, max_bytes):
         chunks, total = [], 0
         for chunk in response.iter_content(65536):
             if not chunk:
-                continue            total += len(chunk)
+                continue
+            total += len(chunk)
             if total > max_bytes:
                 return None
             chunks.append(chunk)
