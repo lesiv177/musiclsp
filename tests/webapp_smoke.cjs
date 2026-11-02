@@ -15,6 +15,9 @@ const { spawn } = require("node:child_process");
   page.on("response", response => { if (response.request().resourceType() === "script") scriptResponses.push({url:response.url(),status:response.status(),contentType:response.headers()["content-type"]||""}); });
   page.on("requestfailed", request => { if (request.resourceType() === "script") scriptResponses.push({url:request.url(),failure:request.failure()?.errorText||"failed"}); });
 
+  await page.route("https://telegram.org/js/telegram-web-app.js", route =>
+    route.fulfill({status:200,contentType:"application/javascript",body:"/* Telegram WebApp is mocked by addInitScript in this browser test. */"}));
+
   await page.route("https://mock-api.local/**", async route => {
     const url = new URL(route.request().url()), path = url.pathname;
     apiCalls.push(path);
