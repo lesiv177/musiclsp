@@ -110,7 +110,7 @@ const { spawn } = require("node:child_process");
 
     await page.locator('.v3-mobile-nav [data-page="profile"]').first().click();
     await page.waitForSelector("#v3-profile .v3-profile-hero");
-    await page.locator('#v3-profile [data-prof="premium"]').first().click();
+    await page.locator('#v3-profile [data-prof="plan"]').first().click();
     await page.waitForSelector("#modal.on .plan-choice");
     await page.locator("#modal").evaluate(el=>el.classList.remove("on"));
 
