@@ -3582,9 +3582,9 @@ async function admReports(){
 async function admPromo(){
   const d = await admCall(() => req("/api/admin/promos")); if(!d) return;
   $("admBody").innerHTML = `<h3>Новий промокод</h3>
-    <input class="field" id="pcCode" placeholder="Код (порожньо = згенерувати)" autocapitalize="characters">
-    <div style="display:flex;gap:8px"><input class="field" id="pcDays" type="number" inputmode="numeric" placeholder="Днів" value="30">
-    <input class="field" id="pcUses" type="number" inputmode="numeric" placeholder="Активацій" value="1"></div>
+    <input class="field" id="pcCode" placeholder="Код (порожньо = згенерувати)" autocapitalize="characters" maxlength="32" pattern="[A-Za-z0-9_-]{3,32}" autocomplete="off">
+    <div style="display:flex;gap:8px"><input class="field" id="pcDays" type="number" inputmode="numeric" placeholder="Днів" value="30" min="1" max="3650">
+    <input class="field" id="pcUses" type="number" inputmode="numeric" placeholder="Активацій" value="1" min="1" max="100000"></div>
     <button class="btn" id="pcMake">Створити</button>
     <h3 style="margin-top:18px">Активні коди</h3>
     ${d.promos.length ? d.promos.map(p=>`<div class="admRow"><div class="m"><b>${esc(p.code)}</b>
@@ -3592,13 +3592,25 @@ async function admPromo(){
       <button class="admMini danger" data-del="${esc(p.code)}">Видалити</button></div>`).join("")
       : `<div style="color:var(--muted);font-size:13px">Кодів поки немає</div>`}`;
   $("pcMake").onclick = async () => {
-    const r = await admCall(() => post("/api/admin/promos", {action:"create", code:$("pcCode").value,
-      days:+$("pcDays").value||30, uses:+$("pcUses").value||1}));
-    if(r){ toast("Створено"); admPromo(); }
+    const button = $("pcMake");
+    const code = $("pcCode").value.trim().toUpperCase();
+    const days = Number($("pcDays").value), uses = Number($("pcUses").value);
+    if(code && !/^[A-Z0-9_-]{3,32}$/.test(code)) return toast("Код має містити 3–32 символи: A–Z, 0–9, _ або -");
+    if(!Number.isInteger(days) || days < 1 || days > 3650) return toast("Вкажи від 1 до 3650 днів");
+    if(!Number.isInteger(uses) || uses < 1 || uses > 100000) return toast("Вкажи від 1 до 100000 активацій");
+    button.disabled = true;
+    try {
+      const r = await admCall(() => post("/api/admin/promos", {action:"create", code, days, uses}));
+      if(r){ toast("Промокод створено"); await admPromo(); }
+    } finally { if(button.isConnected) button.disabled = false; }
   };
   $("admBody").querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
-    const r = await admCall(() => post("/api/admin/promos", {action:"delete", code:b.dataset.del}));
-    if(r){ toast("Видалено"); admPromo(); }
+    if(!confirm("Видалити промокод "+b.dataset.del+"?")) return;
+    b.disabled = true;
+    try {
+      const r = await admCall(() => post("/api/admin/promos", {action:"delete", code:b.dataset.del}));
+      if(r){ toast("Промокод видалено"); await admPromo(); }
+    } finally { if(b.isConnected) b.disabled = false; }
   });
 }
 
