@@ -42,7 +42,7 @@ const { spawn } = require("node:child_process");
 
   try {
     await page.addInitScript(() => {
-      window.Telegram={WebApp:{initData:"qa-init-data",initDataUnsafe:{user:{id:7,first_name:"QA",language_code:"uk"}},ready(){},expand(){},setHeaderColor(){},setBackgroundColor(){},enableClosingConfirmation(){},disableVerticalSwipes(){},onEvent(){},HapticFeedback:{impactOccurred(){}},MainButton:{hide(){},show(){},setText(){},onClick(){}}}};
+      window.Telegram={WebApp:{version:"8.0",isVersionAtLeast:()=>true,CloudStorage:{getItem:(k,cb)=>cb(null,localStorage.getItem("tg:"+k)),setItem:(k,v,cb)=>{localStorage.setItem("tg:"+k,v);cb(null);},removeItem:(k,cb)=>{localStorage.removeItem("tg:"+k);cb(null);}},initData:"qa-init-data",initDataUnsafe:{user:{id:7,first_name:"QA",language_code:"uk"}},ready(){},expand(){},setHeaderColor(){},setBackgroundColor(){},enableClosingConfirmation(){},disableVerticalSwipes(){},onEvent(){},HapticFeedback:{impactOccurred(){}},MainButton:{hide(){},show(){},setText(){},onClick(){}}}};
     });
     await page.goto("http://127.0.0.1:8765/?api=https%3A%2F%2Fmock-api.local",{waitUntil:"domcontentloaded"});
     await page.waitForFunction(()=>document.querySelector("#appRoot")?.classList.contains("ready"),null,{timeout:15000});
