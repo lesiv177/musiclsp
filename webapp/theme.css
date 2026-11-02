@@ -1,0 +1,66 @@
+/* MusicLSP theme — YouTube Music-style layer. Завантажується ПІСЛЯ всіх інших css.
+   Лише вигляд: жодної логіки. Не подобається — прибери <link> на theme.css. */
+:root{
+  --mx-bg:#0a0612; --mx-bg2:#1b0c3a; --mx-card:rgba(255,255,255,.045);
+  --mx-line:rgba(255,255,255,.09); --mx-text:#f5f1ff; --mx-muted:#a89fc0;
+  --mx-accent:#e11d2e; --mx-side:236px;
+}
+html,body{background:var(--mx-bg)!important;color:var(--mx-text)}
+#appRoot{background:
+  radial-gradient(900px 520px at 85% -8%,rgba(124,58,237,.38),transparent 62%),
+  radial-gradient(700px 480px at 0% 100%,rgba(79,70,229,.22),transparent 60%),
+  linear-gradient(180deg,var(--mx-bg2) 0%,var(--mx-bg) 55%)!important}
+
+/* чіпи / вкладки → пілюлі, як «Podcasts · Relax · Energize» */
+.tabs,.frow{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px 0 10px}
+.tabs::-webkit-scrollbar,.frow::-webkit-scrollbar{display:none}
+.tabs .tab,.fchip{flex:0 0 auto;border:1px solid var(--mx-line)!important;background:var(--mx-card)!important;
+  color:var(--mx-text)!important;border-radius:999px!important;padding:8px 16px!important;font-weight:500;
+  transition:background .2s,transform .15s}
+.tabs .tab:hover,.fchip:hover{background:rgba(255,255,255,.1)!important}
+.tabs .tab.on,.fchip.on{background:#fff!important;color:#120a22!important;border-color:#fff!important}
+
+/* пошук — широка скляна капсула */
+.searchbar{background:rgba(255,255,255,.07)!important;border:1px solid var(--mx-line)!important;
+  border-radius:999px!important;backdrop-filter:blur(14px)}
+
+/* картки */
+.card,.home-feature-card,.genre-tile,.mood-tile,.refcard{border:1px solid var(--mx-line)!important;
+  border-radius:20px!important;background-color:var(--mx-card);
+  transition:transform .2s ease,box-shadow .2s ease,background-color .2s}
+.card:hover,.home-feature-card:hover,.genre-tile:hover,.mood-tile:hover{transform:translateY(-3px);
+  box-shadow:0 14px 34px rgba(0,0,0,.45);background-color:rgba(255,255,255,.08)}
+.card img,.home-feature-card img{border-radius:14px}
+
+/* програвач-бар і навігація — скло */
+.bar{background:rgba(20,10,40,.78)!important;backdrop-filter:blur(22px) saturate(1.4);
+  border-top:1px solid var(--mx-line)!important}
+.barline{background:var(--mx-accent)!important}
+.nav.app-nav{background:rgba(14,8,28,.82)!important;backdrop-filter:blur(22px);
+  border-top:1px solid var(--mx-line)!important}
+.nav button.on{color:#fff!important}
+
+@media (prefers-reduced-motion:reduce){.card,.home-feature-card,.genre-tile,.mood-tile{transition:none}}
+
+/* ── ДЕСКТОП: бічна панель як у YouTube Music ── */
+@media (min-width:900px){
+  #appRoot{margin-left:var(--mx-side)!important;max-width:none!important;width:auto!important;
+    padding:0 28px 120px!important}
+  .nav.app-nav{position:fixed!important;left:0!important;right:auto!important;top:0;bottom:0;
+    width:var(--mx-side);max-width:none!important;height:100vh;margin:0!important;
+    display:flex!important;flex-direction:column;align-items:stretch;gap:4px;
+    padding:76px 12px 130px!important;border-top:0!important;border-right:1px solid var(--mx-line);
+    border-radius:0!important;grid-template-columns:none!important}
+  .nav.app-nav::before{content:"▶  MusicLSP";position:absolute;top:22px;left:24px;font:700 20px "Space Grotesk",sans-serif;
+    letter-spacing:.2px;color:#fff}
+  .nav.app-nav button{flex-direction:row!important;justify-content:flex-start;height:46px!important;
+    gap:14px;padding:0 16px;border-radius:12px;font-size:15px}
+  .nav.app-nav button::after{display:none}
+  .nav.app-nav button.on{background:rgba(255,255,255,.12)}
+  .nav.app-nav button:hover:not(.on){background:rgba(255,255,255,.06)}
+  .nav.app-nav .ic{transform:none!important}
+  .bar{left:var(--mx-side)!important;right:0!important;max-width:none!important;margin:0!important;
+    bottom:0!important;border-radius:0!important;padding:10px 24px}
+  .screen{max-width:1180px;padding:16px 4px 8px}
+  .top.app-top{max-width:1180px}
+}
