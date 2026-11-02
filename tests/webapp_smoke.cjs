@@ -161,7 +161,7 @@ const { spawn } = require("node:child_process");
     if (new Set(Object.values(themeSamples).map(x=>x.panel)).size !== 5)
       throw new Error("V3 panel did not change across all account themes: "+JSON.stringify(themeSamples));
 
-    await page.locator("#deviceChip").click();
+    await page.locator('#v3-profile [data-prof="devices"]').first().click();
     await page.waitForSelector("#devicesList",{timeout:5000});
     await page.locator("#modal").evaluate(el=>el.classList.remove("on"));
     for(const id of ["barRemote","devicesList","barOutput"])if(!(await page.locator("#"+id).count()))throw new Error("Connect control missing: "+id);
