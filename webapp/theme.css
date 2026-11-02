@@ -166,3 +166,71 @@ html,body{background:var(--mx-bg)!important;color:var(--mx-text)}
 .yt-frame{position:relative;aspect-ratio:16/9;border-radius:18px;overflow:hidden;background:#000;margin-bottom:12px}
 .yt-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 .yt-note{margin-top:10px;font-size:12px;color:var(--mx-muted);line-height:1.5}
+
+/* ══ v4: футбар (flex замість старої 7-колонкової сітки), плеєр, меню, альбоми ══ */
+#bar.bar.on{display:flex!important;grid-template-columns:none!important;align-items:center;gap:10px;
+  padding:8px 10px 8px 8px!important;min-height:64px!important;height:auto!important;border-radius:20px!important}
+#bar.bar .art{width:46px!important;height:46px!important;min-width:46px;border-radius:12px!important}
+#bar.bar .meta{flex:1 1 auto;min-width:0;order:0}
+#bar.bar #barShuffle,#bar.bar #barPrev,#bar.bar #barRepeat{display:none!important}
+#bar.bar #barRemote{order:1;width:38px!important;height:38px!important;border-radius:50%;background:rgba(255,255,255,.08)!important}
+#bar.bar #barRemote[hidden]{display:none!important}
+#bar.bar #barPlay{order:2;width:44px!important;height:44px!important;border-radius:50%;background:#fff!important;color:#140a28!important;
+  box-shadow:0 6px 18px rgba(124,58,237,.45)}
+#bar.bar #barPlay .icon{width:22px!important;height:22px!important;transform:none!important}
+#bar.bar #barNext{order:3;width:38px!important;height:38px!important}
+#bar.bar .iconbtn{flex:0 0 auto;display:grid;place-items:center}
+#bar.bar .bar-output{display:block}
+
+/* плеєр: круглі швидкі кнопки замість квадратної сітки */
+.sheetacts{display:flex!important;grid-template-columns:none!important;justify-content:center;gap:14px;
+  max-width:none!important;margin:20px auto 30px!important;padding:0!important}
+.sheetacts .qa{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;font-size:0;color:#fff;
+  background:rgba(255,255,255,.08);border:1px solid var(--mx-line);transition:transform .15s,background .2s}
+.sheetacts .qa[hidden]{display:none!important}
+.sheetacts .qa:active{transform:scale(.92)}
+.sheetacts .qa .icon,.sheetacts .qa svg{width:24px;height:24px}
+.sheetacts .qa.on,.sheetacts #pillLike.liked{color:#f472b6;background:rgba(244,114,182,.15)}
+
+/* меню «Ще» */
+.mm-head{display:flex;gap:12px;align-items:center;margin-bottom:10px;padding-bottom:12px;border-bottom:1px solid var(--mx-line)}
+.mm-head img{width:52px;height:52px;border-radius:12px;object-fit:cover}
+.mm-head div{display:flex;flex-direction:column;min-width:0}
+.mm-head b{font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mm-head span{font-size:13px;color:var(--mx-muted)}
+.mm-list{display:flex;flex-direction:column}
+.mm-item{display:flex;align-items:center;gap:14px;width:100%;padding:13px 6px;background:none!important;border:0;
+  border-radius:12px;color:#fff;text-align:left}
+.mm-item:active{background:rgba(255,255,255,.08)!important}
+.mm-item .icon{width:22px;height:22px;opacity:.9;flex:0 0 auto}
+.mm-item span{display:flex;flex-direction:column}
+.mm-item b{font-weight:500;font-size:15.5px}.mm-item small{font-size:12px;color:var(--mx-muted)}
+
+/* альбоми на головній */
+.alb-row{display:flex;gap:12px;overflow-x:auto;scrollbar-width:none;padding:4px 2px 10px}
+.alb-row::-webkit-scrollbar{display:none}
+.alb-card{flex:0 0 140px;display:flex;flex-direction:column;gap:2px;text-align:left;background:none!important;border:0;color:#fff;padding:0}
+.alb-card img{width:140px;height:140px;border-radius:14px;object-fit:cover;box-shadow:0 8px 22px rgba(0,0,0,.4);margin-bottom:6px}
+.alb-card b{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
+.alb-card small{font-size:12.5px;color:var(--mx-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
+
+/* сторінка альбому в стилі SoundCloud */
+.coll-back{background:none;border:0;color:#c4b5fd;font-size:15px;padding:4px 0 10px}
+.coll-hero{flex-direction:column;align-items:center;text-align:center;gap:12px}
+.coll-cover{width:min(62vw,260px);height:min(62vw,260px);border-radius:20px}
+.coll-actions .btn:first-child{background:linear-gradient(135deg,#7c3aed,#22d3ee);border:0;color:#fff;border-radius:999px}
+.coll-actions .btn.ghost{border-radius:999px}
+#collRows{counter-reset:trk}
+#collRows .row{counter-increment:trk;gap:12px;border-radius:14px}
+#collRows .row::before{content:counter(trk);width:22px;flex:0 0 22px;text-align:center;color:var(--mx-muted);font-size:13.5px}
+#collRows .row .art{display:none!important}
+#collRows .row.now::before{color:#c4b5fd}
+
+/* Premium-студія */
+.pm-sub{color:var(--mx-muted);font-size:13px;margin:-4px 0 6px}
+.pm-h{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#c4b5fd;margin:16px 0 8px}
+.pm-chips{display:flex;flex-wrap:wrap;gap:8px}
+.pm-chips .fchip{padding:7px 14px!important}
+.pm-block{display:flex;gap:8px;margin-bottom:10px}
+.pm-block input{flex:1;min-width:0;padding:10px 14px;border-radius:999px;border:1px solid var(--mx-line);
+  background:rgba(255,255,255,.06);color:#fff}
