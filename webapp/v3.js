@@ -15,7 +15,7 @@ function build(){
  root.innerHTML=
  '<aside class="v3-sidebar"><div class="v3-brand"><span class="v3-brand-mark">♫</span><span>MusicLSP<small>LISTEN BEYOND</small></span></div><nav class="v3-nav"><button data-page="home" class="active"><span>⌂</span>'+tr("nav_home","Home")+'</button><button data-page="explore"><span>◈</span>'+tr("search_genres","Explore")+'</button><button data-page="search"><span>⌕</span>'+tr("nav_search","Search")+'</button><button data-page="library"><span>▤</span>'+tr("nav_lib","Library")+'</button><button data-page="profile"><span>◉</span>'+tr("nav_me","Profile")+'</button></nav><div class="v3-side-note"><b>'+tr("hero_title_a","Більше музики. Більше свободи.")+'</b><p>'+tr("hero_desc","Відкривай незалежних артистів, збирай колекції та підтримуй авторів.")+'</p><button data-premium>'+tr("pr_premium","Відкрити Premium")+' ↗</button></div></aside>'+
  '<main class="v3-main"><header class="v3-topbar"><div class="v3-mobile-brand"><span class="v3-brand-mark">♫</span><b>MusicLSP</b></div><label class="v3-top-search"><span>⌕</span><input id="v3GlobalSearch" placeholder="'+tr("search_ph","Search tracks, artists, albums...")+'"></label><div class="v3-top-actions"><button class="v3-premium-link" data-premium>✦ '+tr("pr_premium","Premium")+'</button><span id="v3AvatarSlot"></span><span id="v3PlanSlot"></span><span id="v3DeviceSlot"></span></div></header>'+
- '<section class="v3-page active" id="v3-home"></section><section class="v3-page" id="v3-explore"></section><section class="v3-page" id="v3-search"></section><section class="v3-page" id="v3-library"></section><section class="v3-page" id="v3-profile"></section></main>'+
+ '<section class="v3-page active" id="v3-home"></section><section class="v3-page" id="v3-explore"></section><section class="v3-page" id="v3-search"></section><section class="v3-page" id="v3-library"></section><section class="v3-page" id="v3-collection"></section><section class="v3-page" id="v3-profile"></section></main>'+
  '<nav class="v3-mobile-nav"><button data-page="home" class="active"><span>⌂</span>'+tr("nav_home","Home")+'</button><button data-page="explore"><span>◈</span>'+tr("search_genres","Explore")+'</button><button data-page="search"><span>⌕</span>'+tr("nav_search","Search")+'</button><button data-page="library"><span>▤</span>'+tr("nav_lib","Library")+'</button><button data-page="profile"><span>◉</span>'+tr("nav_me","Profile")+'</button></nav>';
  preservedLegacy.forEach((n,i)=>{const slot=$(["v3AvatarSlot","v3PlanSlot","v3DeviceSlot"][i]);if(n&&slot)slot.appendChild(n);});
  if($("topProfile"))$("topProfile").onclick=()=>nav("profile");
@@ -37,18 +37,24 @@ async function home(){
   const [h,p,m]=await Promise.all([get("/api/home"),get("/api/playlists"),get("/api/moods")]);
   st.home=h;st.playlists=p.playlists||[];st.moods=m.moods||[];
   const sec=h.sections||[],by=Object.fromEntries(sec.map(x=>[x.id,x]));
-  const recent=by.recent?.tracks||[],popular=by.popular?.tracks||[],fresh=by.fresh?.tracks||[],trending=by.trending?.tracks||[];
+  const nb=l=>typeof noBlocked==="function"?noBlocked(l):l;
+  const on=k=>!(typeof isPrem==="function"&&isPrem()&&typeof PREF!=="undefined"&&PREF.home&&PREF.home[k]===0);
+  const recent=nb(by.recent?.tracks||[]),popular=nb(by.popular?.tracks||[]),fresh=nb(by.fresh?.tracks||[]),trending=nb(by.trending?.tracks||[]);
+  const am=new Map();[...popular,...trending,...fresh,...recent].forEach(t=>{if(t.album_id&&!am.has(t.album_id))am.set(t.album_id,{id:t.album_id,title:t.album||t.title,artist:t.artist,cover:t.cover});});
+  st.homeAlbums=[...am.values()].slice(0,12);
   const moods=st.moods.slice(0,12);
   root.innerHTML=
    '<div class="v3-home-heading"><div><div class="v3-eyebrow">MUSICLSP / HOME</div><div class="v3-page-kicker">'+tr("home_collections","Made for your listening")+'</div><h1 class="v3-page-title">'+tr("hero_title_a","Your music.")+" "+tr("hero_title_b","Your rules.")+'</h1></div><button class="v3-home-refresh" type="button" data-refresh>↻</button></div>'+
    (moods.length?'<div class="v3-home-moods">'+moods.map((m,i)=>'<button class="v3-pill" data-home-mood="'+i+'">'+E(m.label)+'</button>').join("")+'</div>':'')+
-   shelf("Albums for you",popular.length?popular:trending,"popular")+
-   shelf("Listen again",recent,"recent")+
-   shelf("Fresh discoveries",fresh,"fresh")+
-   shelf("Trending now",trending.length?trending:popular,"trending")+
-   (st.playlists.length?section("Your playlists",'<div class="v3-shelf">'+st.playlists.slice(0,12).map(p=>'<button class="v3-album-card v3-playlist-card" data-pl="'+E(p.id)+'"><span class="v3-album-cover v3-playlist-cover"><span>♫</span></span><b>'+E(p.name)+'</b><small>'+(Number(p.count)||0)+' tracks</small></button>').join("")+'</div>'):'')+
+   (on("albums")?shelf("Альбоми для тебе",st.homeAlbums,"album"):"")+
+   (on("feature")?shelf("Підбірки для тебе",popular.length?popular:trending,"popular"):"")+
+   (on("recent")?shelf("Слухати знову",recent,"recent"):"")+
+   (on("fresh")?shelf("Нові відкриття",fresh,"fresh"):"")+
+   (on("trending")?shelf("Зараз у тренді",trending.length?trending:popular,"trending"):"")+
+   (on("playlists")&&st.playlists.length?section("Your playlists",'<div class="v3-shelf">'+st.playlists.slice(0,12).map(p=>'<button class="v3-album-card v3-playlist-card" data-pl="'+E(p.id)+'"><span class="v3-album-cover v3-playlist-cover"><span>♫</span></span><b>'+E(p.name)+'</b><small>'+(Number(p.count)||0)+' tracks</small></button>').join("")+'</div>'):'')+
    (!recent.length&&!popular.length&&!fresh.length&&!trending.length?'<div class="v3-empty">Поки немає рекомендацій. Знайди перший трек через пошук.</div>':'');
   root.querySelectorAll("[data-shelf]").forEach(b=>b.onclick=()=>{
+   if(b.dataset.shelf==="album"){const a=st.homeAlbums[Number(b.dataset.index)||0];if(a)openCollection("albums",a);return;}
    const groups={popular:popular,recent:recent,fresh:fresh,trending:trending.length?trending:popular};
    const list=groups[b.dataset.shelf]||[];const i=Number(b.dataset.index)||0;
    if(list.length)setQueue(list,i);
@@ -82,8 +88,25 @@ function collectionRows(list,kind){
  return '<div class="v3-track-list">'+list.map((x,i)=>'<button class="v3-track" data-collection="'+i+'" data-collection-kind="'+kind+'"><img src="'+E(x.cover||"")+'" alt="" loading="lazy"><span class="v3-track-meta"><b>'+E(x.name||x.title||"")+'</b><small>'+E(kind==="artists"?(tr("artist_label","Artist")):(tr("search_albums","Albums")))+(x.source_label?" · "+E(x.source_label):"")+'</small></span>↗</button>').join("")+'</div>';
 }
 async function openCollection(kind,item){
- try{const d=await get("/api/"+(kind==="artists"?"artist":"album")+"/"+encodeURIComponent(item.id));if(d.tracks?.length)setQueue(d.tracks,0);else toast(tr("nothing_found_body","No tracks found"));}
- catch(e){toast(e.message);}
+ if(st.page!=="collection")st.prev=st.page;
+ try{
+  const d=await get("/api/"+(kind==="artists"?"artist":"album")+"/"+encodeURIComponent(item.id));
+  const list=d.tracks||[];if(!list.length)return toast(tr("nothing_found_body","Нічого не знайдено"));
+  const al=d.album||{},total=list.reduce((n,t)=>n+(+t.duration||0),0),isAlb=kind!=="artists";
+  const cover=item.cover||al.cover||list[0]?.cover||"",title=item.title||item.name||al.title||"";
+  const by=isAlb?(item.artist||al.artist||list[0]?.artist||""):"Артист";
+  const meta=[list.length+" треків",total?Math.max(1,Math.round(total/60))+" хв":"",String(al.release_date||item.release_date||"").slice(0,4),list[0]?.source_label||""].filter(Boolean).join(" · ");
+  const root=$("v3-collection");
+  root.innerHTML='<button class="v3-pill v3-back" id="v3CollBack">‹ Назад</button>'+
+   '<div class="v3-coll-hero"><img src="'+E(cover)+'" alt="" onerror="this.style.opacity=.15"><div><div class="v3-eyebrow">'+(isAlb?"АЛЬБОМ":"АРТИСТ")+'</div><h1 class="v3-page-title">'+E(title)+'</h1><p class="v3-coll-by">'+E(by)+'</p><p class="v3-coll-meta">'+E(meta)+'</p></div></div>'+
+   '<div class="v3-coll-actions"><button class="v3-coll-play" id="v3CollPlay">▶ Слухати</button><button class="v3-pill" id="v3CollShuffle">Перемішати</button></div>'+
+   '<div class="v3-track-list v3-coll-list">'+list.map((t,i)=>row(t,i,"coll")).join("")+'</div>';
+  nav("collection");
+  bindRows(root,list,"coll");
+  $("v3CollBack").onclick=()=>nav(st.prev||"home");
+  $("v3CollPlay").onclick=()=>setQueue(list,0);
+  $("v3CollShuffle").onclick=()=>setQueue(list.slice().sort(()=>Math.random()-.5),0);
+ }catch(e){toast(e.message);}
 }
 async function search(){
  const inp=$("v3SearchInput");if(!inp)return;
@@ -146,8 +169,8 @@ async function genreV3(tag,label){
 async function profile(){
  const root=$("v3-profile");root.innerHTML='<div class="v3-empty">'+E(tr("ui_loading","Завантаження…"))+'</div>';
  try{const [m,d]=await Promise.all([get("/api/me"),get("/api/stats?days=30").catch(()=>({stats:{}}))]);const u=m.user||{},s=d.stats||{};S.me=u;S.limits=m.limits||S.limits;S.features=m.features||S.features;
- root.innerHTML='<div class="v3-eyebrow">YOUR MUSIC ID</div><h1 class="v3-page-title">'+tr("nav_me","Твій простір.")+'</h1><p class="v3-subtitle">'+tr("sub_free","Акаунт, активність та можливості MusicLSP.")+'</p><div class="v3-profile-hero" style="margin:20px 0"><div class="v3-avatar">'+E((u.name||"M").slice(0,1).toUpperCase())+'</div><div><div class="v3-eyebrow">'+(u.premium?"PREMIUM MEMBER":"MUSICLSP LISTENER")+'</div><h2>'+E(u.name||tr("ui_listener","Слухач"))+'</h2><p>'+(u.premium?tr("ui_premium_active","Premium активний"):tr("ui_free_plan","Безкоштовний план"))+(u.premium_until?" · до "+E(String(u.premium_until).slice(0,10)):"")+'</p></div></div><div class="v3-profile-actions"><button class="v3-profile-action" data-prof="library"><b>♫ '+tr("nav_lib","Моя музика")+'</b><small>'+tr("lib_liked","Збережене")+', '+tr("lib_playlists","плейлисти")+', '+tr("lib_history","історія")+'</small></button><button class="v3-profile-action" data-prof="wrapped"><b>◷ '+tr("pr_wrapped","Мої підсумки")+'</b><small>'+tr("pr_stats","Статистика та музичні звички")+'</small></button><button class="v3-profile-action" data-prof="premium"><b>✦ '+(u.premium?"Premium":tr("pr_premium","Перейти на Premium"))+'</b><small>'+tr("pr_premium","Тарифи та можливості")+'</small></button></div>'+section(tr("pr_stats","Статистика")+" · 30 днів",'<div class="v3-stats"><div class="v3-stat"><b>'+(Number(s.plays)||0)+'</b><small>'+tr("ui_play","прослуховувань")+'</small></div><div class="v3-stat"><b>'+(Number(s.hours)||0)+'</b><small>'+tr("pr_stats","годин музики")+'</small></div><div class="v3-stat"><b>'+(Number(s.library)||0)+'</b><small>'+tr("nav_lib","у колекції")+'</small></div></div>')+section(tr("ui_settings","Налаштування акаунта"),'<div class="v3-track-list"><button class="v3-track" data-prof="premium"><span class="v3-avatar" style="width:38px;height:38px">✦</span><span class="v3-track-meta"><b>'+tr("pr_premium","Підписка та оплата")+'</b><small>'+tr("ui_settings","Керування планом")+'</small></span>›</button><button class="v3-track" data-prof="wrapped"><span class="v3-avatar" style="width:38px;height:38px">◷</span><span class="v3-track-meta"><b>'+tr("pr_wrapped","Мій рік у музиці")+'</b><small>'+tr("pr_stats","Особиста статистика")+'</small></span>›</button></div>');
- root.querySelectorAll("[data-prof]").forEach(b=>b.onclick=()=>{if(b.dataset.prof==="library")nav("library");if(b.dataset.prof==="wrapped")openWrapped();if(b.dataset.prof==="premium")openPlan();});
+ root.innerHTML='<div class="v3-eyebrow">YOUR MUSIC ID</div><h1 class="v3-page-title">'+tr("nav_me","Твій простір.")+'</h1><p class="v3-subtitle">'+tr("sub_free","Акаунт, активність та можливості MusicLSP.")+'</p><div class="v3-profile-hero" style="margin:20px 0"><div class="v3-avatar">'+E((u.name||"M").slice(0,1).toUpperCase())+'</div><div><div class="v3-eyebrow">'+(u.premium?"PREMIUM MEMBER":"MUSICLSP LISTENER")+'</div><h2>'+E(u.name||tr("ui_listener","Слухач"))+'</h2><p>'+(u.premium?tr("ui_premium_active","Premium активний"):tr("ui_free_plan","Безкоштовний план"))+(u.premium_until?" · до "+E(String(u.premium_until).slice(0,10)):"")+'</p></div></div><div class="v3-profile-actions"><button class="v3-profile-action" data-prof="library"><b>♫ '+tr("nav_lib","Моя музика")+'</b><small>'+tr("lib_liked","Збережене")+', '+tr("lib_playlists","плейлисти")+', '+tr("lib_history","історія")+'</small></button><button class="v3-profile-action" data-prof="wrapped"><b>◷ '+tr("pr_wrapped","Мої підсумки")+'</b><small>'+tr("pr_stats","Статистика та музичні звички")+'</small></button><button class="v3-profile-action v3-pm-action" data-prof="pmset"><b>✦ Premium-налаштування</b><small>Налаштуй MusicLSP під себе</small></button>'+(u.is_admin?'<button class="v3-profile-action v3-admin-action" data-prof="admin"><b>Адмін-панель</b><small>Користувачі · скарги · промокоди · система</small></button>':'')+'</div>'+section(tr("pr_stats","Статистика")+" · 30 днів",'<div class="v3-stats"><div class="v3-stat"><b>'+(Number(s.plays)||0)+'</b><small>Прослухано</small></div><div class="v3-stat"><b>'+(Number(s.hours)||0)+'</b><small>Годин</small></div><div class="v3-stat"><b>'+(Number(s.library)||0)+'</b><small>У бібліотеці</small></div></div>')+section("Акаунт",'<div class="v3-track-list"><button class="v3-track" data-prof="plan"><span class="v3-track-meta"><b>'+(u.premium?"Мій тариф":"Тарифи Premium")+'</b><small>'+(u.premium?"Керування підпискою":"Що входить у Premium")+'</small></span></button><button class="v3-track" data-prof="devices"><span class="v3-track-meta"><b>Мої пристрої</b><small>Connect: передати відтворення</small></span></button></div>');
+ root.querySelectorAll("[data-prof]").forEach(b=>b.onclick=()=>{if(b.dataset.prof==="library")nav("library");if(b.dataset.prof==="wrapped")openWrapped();if(b.dataset.prof==="pmset")openPremiumSettings();if(b.dataset.prof==="plan")openPlan();if(b.dataset.prof==="devices"&&typeof openDevices==="function")openDevices();if(b.dataset.prof==="admin")openAdmin();});
  }catch(e){root.innerHTML='<div class="v3-empty">Не вдалося завантажити профіль: '+E(e.message)+'</div>';}
 }
 function refreshLocale(){
