@@ -13,8 +13,8 @@
 <link rel="stylesheet" href="./ui-polish.css?v=2">
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
   <link rel="stylesheet" href="./v3.css?v=1">
-  <link rel="stylesheet" href="./theme.css?v=5">
-  <script defer src="./v3.js?v=1"></script>
+  <link rel="stylesheet" href="./theme.css?v=6">
+  <script defer src="./v3.js?v=2"></script>
 </head>
 <body>
 <div id="splash">
@@ -2312,7 +2312,7 @@ function pmStudioHtml(){
   return `<div class="pm-tools">
       <div class="pm-sub">${p?"Налаштуй MusicLSP під себе":"Відкриється з Premium. Авто-підхоплення доступне всім."}</div>
       <div class="pm-h">Головна сторінка</div>
-      <div class="pm-chips" id="pmHome">${[["albums","Альбоми"],["feature","Підбірки"],["recent","Слухати знову"],["playlists","Плейлисти"],["daily","Щоденний мікс"]].map(([k,n])=>`<button class="fchip ${PREF.home[k]!==0?"on":""}" data-pmh="${k}">${n}</button>`).join("")}</div>
+      <div class="pm-chips" id="pmHome">${[["albums","Альбоми"],["feature","Підбірки"],["recent","Слухати знову"],["fresh","Новинки"],["trending","В тренді"],["playlists","Плейлисти"]].map(([k,n])=>`<button class="fchip ${PREF.home[k]!==0?"on":""}" data-pmh="${k}">${n}</button>`).join("")}</div>
       <div class="pm-h">Швидкі кнопки в плеєрі (до 3)</div>
       <div class="pm-chips" id="pmQuick">${[["like","Зберегти"],["playlist","У плейлист"],["radio","Радіо"],["share","Поділитися"],["queue","Черга"],["devices","Пристрої"]].map(([k,n])=>`<button class="fchip ${PREF.quick.includes(k)?"on":""}" data-pmq="${k}">${n}</button>`).join("")}</div>
       <div class="pm-h">Не показувати виконавців</div>
@@ -2330,7 +2330,7 @@ function pmStudioHtml(){
 function bindStudio(){
   const need=()=>{ if(isPrem()) return true; toast("Доступно в Premium"); return false; };
   document.querySelectorAll("#pmHome [data-pmh]").forEach(b=>b.onclick=()=>{ if(!need()) return; const k=b.dataset.pmh;
-    PREF.home[k]=PREF.home[k]===0?1:0; b.classList.toggle("on",PREF.home[k]!==0); prefSave(); applyHomePrefs(); tap(); });
+    PREF.home[k]=PREF.home[k]===0?1:0; b.classList.toggle("on",PREF.home[k]!==0); prefSave(); applyHomePrefs(); if(window.MLSPv3) MLSPv3.home(); tap(); });
   document.querySelectorAll("#pmQuick [data-pmq]").forEach(b=>b.onclick=()=>{ if(!need()) return; const k=b.dataset.pmq, i=PREF.quick.indexOf(k);
     if(i>=0) PREF.quick.splice(i,1); else if(PREF.quick.length<3) PREF.quick.push(k); else return toast("Максимум 3 кнопки");
     b.classList.toggle("on",PREF.quick.includes(k)); prefSave(); applyQuick(); tap(); });
