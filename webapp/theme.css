@@ -248,3 +248,24 @@ html,body{background:var(--mx-bg)!important;color:var(--mx-text)}
 .pm-modal-head h3{font:700 20px "Space Grotesk",sans-serif;margin:0}
 .pm-scroll{max-height:68vh;overflow-y:auto;padding-right:2px;-webkit-overflow-scrolling:touch}
 .pm-scroll .pm-tools{padding:0;border:0;background:none}
+
+/* ══ v6: v3-оболонка — сторінка альбому, профіль; футбар без Connect ══ */
+#bar.bar #barRemote,#bar.bar .bar-output{display:none!important}
+#bar.bar #barPrev{display:grid!important;order:1;width:40px!important;height:40px!important}
+#bar.bar #barPlay{order:2}#bar.bar #barNext{order:3}
+#bar.bar{gap:6px}
+.v3-back{margin-bottom:14px}
+.v3-coll-hero{display:flex;gap:18px;align-items:flex-end;margin:4px 0 16px}
+.v3-coll-hero img{width:min(40vw,200px);height:min(40vw,200px);border-radius:20px;object-fit:cover;box-shadow:0 16px 40px rgba(0,0,0,.5);flex:0 0 auto}
+.v3-coll-hero .v3-page-title{font-size:clamp(22px,6vw,34px);margin:4px 0}
+.v3-coll-by{color:#fff;opacity:.9;margin:0;font-size:15px}.v3-coll-meta{color:var(--mx-muted);margin:4px 0 0;font-size:12.5px}
+.v3-coll-actions{display:flex;gap:10px;margin-bottom:14px}
+.v3-coll-play{flex:1;padding:13px 18px;border:0;border-radius:999px;color:#fff;font-weight:700;font-size:15px;
+  background:linear-gradient(135deg,#7c3aed,#22d3ee)}
+.v3-coll-list{counter-reset:ct}
+.v3-coll-list .v3-track{counter-increment:ct}
+.v3-coll-list .v3-track::before{content:counter(ct);width:22px;flex:0 0 22px;text-align:center;color:var(--mx-muted);font-size:13.5px}
+.v3-coll-list .v3-track>img{display:none}
+.v3-admin-action{border-color:rgba(251,191,36,.5)!important;background:linear-gradient(135deg,rgba(245,158,11,.3),rgba(124,58,237,.2))!important}
+.v3-pm-action{border-color:rgba(167,139,250,.5)!important;background:linear-gradient(135deg,rgba(124,58,237,.45),rgba(34,211,238,.15))!important}
+@media (max-width:520px){.v3-coll-hero{flex-direction:column;align-items:center;text-align:center}}
