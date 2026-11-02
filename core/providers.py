@@ -797,8 +797,7 @@ def _ccm_from_xml(xml_text, limit):
             "stream": audio_url,
             "downloadable": True,
             "download_url": audio_url,
-        })
-    return out
+        })    return out
 
 
 def ccmixter_search(query, limit=15):
@@ -998,3 +997,558 @@ def wikimedia_search(query, limit=15):
             "generator": "search", "gsrsearch": f"filetype:audio {query}",
             "gsrnamespace": 6, "gsrlimit": min(limit * 2, 40),
             "prop": "imageinfo", "iiprop": "url|mime|extmetadata",
+        })
+    except Exception as e:
+        logger.warning("Wikimedia Commons запит не вдався: %s", e)
+        return []
+    if not data:
+        return []
+    pages = ((data.get("query") or {}).get("pages") or {}).values()
+    out = []
+    for page in pages:
+        t = _wm_track(page)
+        if t:
+            out.append(t)
+            _wm_cache_put(t)
+        if len(out) >= limit:
+            break
+    return out
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  АГРЕГАЦІЯ
+# ════════════════════════════════════════════════════════════════════════════
+
+# ═══ SoundCloud (офіційне API, OAuth client_credentials) ════════════════════
+# Потрібні SOUNDCLOUD_CLIENT_ID і SOUNDCLOUD_CLIENT_SECRET від зареєстрованого
+# застосунку. Без них джерело мовчки вимкнене. Беремо лише треки з прапорцем
+# streamable/playable; атрибуція й посилання на оригінал обовʼязкові (source_url).
+
+_SC_API = "https://api.soundcloud.com"
+_SC_TOKEN = {"v": "", "exp": 0}
+_sc_lock = threading.Lock()
+_SC_CACHE = {}
+
+
+def soundcloud_enabled():
+    return bool(SOUNDCLOUD_CLIENT_ID and SOUNDCLOUD_CLIENT_SECRET)
+
+
+def _sc_token():
+    with _sc_lock:
+        if _SC_TOKEN["v"] and _SC_TOKEN["exp"] > time.time() + 60:
+            return _SC_TOKEN["v"]
+    try:
+        r = _http_session().post("https://secure.soundcloud.com/oauth/token", data={
+            "grant_type": "client_credentials",
+            "client_id": SOUNDCLOUD_CLIENT_ID, "client_secret": SOUNDCLOUD_CLIENT_SECRET,
+        }, headers={"Accept": "application/json; charset=utf-8"}, timeout=HTTP_TIMEOUT)
+        if r.status_code != 200:
+            logger.warning("SoundCloud token -> %s", r.status_code)
+            return ""
+        d = r.json()
+        with _sc_lock:
+            _SC_TOKEN["v"] = d.get("access_token", "")
+            _SC_TOKEN["exp"] = time.time() + int(d.get("expires_in") or 3000)
+        return _SC_TOKEN["v"]
+    except Exception as e:
+        logger.warning("SoundCloud token failed: %s", e)
+        return ""
+
+
+def _sc_headers():
+    tok = _sc_token()
+    return {"Authorization": f"OAuth {tok}", "Accept": "application/json; charset=utf-8"} if tok else None
+
+
+def _sc_track(t):
+    uid = str(t.get("id") or "")
+    user = t.get("user") or {}
+    art = (t.get("artwork_url") or user.get("avatar_url") or "").replace("-large", "-t500x500")
+    lic = (t.get("license") or "").replace("-", " ").strip()
+    tr = {
+        "id": f"sc:{uid}",
+        "title": t.get("title") or "Без назви",
+        "artist": user.get("username") or "Невідомий артист",
+        "artist_id": "", "album": "", "album_id": "",
+        "cover": art,
+        "duration": int((t.get("duration") or 0) / 1000),
+        "duration_str": fmt_duration((t.get("duration") or 0) / 1000),
+        "source": "soundcloud", "source_label": "SoundCloud",
+        "source_url": t.get("permalink_url") or "https://soundcloud.com",
+        "license": lic or "Ліцензія автора (SoundCloud)",
+        "license_short": lic.upper()[:16] if lic and lic != "all rights reserved" else "SoundCloud",
+        "stream": "",                      # резолвиться через /api/stream (потрібен токен)
+        "downloadable": False, "download_url": "",
+    }
+    with _sc_lock:
+        _SC_CACHE[tr["id"]] = tr
+        if len(_SC_CACHE) > 3000:
+            for k in list(_SC_CACHE)[:1000]:
+                _SC_CACHE.pop(k, None)
+    return tr
+
+
+def soundcloud_search(query, limit=15):
+    if not soundcloud_enabled():
+        return []
+    h = _sc_headers()
+    if not h:
+        return []
+    try:
+        r = _http_session().get(f"{_SC_API}/tracks", headers=h, timeout=HTTP_TIMEOUT,
+                         params={"q": query, "access": "playable", "limit": limit, "linked_partitioning": "false"})
+        if r.status_code != 200:
+            logger.warning("SoundCloud search -> %s", r.status_code)
+            return []
+        data = r.json()
+        if isinstance(data, dict):
+            data = data.get("collection") or []
+        return [_sc_track(t) for t in data
+                if t.get("streamable", True) and t.get("access", "playable") == "playable"][:limit]
+    except Exception as e:
+        logger.warning("SoundCloud search failed: %s", e)
+        return []
+
+
+def soundcloud_stream_url(raw):
+    h = _sc_headers()
+    if not h:
+        return ""
+    try:
+        r = _http_session().get(f"{_SC_API}/tracks/{raw}/streams", headers=h, timeout=HTTP_TIMEOUT)
+        if r.status_code == 200:
+            d = r.json()
+            return d.get("http_mp3_128_url") or d.get("hls_mp3_128_url") or ""
+    except Exception as e:
+        logger.warning("SoundCloud streams failed: %s", e)
+    return ""
+
+
+def soundcloud_track(raw):
+    with _sc_lock:
+        hit = _SC_CACHE.get(f"sc:{raw}")
+    if hit:
+        return hit
+    h = _sc_headers()
+    if not h:
+        return None
+    try:
+        r = _http_session().get(f"{_SC_API}/tracks/{raw}", headers=h, timeout=HTTP_TIMEOUT)
+        return _sc_track(r.json()) if r.status_code == 200 else None
+    except Exception:
+        return None
+
+
+def split_id(full_id):
+    """'jam:123' -> ('jam', '123')"""
+    if not full_id or ":" not in full_id:
+        return "", full_id or ""
+    prefix, _, rest = full_id.partition(":")
+    return prefix, rest
+
+
+def _run_parallel(jobs, timeout=4):
+    """Паралельний пошук із глобально обмеженою кількістю потоків.
+
+    Раніше кожен запит створював власний ThreadPoolExecutor і залишав
+    повільні мережеві потоки працювати після timeout. Часті пошуки могли
+    безконтрольно накопичувати десятки потоків. Тепер пул спільний і обмежений.
+    """
+    if not jobs:
+        return []
+    futs = [_PROVIDER_EXECUTOR.submit(job) for job in jobs]
+    done, pending = wait(futs, timeout=max(0.1, float(timeout)))
+    for future in pending:
+        future.cancel()  # скасовує задачі, які ще не почали виконуватись
+    out = []
+    for future in futs:  # зберігаємо стабільний порядок провайдерів
+        if future in done:
+            try:
+                result = future.result()
+                if isinstance(result, list):
+                    out.extend(result)
+            except Exception as exc:
+                logger.warning("Джерело впало: %s", type(exc).__name__)
+    return out
+
+
+def search_tracks(query, limit=30, quality="mp32", sources=None, sort="relevance", genre=None):
+    """Змішаний пошук по всіх легальних джерелах з дедуплікацією.
+
+    Раніше типовим значенням тут було лише ["jamendo", "audius"] — а Internet
+    Archive (нетлейбли, укр/рос добірки), ccMixter і Openverse хоч і були
+    повністю реалізовані, фактично ніколи не викликались зі звичайного
+    пошуку, бо жоден виклик не передавав `sources` явно. Через це вся
+    робота з розширення бібліотеки була "мертвим кодом" з погляду юзера.
+    Тепер типово шукаємо по всіх шести джерелах відразу (додано Wikimedia
+    Commons напряму — Openverse і так частково тягне звідти, але напряму
+    дістаємо більше й точніше фільтруємо)."""
+    sources = [s for s in (sources or ["jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia"]) if s != "soundcloud"]
+    # Джерела опитуємо ПАРАЛЕЛЬНО (раніше — по черзі, і найповільніше гальмувало всіх).
+    # Порядок результатів лишається детермінованим: jamendo, audius, archive, …
+    jobs = []
+    # SoundCloud вимкнено: пошук працює лише з джерелами, які підтримуємо.
+    if "jamendo" in sources:
+        jobs.append(lambda: jamendo_search_tracks(query, limit=limit, audioformat=quality, sort=sort))
+    if "audius" in sources:
+        jobs.append(lambda: audius_search_tracks(query, limit=max(10, limit // 2)))
+    if "archive" in sources:
+        jobs.append(lambda: archive_search(query, limit=12))
+    if "ccmixter" in sources:
+        jobs.append(lambda: ccmixter_search(query, limit=10))
+    if "openverse" in sources:
+        jobs.append(lambda: openverse_search(query, limit=10))
+    if "wikimedia" in sources:
+        jobs.append(lambda: wikimedia_search(query, limit=10))
+    results = _run_parallel(jobs, timeout=4)
+
+    seen, out = set(), []
+    for t in results:
+        key = (t["title"].strip().lower(), t["artist"].strip().lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(t)
+    return out[:limit]
+
+
+def _normalize_query(text):
+    """Прибирає пунктуацію й зайві пробіли — щоб пошук був терпимим до одруків."""
+    cleaned = re.sub(r"[^\w\s]", " ", text or "", flags=re.UNICODE)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def search_tracks_smart(query, limit=30, quality="mp32", sources=None, sort="relevance"):
+    """Той самий пошук треків, але з відкатом: якщо точний запит не дав нічого,
+    пробує очищений запит, а тоді — по одному значущому слову з нього."""
+    out = search_tracks(query, limit, quality, sources, sort)
+    if out:
+        return out
+    norm = _normalize_query(query)
+    if norm and norm.lower() != (query or "").strip().lower():
+        out = search_tracks(norm, limit, quality, sources, sort)
+        if out:
+            return out
+    for word in [w for w in norm.split() if len(w) > 2]:
+        out = search_tracks(word, limit, quality, sources, sort)
+        if out:
+            return out
+    return []
+
+
+def jamendo_search_albums_smart(query, limit=20, sort="relevance"):
+    """Той самий пошук альбомів, з відкатом на очищений запит і окремі слова."""
+    out = jamendo_search_albums(query, limit=limit, sort=sort)
+    if out:
+        return out
+    norm = _normalize_query(query)
+    if norm and norm.lower() != (query or "").strip().lower():
+        out = jamendo_search_albums(norm, limit=limit, sort=sort)
+        if out:
+            return out
+    for word in [w for w in norm.split() if len(w) > 2]:
+        out = jamendo_search_albums(word, limit=limit, sort=sort)
+        if out:
+            return out
+    return []
+
+
+def search_everything(query, limit=12):
+    """Об'єднаний пошук: треки + альбоми + артисти одним запитом. Це саме
+    той пошук, який виконує вкладка "Усе" (типова при відкритті пошуку) —
+    тому треки тягнемо з усіх шести джерел, а не лише Jamendo/Audius."""
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        f_tr = ex.submit(search_tracks_smart, query, limit=limit, sources=[
+            "jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia"])
+        f_al = ex.submit(jamendo_search_albums_smart, query, limit=limit)
+        f_ja = ex.submit(jamendo_search_artists, query, limit=limit)
+        f_au = ex.submit(audius_search_users, query, limit=max(4, limit // 3))
+        def _r(f):
+            try:
+                return f.result(timeout=9) or []
+            except Exception:
+                return []
+        tracks, albums, jam_artists, aud_artists = _r(f_tr), _r(f_al), _r(f_ja), _r(f_au)
+    return {
+        "tracks": tracks,
+        "albums": albums,
+        "artists": jam_artists + aud_artists,
+    }
+
+
+MOOD_MAP = {
+    "chill":  {"tags": ["chillout", "lounge", "acoustic"], "label": "Спокій"},
+    "energy": {"tags": ["electronic", "house", "techno"], "label": "Енергія"},
+    "focus":  {"tags": ["ambient", "classical"], "label": "Фокус"},
+    "sad":    {"tags": ["blues", "folk"], "label": "Сум"},
+    "happy":  {"tags": ["pop", "funk"], "label": "Радість"},
+    "party":  {"tags": ["house", "hiphop"], "label": "Вечірка"},
+}
+
+
+def mood_mix(mood, limit=30):
+    """Мікс треків під настрій — з перевірених жанрових тегів Jamendo."""
+    info = MOOD_MAP.get(mood)
+    if not info:
+        return []
+    per_tag = max(6, limit // len(info["tags"]))
+    out = []
+    for tag in info["tags"]:
+        try:
+            out += jamendo_tag_tracks(tag, limit=per_tag)
+        except Exception:
+            pass
+    seen, dedup = set(), []
+    for t in out:
+        key = (t["title"].strip().lower(), t["artist"].strip().lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        dedup.append(t)
+    random.shuffle(dedup)
+    return dedup[:limit]
+
+
+def blindtest_pool(limit=20):
+    """Пул треків для міні-гри 'Вгадай трек' — популярне з обох джерел."""
+    pool = []
+    try:
+        pool += jamendo_tag_tracks("pop", limit=15)
+    except Exception:
+        pass
+    try:
+        pool += audius_trending(limit=15)
+    except Exception:
+        pass
+    random.shuffle(pool)
+    return pool[:limit]
+
+
+def daily_track(offset_days=0):
+    """'Трек дня' — той самий для всіх користувачів протягом доби.
+    Детермінований вибір із пулу популярного/трендового за датою (можна заглянути наперед)."""
+    seed = (datetime.date.today() + datetime.timedelta(days=offset_days)).isoformat()
+    pool = []
+    try:
+        pool += jamendo_tag_tracks("pop", limit=25)
+    except Exception:
+        pass
+    try:
+        pool += audius_trending(limit=25)
+    except Exception:
+        pass
+    if not pool:
+        return None
+    idx = int(hashlib.sha256(seed.encode()).hexdigest(), 16) % len(pool)
+    track = dict(pool[idx])
+    track["daily_seed"] = seed
+    return track
+
+
+_CURATED_FALLBACK_TAGS = [
+    ("chillout", "Chillout"), ("electronic", "Electronic"), ("jazz", "Jazz"),
+    ("lounge", "Lounge"), ("acoustic", "Acoustic"), ("hiphop", "Hip-Hop"),
+    ("classical", "Класика"), ("rock", "Rock"), ("ambient", "Ambient"),
+    ("folk", "Folk"), ("metal", "Metal"), ("pop", "Pop"),
+    ("reggae", "Reggae"), ("soundtrack", "Soundtrack"),
+]
+
+# Готові добірки прямо з окремих колекцій Internet Archive — на відміну від
+# жанрових тегів Jamendo вище, це не запасний варіант "на випадок", а завжди
+# доступний шар каталогу: тисячі альбомів під CC, які інакше губляться серед
+# звичайного пошуку.
+_ARCHIVE_CURATED_COLLECTIONS = [
+    ("netlabels", None, "Нетлейбли"),
+    ("opensource_audio", None, "Відкриті записи"),
+    # Всередині величезної колекції netlabels Internet Archive є сотні
+    # альбомів із тегами "ukraine"/"russia" — реальні, вже перевірені CC-
+    # видання нетлейблів пострадянського простору (напр. Cian Orbe та інші),
+    # а не мейнстрим-поп, який під такою ліцензією ніхто не видає.
+    ("netlabels", "ukraine", "Українська музика (CC)"),
+    ("netlabels", "russia", "Русскомовна музика (CC)"),
+]
+
+
+def _synthetic_collections(limit):
+    """Запасний варіант, коли офіційні плейлисти Jamendo/Audius порожні
+    (лімітований ключ, нема куратора цього тижня, тимчасовий збій тощо).
+    Пакуємо вже наявний каталог у добірки за жанром — це той самий легальний
+    контент, просто інше групування, тому нічого юридично не змінюється."""
+    out = []
+    for tag, label in _CURATED_FALLBACK_TAGS[:limit]:
+        cover = ""
+        try:
+            preview = jamendo_tag_tracks(tag, 1, 0, "mp32")
+            if preview:
+                cover = preview[0].get("cover") or ""
+        except Exception:
+            pass
+        out.append({
+            "id": f"tag:{tag}", "title": label, "cover": cover,
+            "source": "curated", "source_label": "MusicLSP",
+            "source_url": "",
+        })
+    return out
+
+
+def _archive_curated_tiles(limit=2):
+    out = []
+    for coll, subject, label in _ARCHIVE_CURATED_COLLECTIONS[:limit]:
+        cover = ""
+        try:
+            preview = archive_collection_tracks(coll, limit=1, subject=subject)
+            if preview:
+                cover = preview[0].get("cover") or ""
+        except Exception:
+            pass
+        raw_id = f"{coll}:{subject}" if subject else coll
+        out.append({
+            "id": f"arccol:{raw_id}", "title": label, "cover": cover,
+            "source": "archive", "source_label": "Internet Archive",
+            "source_url": f"https://archive.org/details/{coll}",
+        })
+    return out
+
+
+def discover_playlists(limit=10):
+    """Кураторські плейлисти — Jamendo/Audius плюс завжди доступний шар
+    з великих CC-колекцій Internet Archive (не запасний варіант, а
+    постійне розширення бібліотеки)."""
+    n_archive = min(len(_ARCHIVE_CURATED_COLLECTIONS), limit)
+    n_main = max(0, limit - n_archive)
+    half = max(4, n_main // 2)
+    out = []
+    try:
+        out += jamendo_playlists(limit=half)
+    except Exception:
+        pass
+    try:
+        out += audius_trending_playlists(limit=half)
+    except Exception:
+        pass
+    if not out:
+        # Обидва джерела порожні (частий випадок для Jamendo — офіційні
+        # плейлисти публікують нерегулярно) — показуємо жанрові добірки,
+        # аби розділ "Добірки" ніколи не був просто порожнім/невидимим.
+        out = _synthetic_collections(n_main)
+    out = out[:n_main]
+    try:
+        out += _archive_curated_tiles(limit=n_archive)
+    except Exception:
+        pass
+    return out[:limit]
+
+
+def curated_playlist_tracks(full_id, quality="mp32"):
+    """Треки кураторського плейлиста за повним id ('jam:123' / 'aud:456' /
+    'tag:electronic' для запасних жанрових добірок / 'arccol:netlabels'
+    для добірок прямо з колекцій Internet Archive)."""
+    prefix, raw = split_id(full_id)
+    if prefix == "jam":
+        return jamendo_playlist_tracks(raw, audioformat=quality)
+    if prefix == "aud":
+        return audius_playlist_tracks(raw)
+    if prefix == "tag":
+        return jamendo_tag_tracks(raw, 40, 0, quality)
+    if prefix == "arccol":
+        if ":" in raw:
+            coll, subject = raw.split(":", 1)
+            return archive_collection_tracks(coll, limit=40, subject=subject)
+        return archive_collection_tracks(raw, limit=40)
+    return []
+
+
+def get_track(full_id, quality="mp32"):
+    prefix, raw = split_id(full_id)
+    if prefix == "jam":
+        return jamendo_track(raw, audioformat=quality)
+    if prefix == "aud":
+        return audius_track(raw)
+    if prefix == "arc":
+        res = archive_search(raw, limit=1)
+        return res[0] if res else None
+    if prefix == "ccm":
+        return _ccm_cache_get(raw)
+    if prefix == "ov":
+        return _ov_cache_get(raw)
+    if prefix == "wm":
+        return _wm_cache_get(raw)
+    if prefix == "sc":
+        return soundcloud_track(raw)
+    return None
+
+
+def resolve_stream(full_id, quality="mp32"):
+    """Повертає прямий URL аудіо у легального джерела."""
+    prefix, raw = split_id(full_id)
+    if prefix == "jam":
+        t = jamendo_track(raw, audioformat=quality)
+        return t["stream"] if t else ""
+    if prefix == "aud":
+        return audius_stream_url_verified(raw)
+    if prefix == "arc":
+        return archive_stream_url(raw)
+    if prefix == "ccm":
+        t = _ccm_cache_get(raw)
+        return t["stream"] if t else ""
+    if prefix == "ov":
+        t = _ov_cache_get(raw)
+        return t["stream"] if t else ""
+    if prefix == "wm":
+        t = _wm_cache_get(raw)
+        return t["stream"] if t else ""
+    if prefix == "sc":
+        return soundcloud_stream_url(raw)
+    return ""
+
+
+def resolve_download(full_id):
+    """URL для завантаження. Порожньо, якщо ліцензія забороняє."""
+    prefix, raw = split_id(full_id)
+    if prefix == "jam":
+        t = jamendo_track(raw)
+        if t and t["downloadable"] and t["download_url"]:
+            return t["download_url"], t
+        return "", t
+    if prefix == "aud":
+        t = audius_track(raw)
+        if t and t["downloadable"]:
+            return audius_stream_url_verified(raw), t
+        return "", t
+    if prefix == "arc":
+        url = archive_stream_url(raw)
+        res = archive_search(raw, limit=1)
+        return url, (res[0] if res else None)
+    if prefix == "ccm":
+        t = _ccm_cache_get(raw)
+        return (t["download_url"], t) if t else ("", None)
+    if prefix == "ov":
+        t = _ov_cache_get(raw)
+        return (t["download_url"], t) if t else ("", None)
+    if prefix == "wm":
+        t = _wm_cache_get(raw)
+        return (t["download_url"], t) if t else ("", None)
+    return "", None
+
+
+def build_radio(seed_track_id, length=20, quality="mp32"):
+    """Smart Radio: схожі треки Jamendo + trending Audius як добивка."""
+    prefix, raw = split_id(seed_track_id)
+    queue = []
+    if prefix == "jam":
+        queue += jamendo_similar(raw, limit=min(length, 50), audioformat=quality)
+    seed = get_track(seed_track_id, quality)
+    if len(queue) < length and seed:
+        queue += jamendo_search_tracks(seed["artist"], limit=length, audioformat=quality)
+    if len(queue) < length:
+        queue += audius_trending(limit=length - len(queue))
+
+    seen, out = set(), []
+    for t in queue:
+        if t["id"] == seed_track_id or t["id"] in seen:
+            continue
+        seen.add(t["id"])
+        out.append(t)
+    return out[:length]

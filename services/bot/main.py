@@ -797,8 +797,7 @@ async def do_search(msg, uid, query):
     nums = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣"]
     lines = [f"🔎 <b>«{esc(query)}»</b> — знайдено {len(results)}\n"]
     kb = []
-    for i, t in enumerate(results):
-        dur = f" · {t['duration_str']}" if t.get("duration_str") else ""
+    for i, t in enumerate(results):        dur = f" · {t['duration_str']}" if t.get("duration_str") else ""
         lines.append(f"{nums[i]} <b>{esc(t['title'])}</b>\n      {esc(t['artist'])}{dur} · <i>{esc(t['source_label'])}</i>")
         kb.append([InlineKeyboardButton(
             f"▶️ {t['title'][:26]} — {t['artist'][:16]}",
@@ -998,3 +997,508 @@ async def render_admin_reports_page(offset=0):
     nav = []
     if offset > 0:
         nav.append(InlineKeyboardButton("← Назад", callback_data=f"a:reports:{max(0, offset - 8)}"))
+    if offset + 8 < total:
+        nav.append(InlineKeyboardButton("Далі →", callback_data=f"a:reports:{offset + 8}"))
+    if nav:
+        kb.append(nav)
+    kb.append([InlineKeyboardButton("← Адмінка", callback_data="a:menu")])
+    return "\n\n".join(lines), InlineKeyboardMarkup(kb)
+
+
+async def do_admin_find(update, text):
+    try:
+        uid = int(text.strip().split()[0])
+    except (ValueError, IndexError):
+        return await update.message.reply_text("Формат: UID (число з профілю юзера)")
+    u = db.get_user(uid)
+    if not u:
+        return await update.message.reply_text("Такого юзера нема в базі.", reply_markup=admin_kb())
+    stats = db.referral_stats(uid)
+    text = (
+        f"<b>Юзер {uid}</b>\n"
+        f"Ім'я: {esc(u.get('first_name') or '—')} (@{esc(u.get('username') or '—')})\n"
+        f"Premium: {'✅ до ' + esc(str(u.get('premium_until'))) if u.get('premium') else '❌'}\n"
+        f"Тріал використано: {'так' if u.get('trial_used') else 'ні'}\n"
+        f"Запросив друзів: {stats['invited']}\n"
+        f"Реєстрація: {esc(str(u.get('created_at') or '—'))}\n"
+    )
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=admin_kb())
+
+
+async def do_admin_grant(update, text):
+    parts = text.split()
+    try:
+        uid = int(parts[0])
+        days = int(parts[1]) if len(parts) > 1 else 30
+    except (ValueError, IndexError):
+        return await update.message.reply_text("Формат: <code>UID ДНІ</code>, напр. <code>123456789 30</code>",
+                                                parse_mode=ParseMode.HTML)
+    db.extend_premium(uid, days)
+    await update.message.reply_text(f"✅ Видано {days} дн. Premium юзеру {uid}.", reply_markup=admin_kb())
+
+
+async def do_admin_revoke(update, text):
+    try:
+        uid = int(text.strip().split()[0])
+    except (ValueError, IndexError):
+        return await update.message.reply_text("Формат: UID")
+    db.set_premium(uid, on=False)
+    await update.message.reply_text(f"❌ Premium знято з юзера {uid}.", reply_markup=admin_kb())
+
+
+async def do_make_promo(update, text):
+    parts = text.split()
+    code = parts[0].upper()
+    days = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 30
+    uses = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 1
+    try:
+        db.promo_create(code, days, uses)
+        await update.message.reply_text(
+            f"Промокод <code>{esc(code)}</code> створено: {days} днів, {uses} активацій.",
+            parse_mode=ParseMode.HTML, reply_markup=admin_kb())
+    except Exception as e:
+        await update.message.reply_text(f"Не вийшло: {esc(e)}", parse_mode=ParseMode.HTML)
+
+
+async def do_broadcast(update, ctx, text):
+    """Раніше будь-яка помилка (включно з тимчасовим 'Too Many Requests' від
+    Telegram при великій розсилці) одразу рахувалась як "не вдалося" і юзер
+    назавжди пропускав розсилку — саме тому "не всім присилало". Тепер:
+    - RetryAfter (флуд-контроль Telegram) — чекаємо і повторюємо цього ж
+      юзера, а не списуємо його як провал;
+    - Forbidden (юзер заблокував бота чи видалив акаунт) — це справді
+      постійний провал, рахуємо і йдемо далі;
+    - інша помилка — одна повторна спроба, і тільки тоді "не вдалося"."""
+    uids = db.all_user_ids()
+    sent = blocked = failed = 0
+    note = await update.message.reply_text(f"Надсилаю {len(uids)} користувачам…")
+    for i, uid in enumerate(uids):
+        for attempt in range(3):
+            try:
+                await ctx.bot.send_message(uid, text, parse_mode=ParseMode.HTML)
+                sent += 1
+                break
+            except RetryAfter as e:
+                await asyncio.sleep(e.retry_after + 0.5)
+                continue
+            except Forbidden:
+                blocked += 1
+                break
+            except (BadRequest, TelegramError):
+                if attempt == 2:
+                    failed += 1
+                else:
+                    await asyncio.sleep(1)
+        await asyncio.sleep(0.05)
+        if i and i % 200 == 0:
+            try:
+                await note.edit_text(f"Надсилаю… {i}/{len(uids)} (доставлено {sent})")
+            except Exception:
+                pass
+    await note.edit_text(
+        f"Готово. Доставлено: {sent}, заблокували бота: {blocked}, не вдалося: {failed}.",
+        reply_markup=admin_kb())
+
+
+# ─── Callback ────────────────────────────────────────────────────────────────
+
+async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Обгортка-запобіжник: якщо всередині щось впаде (наприклад, база
+    даних), кнопка все одно отримає відповідь — інакше вона просто
+    "висить" і виглядає, ніби нічого не сталося."""
+    try:
+        await _on_callback(update, ctx)
+    except Exception:
+        logger.exception("Помилка обробки кнопки: %s", (update.callback_query.data if update.callback_query else ""))
+        try:
+            await update.callback_query.answer("⚠️ Тимчасова помилка, спробуйте ще раз", show_alert=True)
+        except Exception:
+            pass
+
+
+async def _on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    data = q.data or ""
+    uid = update.effective_user.id
+
+    if data == "noop":
+        return await q.answer("Задайте WEB_APP_URL у змінних Railway", show_alert=True)
+
+    if data.startswith("setlang:"):
+        code = data.split(":", 1)[1]
+        if code not in BOT_LANG_CODES:
+            return await q.answer()
+        first_time = not int((db.get_user(uid).get("lang_set")) or 0)
+        await asyncio.to_thread(db.update_user, uid, lang=code, lang_set=True)
+        lang_label = dict(BOT_LANGS)[code]
+        await q.answer(f"✅ {lang_label}")
+        if first_time:
+            arg = ctx.user_data.pop("pending_start_arg", "")
+            if arg.startswith("pl_"):
+                p = db.pl_get_by_code(arg[3:])
+                if p:
+                    return await show_shared_playlist(q.message, p)
+            if arg.startswith("ref_"):
+                done, who = await asyncio.to_thread(db.apply_referral, uid, arg[4:])
+                if done:
+                    await q.message.reply_text(
+                        f"🎉 {esc(who) or '🎁'} · +{REFERRAL_REWARD_DAYS} Premium",
+                        parse_mode=ParseMode.HTML)
+        # Вікно вибору мови перетворюється на привітання новою мовою.
+        return await screen(update, welcome_text(uid, code, update.effective_user.first_name or ""),
+                            main_kb(uid))
+
+    if data == "home":
+        await q.answer()
+        lang = user_lang(uid)
+        return await screen(update, welcome_text(uid, lang, update.effective_user.first_name or ""),
+                            main_kb(uid))
+
+    if data == "lang":
+        await q.answer()
+        return await cmd_lang(update, ctx)
+
+    if data == "help":
+        await q.answer()
+        return await cmd_help(update, ctx)
+
+    if data == "library":
+        await q.answer()
+        return await cmd_library(update, ctx)
+
+    if data.startswith("fav:"):
+        tid = data[4:]
+        lang = user_lang(uid)
+        t = await asyncio.to_thread(P.get_track, tid, db.limits_for(uid)["quality"])
+        if not t:
+            return await q.answer("😕 Трек недоступний", show_alert=True)
+        added = await asyncio.to_thread(db.lib_add, uid, t)
+        if not added:
+            await asyncio.to_thread(db.lib_remove, uid, t["id"])
+        await q.answer("❤️ Додано в улюблене" if added else "💔 Прибрано з улюбленого")
+        try:
+            await q.edit_message_reply_markup(reply_markup=track_kb(t, liked=added, lang=lang))
+        except Exception:
+            pass
+        return
+
+    if data == "search":
+        await q.answer()
+        return await screen(update, "🔎 Напишіть назву треку, артиста або жанру — і я знайду.",
+                            back_kb(uid))
+
+    if data == "trending":
+        await q.answer()
+        tracks = await asyncio.to_thread(P.audius_trending, None, 8)
+        if not tracks:
+            tracks = await asyncio.to_thread(P.jamendo_tag_tracks, "pop", 8)
+        lines = ["🔥 <b>Зараз слухають</b>\n"]
+        kb = []
+        for i, t in enumerate(tracks, 1):
+            lines.append(f"{i}. <b>{esc(t['title'])}</b> — {esc(t['artist'])}")
+            kb.append([InlineKeyboardButton(f"▶️ {t['title'][:30]}",
+                                            callback_data=f"t:{t['id']}")])
+        kb.append([InlineKeyboardButton(bt(user_lang(uid), "btn_menu"), callback_data="home")])
+        return await screen(update, "\n".join(lines), InlineKeyboardMarkup(kb))
+
+    if data == "premium":
+        await q.answer()
+        return await cmd_premium(update, ctx)
+
+    if data == "stats":
+        await q.answer()
+        return await cmd_stats(update, ctx)
+
+    if data == "legal":
+        await q.answer()
+        return await cmd_legal(update, ctx)
+
+    if data == "referral":
+        await q.answer()
+        return await cmd_referral(update, ctx)
+
+    if data in STAR_PLANS:
+        await q.answer()
+        return await send_invoice_for(q.message.chat_id, data, ctx, user_lang(uid))
+
+    if data == "trial":
+        await q.answer()
+        lang = user_lang(uid)
+        ok = await asyncio.to_thread(db.use_trial, uid, TRIAL_DAYS)
+        if ok:
+            return await q.message.reply_text(bt(lang, "trial_done", days=TRIAL_DAYS),
+                                               reply_markup=main_kb(uid))
+        return await q.message.reply_text(bt(lang, "trial_used"), reply_markup=main_kb(uid))
+
+    if data == "donate":
+        await q.answer()
+        lang = user_lang(uid)
+        kb = [[InlineKeyboardButton(f"⭐ {n}", callback_data=f"donate:{n}")] for n in DONATE_TIERS]
+        kb.append([InlineKeyboardButton(bt(lang, "btn_back"), callback_data="premium")])
+        return await q.message.reply_text(bt(lang, "donate_intro"), reply_markup=InlineKeyboardMarkup(kb))
+
+    if data.startswith("donate:"):
+        await q.answer()
+        try:
+            amount = int(data.split(":", 1)[1])
+        except ValueError:
+            return
+        try:
+            await ctx.bot.send_invoice(
+                chat_id=q.message.chat_id,
+                title=f"{APP_NAME} — підтримка проєкту",
+                description="Одноразовий донат на розвиток MusicLSP",
+                payload=f"donate_{amount}",
+                provider_token="",
+                currency="XTR",
+                prices=[LabeledPrice("Донат", amount)],
+            )
+        except Exception as e:
+            logger.exception("Не вдалося виставити рахунок донату: %s", e)
+        return
+
+    if data.startswith("t:"):
+        await q.answer()
+        return await show_track(q.message, uid, data[2:])
+
+    if data.startswith("dl:"):
+        return await do_download(q, uid, data[3:])
+
+    if data == "a:stats" and uid in ADMIN_IDS:
+        await q.answer()
+        s = db.global_stats()
+        return await q.message.reply_text(
+            f"<b>Статистика сервісу</b>\n\nБаза даних: <b>{esc(s['engine'])}</b>\n\n"
+            f"Користувачів: {s['users']}\n"
+            f"З Premium: {s['premium']}\nПрослуховувань: {s['plays']}\n"
+            f"Плейлистів: {s['playlists']}",
+            parse_mode=ParseMode.HTML, reply_markup=admin_kb())
+
+    if data == "a:promo" and uid in ADMIN_IDS:
+        await q.answer()
+        ctx.user_data["state"] = "promo"
+        return await q.message.reply_text(
+            "Надішліть: <code>КОД ДНІВ АКТИВАЦІЙ</code>\nНаприклад: <code>LAUNCH30 30 100</code>",
+            parse_mode=ParseMode.HTML)
+
+    if data == "a:broadcast" and uid in ADMIN_IDS:
+        await q.answer()
+        ctx.user_data["state"] = "broadcast"
+        return await q.message.reply_text("Надішліть текст розсилки (HTML дозволено).")
+
+    if data == "a:find" and uid in ADMIN_IDS:
+        await q.answer()
+        ctx.user_data["state"] = "admin_find"
+        return await q.message.reply_text("Надішліть Telegram ID юзера (число).")
+
+    if data == "a:grant" and uid in ADMIN_IDS:
+        await q.answer()
+        ctx.user_data["state"] = "admin_grant"
+        return await q.message.reply_text("Надішліть: <code>UID ДНІ</code>, напр. <code>123456789 30</code>",
+                                          parse_mode=ParseMode.HTML)
+
+    if data == "a:revoke" and uid in ADMIN_IDS:
+        await q.answer()
+        ctx.user_data["state"] = "admin_revoke"
+        return await q.message.reply_text("Надішліть Telegram ID юзера, з якого зняти Premium.")
+
+    if data == "a:menu" and uid in ADMIN_IDS:
+        await q.answer()
+        return await q.message.reply_text("Панель адміністратора", reply_markup=admin_kb())
+
+    if data.startswith("a:users:") and uid in ADMIN_IDS:
+        await q.answer()
+        offset = int(data.split(":")[2] or 0)
+        text, kb = await render_admin_users_page(offset)
+        return await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+    if data.startswith("a:u:") and uid in ADMIN_IDS:
+        await q.answer()
+        _, _, target_uid, back_offset = data.split(":")
+        text, kb = await render_admin_user_profile(int(target_uid), int(back_offset))
+        return await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+    if data.startswith("a:g7:") and uid in ADMIN_IDS:
+        await q.answer("Видано +7 днів Premium")
+        _, _, target_uid, back_offset = data.split(":")
+        await asyncio.to_thread(db.extend_premium, int(target_uid), 7)
+        text, kb = await render_admin_user_profile(int(target_uid), int(back_offset))
+        return await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+    if data.startswith("a:rv1:") and uid in ADMIN_IDS:
+        await q.answer("Premium знято")
+        _, _, target_uid, back_offset = data.split(":")
+        await asyncio.to_thread(db.set_premium, int(target_uid), False)
+        text, kb = await render_admin_user_profile(int(target_uid), int(back_offset))
+        return await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+    if data.startswith("a:reports:") and uid in ADMIN_IDS:
+        await q.answer()
+        offset = int(data.split(":")[2] or 0)
+        text, kb = await render_admin_reports_page(offset)
+        return await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+    if data.startswith("a:rsolve:") and uid in ADMIN_IDS:
+        _, _, report_id, back_offset = data.split(":")
+        await asyncio.to_thread(db.report_resolve, int(report_id))
+        await q.answer("Скаргу закрито")
+        text, kb = await render_admin_reports_page(int(back_offset))
+        return await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+    await q.answer()
+
+
+async def on_maybe_refund(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Telegram надсилає це службове повідомлення, коли Stars-оплату
+    повернули (наприклад, користувач попросив рефанд у підтримки Telegram).
+    Без цього обробника людина могла б лишитися з Premium назавжди навіть
+    після повернення грошей. У PTB 21.6 немає готового filters.REFUNDED_PAYMENT,
+    тому перевіряємо поле вручну — обробник дешевий і не заважає іншим."""
+    rp = update.message.refunded_payment if update.message else None
+    if not rp:
+        return
+    uid = update.effective_user.id
+    logger.warning("Повернення оплати Stars: uid=%s charge=%s", uid, rp.telegram_payment_charge_id)
+    await asyncio.to_thread(db.set_premium, uid, False)
+    try:
+        await update.message.reply_text("ℹ️ Оплату повернено — Premium вимкнено.")
+    except Exception:
+        pass
+
+
+async def on_error(update, ctx):
+    logger.error("Помилка обробника: %s", ctx.error, exc_info=ctx.error)
+
+
+# ─── Запуск ──────────────────────────────────────────────────────────────────
+
+async def run():
+    db.init_db()
+
+    if not JAMENDO_CLIENT_ID:
+        logger.warning("JAMENDO_CLIENT_ID не заданий — головне джерело каталогу вимкнене")
+
+    app_web = api.build_app()
+    runner = web.AppRunner(app_web)
+    await runner.setup()
+    await web.TCPSite(runner, "0.0.0.0", PORT).start()
+    logger.info("HTTP API слухає порт %s", PORT)
+
+    if not BOT_TOKEN:
+        logger.error("BOT_TOKEN не заданий — працює лише API")
+        while True:
+            await asyncio.sleep(3600)
+
+    application = Application.builder().token(BOT_TOKEN).build()
+    application.add_handler(CommandHandler("start", cmd_start))
+    application.add_handler(CommandHandler("lang", cmd_lang))
+    application.add_handler(CommandHandler("help", cmd_help))
+    application.add_handler(CommandHandler("search", cmd_search))
+    application.add_handler(CommandHandler("radio", cmd_radio))
+    application.add_handler(CommandHandler("premium", cmd_premium))
+    application.add_handler(CommandHandler("code", cmd_code))
+    application.add_handler(CommandHandler("stats", cmd_stats))
+    application.add_handler(CommandHandler("legal", cmd_legal))
+    application.add_handler(CommandHandler("privacy", cmd_privacy))
+    application.add_handler(CommandHandler("referral", cmd_referral))
+    application.add_handler(CommandHandler("library", cmd_library))
+    application.add_handler(CommandHandler("admin", cmd_admin))
+    application.add_handler(CallbackQueryHandler(on_callback))
+    application.add_handler(PreCheckoutQueryHandler(on_precheckout))
+    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, on_successful_payment))
+    application.add_handler(MessageHandler(filters.ALL, on_maybe_refund), group=1)
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
+    application.add_error_handler(on_error)
+
+    await application.initialize()
+    RT.set_bot(application.bot)
+    try:
+        me = await application.bot.get_me()
+        if me and me.username:
+            RT.set_detected_username(me.username)
+            logger.info("Username бота визначено автоматично: @%s", me.username)
+    except Exception as e:
+        logger.warning("Не вдалося визначити username бота: %s", e)
+    if WEB_APP_URL:
+        try:
+            await application.bot.set_chat_menu_button(
+                menu_button=MenuButtonWebApp(text="🎧 Плеєр",
+                                             web_app=WebAppInfo(url=webapp_url())))
+        except Exception as e:
+            logger.warning("Кнопка меню не встановлена: %s", e)
+    try:
+        # Список команд у Telegram-клієнті (кнопка "/" біля поля вводу) —
+        # українською за замовчуванням + російською й англійською за мовою клієнта.
+        _CMDS = {
+            None: [("start", "🏠 Головне меню"), ("search", "🔎 Пошук треку"),
+                   ("library", "❤️ Моя бібліотека"), ("radio", "📻 Радіо за треком"),
+                   ("premium", "✨ Premium"), ("referral", "🤝 Запросити друзів"),
+                   ("code", "🎁 Промокод"), ("stats", "📊 Моя статистика"),
+                   ("lang", "🌐 Змінити мову"), ("legal", "📚 Джерела та ліцензії"),
+                   ("privacy", "🔒 Приватність"), ("help", "ℹ️ Допомога")],
+            "ru": [("start", "🏠 Главное меню"), ("search", "🔎 Поиск трека"),
+                   ("library", "❤️ Моя библиотека"), ("radio", "📻 Радио по треку"),
+                   ("premium", "✨ Premium"), ("referral", "🤝 Пригласить друзей"),
+                   ("code", "🎁 Промокод"), ("stats", "📊 Моя статистика"),
+                   ("lang", "🌐 Сменить язык"), ("legal", "📚 Источники и лицензии"),
+                   ("privacy", "🔒 Приватность"), ("help", "ℹ️ Помощь")],
+            "en": [("start", "🏠 Main menu"), ("search", "🔎 Search a track"),
+                   ("library", "❤️ My library"), ("radio", "📻 Radio from a track"),
+                   ("premium", "✨ Premium"), ("referral", "🤝 Invite friends"),
+                   ("code", "🎁 Promo code"), ("stats", "📊 My stats"),
+                   ("lang", "🌐 Change language"), ("legal", "📚 Sources & licenses"),
+                   ("privacy", "🔒 Privacy"), ("help", "ℹ️ Help")],
+        }
+        for _lc, _cmds in _CMDS.items():
+            await application.bot.set_my_commands(_cmds, language_code=_lc)
+    except Exception as e:
+        logger.warning("Не вдалося встановити список команд: %s", e)
+    try:
+        # Профіль бота (видно до /start) — теж можна виставити самим ботом,
+        # без ручного заходу в BotFather.
+        await application.bot.set_my_short_description(
+            short_description=f"🎶 {APP_NAME} — легальна музика в Telegram: SoundCloud та відкриті каталоги.")
+        await application.bot.set_my_description(
+            description=f"{APP_NAME} — плеєр легальної музики просто в Telegram. "
+                        "Сотні тисяч треків з відкритих джерел (Creative Commons, публікації "
+                        "самих артистів, суспільне надбання). Черга, радіо, плейлисти, "
+                        "історія, поширення треків і персональні налаштування — Premium за Telegram Stars "
+                        "для Hi-Fi та розширених можливостей. Підтримує 8 мов інтерфейсу.")
+    except Exception as e:
+        logger.warning("Не вдалося встановити опис бота: %s", e)
+    # Railway може коротко тримати старий і новий контейнер одночасно.
+    # PostgreSQL advisory lock не дозволяє обом екземплярам опитувати Telegram.
+    if db.USE_PG:
+        deadline = time.monotonic() + 120
+        while not await asyncio.to_thread(db.acquire_bot_polling_lock):
+            if time.monotonic() >= deadline:
+                raise RuntimeError("Не вдалося отримати Telegram polling lock за 120 секунд")
+            logger.info("Інший екземпляр ще завершує роботу; чекаю на звільнення polling lock")
+            await asyncio.sleep(2)
+    else:
+        logger.warning("PostgreSQL недоступний: міжконтейнерний polling lock не активний")
+
+    try:
+        await application.start()
+        # Не відкидаємо повідомлення користувачів під час кожного деплою.
+        await application.updater.start_polling(drop_pending_updates=False)
+        logger.info("%s %s запущено", APP_NAME, APP_VERSION)
+        while True:
+            await asyncio.sleep(3600)
+    finally:
+        try:
+            if application.updater.running:
+                await application.updater.stop()
+            if application.running:
+                await application.stop()
+            await application.shutdown()
+        finally:
+            db.release_bot_polling_lock()
+            await runner.cleanup()
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(run())
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Зупинено")

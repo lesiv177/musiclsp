@@ -797,8 +797,7 @@ def pl_copy(uid, source_pid, new_name=None):
     if not src:
         return None, "Плейлист не знайдено"
     new, err = pl_create(uid, new_name or src["name"], src.get("description") or "")
-    if not new:
-        return None, err
+    if not new:        return None, err
     for t in src["tracks"]:
         pl_add_track(uid, new["id"], t)
     return pl_get(new["id"]), ""
@@ -998,3 +997,286 @@ def stats_for(uid, days=30):
         top_artists = rows(cur)
         cur.execute(q("SELECT title, artist, COUNT(*) AS c FROM history "
                       "WHERE uid=%s AND played_at>=%s GROUP BY title, artist "
+                      "ORDER BY c DESC LIMIT 10"), (uid, since))
+        top_tracks = rows(cur)
+        cur.execute(q("SELECT COUNT(*) AS c FROM library WHERE uid=%s"), (uid,))
+        lib_count = int((one(cur) or {}).get("c") or 0)
+    secs = int(base.get("secs") or 0)
+    return {
+        "plays": int(base.get("plays") or 0),
+        "seconds": secs,
+        "hours": round(secs / 3600, 1),
+        "top_artists": [{"name": a["artist"], "plays": int(a["c"])} for a in top_artists if a["artist"]],
+        "top_tracks": [{"title": t["title"], "artist": t["artist"], "plays": int(t["c"])}
+                       for t in top_tracks if t["title"]],
+        "library": lib_count,
+        "days": days,
+    }
+
+
+def global_stats():
+    with conn_cursor() as (conn, cur):
+        cur.execute("SELECT COUNT(*) AS c FROM users")
+        users = int((one(cur) or {}).get("c") or 0)
+        cur.execute(q("SELECT COUNT(*) AS c FROM users WHERE premium=%s"),
+                    (True if USE_PG else 1,))
+        prem = int((one(cur) or {}).get("c") or 0)
+        cur.execute("SELECT COUNT(*) AS c FROM history")
+        plays = int((one(cur) or {}).get("c") or 0)
+        cur.execute("SELECT COUNT(*) AS c FROM playlists")
+        pls = int((one(cur) or {}).get("c") or 0)
+    engine = "PostgreSQL (постійна)" if USE_PG else "SQLite (тимчасова!)"
+    if not USE_PG and _pg_last_error:
+        engine += f" — причина: {_pg_last_error}"
+    return {
+        "users": users, "premium": prem, "plays": plays, "playlists": pls,
+        "engine": engine,
+    }
+
+
+def all_user_ids():
+    with conn_cursor() as (conn, cur):
+        cur.execute("SELECT uid FROM users")
+        return [int(r["uid"]) for r in rows(cur)]
+
+
+# ─── Промокоди ───────────────────────────────────────────────────────────────
+
+def promo_create(code, days=30, uses=1):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("INSERT INTO promo_codes (code,days,uses_left,created_at) "
+                      "VALUES (%s,%s,%s,%s)"),
+                    (code.upper(), days, uses, now_str()))
+    return True
+
+
+def promo_redeem(uid, code):
+    code = (code or "").strip().upper()
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT * FROM promo_codes WHERE code=%s"), (code,))
+        p = one(cur)
+        if not p or int(p["uses_left"]) <= 0:
+            return False, 0
+        cur.execute(q("UPDATE promo_codes SET uses_left=%s WHERE code=%s"),
+                    (int(p["uses_left"]) - 1, code))
+        days = int(p["days"])
+    set_premium(uid, True, days)
+    return True, days
+
+
+# ─── Аудит і події ───────────────────────────────────────────────────────────
+
+def audit(actor, action, target="", details=""):
+    """Записує дію адміністратора. Панель без цього працювати не повинна."""
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("INSERT INTO audit_log (actor,action,target,details,created_at) "
+                      "VALUES (%s,%s,%s,%s,%s)"),
+                    (int(actor), action[:60], str(target)[:120], str(details)[:400], now_str()))
+
+
+def audit_list(limit=100):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT * FROM audit_log ORDER BY id DESC LIMIT %s"), (limit,))
+        return rows(cur)
+
+
+def auth_event(uid, kind, note=""):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("INSERT INTO auth_events (uid,kind,note,created_at) "
+                      "VALUES (%s,%s,%s,%s)"),
+                    (int(uid), kind[:40], str(note)[:200], now_str()))
+
+
+def users_page(offset=0, limit=50, search=""):
+    """Сторінка користувачів для панелі."""
+    with conn_cursor() as (conn, cur):
+        if search:
+            like = f"%{search}%"
+            cur.execute(q("SELECT * FROM users WHERE username LIKE %s OR first_name LIKE %s "
+                          "OR CAST(uid AS TEXT) LIKE %s ORDER BY uid DESC LIMIT %s OFFSET %s"),
+                        (like, like, like, limit, offset))
+        else:
+            cur.execute(q("SELECT * FROM users ORDER BY created_at DESC, uid DESC "
+                          "LIMIT %s OFFSET %s"), (limit, offset))
+        items = rows(cur)
+        cur.execute("SELECT COUNT(*) AS c FROM users")
+        total = int((one(cur) or {}).get("c") or 0)
+    return items, total
+
+
+def promo_list():
+    with conn_cursor() as (conn, cur):
+        cur.execute("SELECT * FROM promo_codes ORDER BY created_at DESC")
+        return rows(cur)
+
+
+def promo_delete(code):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("DELETE FROM promo_codes WHERE code=%s"), (code.upper(),))
+
+
+def signups_by_day(days=14):
+    with conn_cursor() as (conn, cur):
+        cur.execute("SELECT created_at FROM users")
+        raw = [r.get("created_at") for r in rows(cur)]
+    out = {}
+    for v in raw:
+        if not v:
+            continue
+        day = str(v)[:10]
+        out[day] = out.get(day, 0) + 1
+    return sorted(out.items())[-days:]
+
+
+# ─── Одноразові токени входу в панель ────────────────────────────────────────
+
+def login_token_create(uid, ttl_seconds=300):
+    """Створює одноразовий код входу. Живе 5 хвилин."""
+    token = "".join(random.choices(string.ascii_letters + string.digits, k=40))
+    exp = (datetime.datetime.utcnow() + datetime.timedelta(seconds=ttl_seconds)) \
+        .isoformat(sep=" ", timespec="seconds")
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("INSERT INTO login_tokens (token,uid,expires_at,used) "
+                      "VALUES (%s,%s,%s,%s)"), (token, int(uid), exp, 0))
+    return token
+
+
+def login_token_consume(token):
+    """Повертає uid і одразу гасить токен. Повторно використати не вийде."""
+    if not token:
+        return None
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT * FROM login_tokens WHERE token=%s"), (token,))
+        r = one(cur)
+        if not r or int(r.get("used") or 0):
+            return None
+        exp = r.get("expires_at")
+        if isinstance(exp, str):
+            try:
+                exp = datetime.datetime.fromisoformat(exp.replace("Z", "").strip())
+            except ValueError:
+                exp = None
+        if isinstance(exp, datetime.datetime) and exp < datetime.datetime.utcnow():
+            return None
+        cur.execute(q("UPDATE login_tokens SET used=%s WHERE token=%s"), (1, token))
+        return int(r["uid"])
+
+
+def login_tokens_cleanup():
+    cutoff = datetime.datetime.utcnow().isoformat(sep=" ", timespec="seconds")
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("DELETE FROM login_tokens WHERE expires_at<%s OR used=%s"), (cutoff, 1))
+
+
+# ─── Скарги на треки (проблема з ліцензією, мертве посилання тощо) ──────────
+
+def report_track(uid, t, reason=""):
+    """Користувач скаржиться на трек (невірна ліцензія/автор, не грає, тощо)."""
+    with conn_cursor() as (conn, cur):
+        cur.execute(q(
+            "INSERT INTO track_reports (uid, tid, title, artist, source, reason) "
+            "VALUES (%s,%s,%s,%s,%s,%s)"),
+            (uid, t.get("id", ""), t.get("title", ""), t.get("artist", ""),
+             t.get("source", ""), reason[:500]))
+    return True
+
+
+def reports_page(offset=0, limit=8, status="open"):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT COUNT(*) AS c FROM track_reports WHERE status=%s"), (status,))
+        total = int((one(cur) or {}).get("c") or 0)
+        cur.execute(q(
+            "SELECT * FROM track_reports WHERE status=%s "
+            "ORDER BY id DESC LIMIT %s OFFSET %s"), (status, limit, offset))
+        items = rows(cur)
+    return items, total
+
+
+def report_resolve(report_id):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("UPDATE track_reports SET status=%s WHERE id=%s"), ("resolved", report_id))
+        return cur.rowcount > 0
+
+
+def open_reports_count():
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT COUNT(*) AS c FROM track_reports WHERE status=%s"), ("open",))
+        return int((one(cur) or {}).get("c") or 0)
+
+
+# ─── Розширена статистика для веб-адмінки ────────────────────────────────────
+
+def _ago(**kw):
+    return (datetime.datetime.utcnow() - datetime.timedelta(**kw)).isoformat(
+        sep=" ", timespec="seconds")
+
+
+def _count(cur, sql, params=()):
+    cur.execute(q(sql), params)
+    return int((one(cur) or {}).get("c") or 0)
+
+
+def admin_extra_stats():
+    """Активність, нові юзери, Premium що скоро закінчиться, топи за 7 днів."""
+    d1, d7 = _ago(days=1), _ago(days=7)
+    soon = (datetime.datetime.utcnow() + datetime.timedelta(days=7)).isoformat(
+        sep=" ", timespec="seconds")
+    now = now_str()
+    out = {}
+    with conn_cursor() as (conn, cur):
+        out["new_24h"] = _count(cur, "SELECT COUNT(*) AS c FROM users WHERE created_at>=%s", (d1,))
+        out["new_7d"] = _count(cur, "SELECT COUNT(*) AS c FROM users WHERE created_at>=%s", (d7,))
+        out["active_24h"] = _count(cur, "SELECT COUNT(DISTINCT uid) AS c FROM history WHERE played_at>=%s", (d1,))
+        out["active_7d"] = _count(cur, "SELECT COUNT(DISTINCT uid) AS c FROM history WHERE played_at>=%s", (d7,))
+        out["plays_24h"] = _count(cur, "SELECT COUNT(*) AS c FROM history WHERE played_at>=%s", (d1,))
+        out["expiring"] = _count(
+            cur, "SELECT COUNT(*) AS c FROM users WHERE premium_until IS NOT NULL "
+                 "AND premium_until>=%s AND premium_until<=%s", (now, soon))
+        cur.execute(q("SELECT artist, COUNT(*) AS c FROM history WHERE played_at>=%s AND artist<>'' "
+                      "GROUP BY artist ORDER BY c DESC LIMIT 5"), (d7,))
+        out["top_artists"] = [[r["artist"], int(r["c"])] for r in rows(cur)]
+        cur.execute(q("SELECT title, artist, COUNT(*) AS c FROM history WHERE played_at>=%s "
+                      "GROUP BY title, artist ORDER BY c DESC LIMIT 5"), (d7,))
+        out["top_tracks"] = [[r["title"], r["artist"], int(r["c"])] for r in rows(cur)]
+        cur.execute(q("SELECT source, COUNT(*) AS c FROM history WHERE played_at>=%s "
+                      "GROUP BY source ORDER BY c DESC"), (d7,))
+        out["sources"] = [[r["source"] or "?", int(r["c"])] for r in rows(cur)]
+    return out
+
+
+def user_exists(uid):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT uid FROM users WHERE uid=%s"), (uid,))
+        return one(cur) is not None
+
+
+def user_detail(uid):
+    """Профіль користувача для адміна. None, якщо такого немає."""
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT * FROM users WHERE uid=%s"), (uid,))
+        u = one(cur)
+        if not u:
+            return None
+        u["plays"] = _count(cur, "SELECT COUNT(*) AS c FROM history WHERE uid=%s", (uid,))
+        u["playlists"] = _count(cur, "SELECT COUNT(*) AS c FROM playlists WHERE uid=%s", (uid,))
+        u["library"] = _count(cur, "SELECT COUNT(*) AS c FROM library WHERE uid=%s", (uid,))
+        cur.execute(q("SELECT played_at FROM history WHERE uid=%s ORDER BY id DESC LIMIT 1"), (uid,))
+        last = one(cur)
+        u["last_play"] = str((last or {}).get("played_at") or "")[:16]
+        cur.execute(q("SELECT artist, COUNT(*) AS c FROM history WHERE uid=%s AND artist<>'' "
+                      "GROUP BY artist ORDER BY c DESC LIMIT 3"), (uid,))
+        u["top_artists"] = [r["artist"] for r in rows(cur)]
+    return u
+
+
+def user_ids_by_segment(segment="all"):
+    """all | premium | free"""
+    with conn_cursor() as (conn, cur):
+        if segment == "premium":
+            cur.execute(q("SELECT uid FROM users WHERE premium=%s"), (True if USE_PG else 1,))
+        elif segment == "free":
+            cur.execute(q("SELECT uid FROM users WHERE premium=%s OR premium IS NULL"),
+                        (False if USE_PG else 0,))
+        else:
+            cur.execute("SELECT uid FROM users")
+        return [int(r["uid"]) for r in rows(cur)]
