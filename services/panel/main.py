@@ -12,6 +12,7 @@ cookie-сесія на PANEL_SESSION_HOURS годин.
 import html
 import asyncio
 import logging
+import re
 import datetime
 
 from aiohttp import web
@@ -270,6 +271,9 @@ async def h_users_revoke(request, uid):
 @guard
 async def h_promo(request, uid):
     codes = await to_thread(db.promo_list)
+    error = request.query.get("error", "")
+    notice = {"invalid": "Перевір код, кількість активацій і термін.",
+              "exists": "Такий промокод уже існує."}.get(error, "")
     rows_html = "".join(f"""<tr>
       <td class="mono">{esc(c['code'])}</td>
       <td>{esc(c['days'])} днів</td>
@@ -280,8 +284,9 @@ async def h_promo(request, uid):
         <button class="warn">Видалити</button></form></td></tr>""" for c in codes)
 
     body = f"""<h1>Промокоди</h1>
+    {('<div class="note">' + esc(notice) + '</div>') if notice else ''}
     <form class="bar" method="post" action="/promo/create">
-      <input name="code" placeholder="LAUNCH30" required style="text-transform:uppercase">
+      <input name="code" placeholder="LAUNCH30" required maxlength="32" pattern="[A-Za-z0-9_-]{{3,32}}" style="text-transform:uppercase">
       <input name="days" type="number" value="30" min="1" max="3650" style="width:90px" title="днів">
       <input name="uses" type="number" value="100" min="1" max="100000" style="width:96px" title="активацій">
       <button>Створити</button>
@@ -296,14 +301,20 @@ async def h_promo(request, uid):
 async def h_promo_create(request, uid):
     data = await request.post()
     code = str(data.get("code", "")).strip().upper()
-    if code:
-        days = max(1, int(data.get("days", 30)))
-        uses = max(1, int(data.get("uses", 1)))
-        try:
-            await to_thread(db.promo_create, code, days, uses)
-            await to_thread(db.audit, uid, "create_promo", code, f"{days}д × {uses}")
-        except Exception as e:
-            log.warning("Код %s не створено: %s", code, e)
+    try:
+        days = int(data.get("days", 30))
+        uses = int(data.get("uses", 1))
+        if not re.fullmatch(r"[A-Z0-9_-]{3,32}", code) or not 1 <= days <= 3650 or not 1 <= uses <= 100000:
+            raise ValueError("invalid promo input")
+        created = await to_thread(db.promo_create, code, days, uses)
+        if not created:
+            raise FileExistsError("duplicate promo code")
+        await to_thread(db.audit, uid, "create_promo", code, f"{days}д × {uses}")
+    except FileExistsError:
+        raise web.HTTPFound("/promo?error=exists")
+    except (TypeError, ValueError) as e:
+        log.info("Промокод не створено: %s", e)
+        raise web.HTTPFound("/promo?error=invalid")
     raise web.HTTPFound("/promo")
 
 
