@@ -91,6 +91,24 @@ class SQLiteDevicePersistenceTests(unittest.TestCase):
         self.database_patch.stop()
         self.tmp.cleanup()
 
+    def test_promo_codes_are_normalized_validated_and_unique(self):
+        self.assertTrue(db.promo_create(" launch_2026 ", 14, 2))
+        self.assertFalse(db.promo_create("LAUNCH_2026", 14, 2))
+        with self.assertRaises(ValueError):
+            db.promo_create("bad code", 14, 2)
+        with self.assertRaises(ValueError):
+            db.promo_create("SHORT", 0, 2)
+
+    def test_promo_code_cannot_be_redeemed_more_than_its_uses(self):
+        uid = 123458
+        db.get_user(uid, "", "Promo QA")
+        self.assertTrue(db.promo_create("ONE_USE", 14, 1))
+        self.assertEqual(db.promo_redeem(uid, "one_use"), (True, 14))
+        self.assertEqual(db.promo_redeem(uid, "ONE_USE"), (False, 0))
+        promo = next(p for p in db.promo_list() if p["code"] == "ONE_USE")
+        self.assertEqual(int(promo["uses_left"]), 0)
+        self.assertTrue(db.is_premium(uid))
+
     def test_device_state_and_command_round_trip(self):
         uid = 123456
         db.device_register(uid, "phone-1", "Test phone", "iOS")
