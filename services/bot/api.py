@@ -12,8 +12,6 @@ import hmac
 import json
 import math
 import time
-import re
-import secrets
 import zipfile
 import hashlib
 import logging
@@ -1007,29 +1005,18 @@ async def h_admin_promos(request, u):
             return fail("Некоректний JSON або очікувався JSON-об’єкт")
         action = body.get("action")
         if action == "create":
-            code = str(body.get("code") or "").strip().upper()
-            alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-            if not code:
-                code = "".join(secrets.choice(alphabet) for _ in range(8))
-            if not re.fullmatch(r"[A-Z0-9_-]{3,32}", code):
-                return fail("Код: 3–32 символи A–Z, 0–9, _ або -")
-            days = bounded_int(body.get("days"), 30, 1, 3650)
-            uses = bounded_int(body.get("uses"), 1, 1, 100000)
-            if days is None or uses is None:
-                return fail("Термін: 1–3650 днів, активацій: 1–100000")
+            import random, string
+            code = (body.get("code") or "").strip().upper() or "".join(
+                random.choices(string.ascii_uppercase + string.digits, k=8))
+            days = max(1, min(int(body.get("days") or 30), 3650))
+            uses = max(1, min(int(body.get("uses") or 1), 100000))
             try:
-                created = await to_thread(db.promo_create, code, days, uses)
-            except ValueError as e:
-                return fail(str(e))
-            if not created:
-                return fail("Такий код уже існує", 409)
+                await to_thread(db.promo_create, code, days, uses)
+            except Exception:
+                return fail("Такий код уже існує")
             await to_thread(db.audit, int(u["uid"]), "web_admin_promo_create", code, f"{days}d x{uses}")
         elif action == "delete":
-            code = str(body.get("code") or "").strip().upper()
-            if not re.fullmatch(r"[A-Z0-9_-]{3,32}", code):
-                return fail("Некоректний промокод")
-            await to_thread(db.promo_delete, code)
-            await to_thread(db.audit, int(u["uid"]), "web_admin_promo_delete", code, "")
+            await to_thread(db.promo_delete, str(body.get("code") or ""))
         else:
             return fail("Невідома дія")
     promos = await to_thread(db.promo_list)
@@ -1050,7 +1037,7 @@ async def h_admin_system(request, u):
             "jamendo": bool(JAMENDO_CLIENT_ID), "audius": True,
             "archive": bool(getattr(CFG, "ARCHIVE_ENABLED", True)),
             "soundcloud": bool(P.soundcloud_enabled()),
-            "youtube": bool(P.youtube_enabled()),
+            "youtube": bool(getattr(P, "youtube_enabled", lambda: False)()),
         },
         "connect": {"accounts": sum(1 for a in accounts if a.devices),
                     "devices": sum(len(a.devices) for a in accounts)},
