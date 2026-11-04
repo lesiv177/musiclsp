@@ -13,13 +13,17 @@
 <link rel="stylesheet" href="./ui-polish.css?v=2">
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
   <link rel="stylesheet" href="./v3.css?v=1">
-  <link rel="stylesheet" href="./theme.css?v=9">
+  <link rel="stylesheet" href="./theme.css?v=10">
   <script defer src="./v3.js?v=4"></script>
+<script>try{var d=document.documentElement;d.dataset.space=localStorage.getItem("mlsp_space")||"nebula";d.dataset.spAnim=localStorage.getItem("mlsp_spanim")==="0"?"0":"1";}catch(e){document.documentElement.dataset.space="nebula";}</script>
+<link rel="icon" type="image/svg+xml" href="./icon.svg">
+<link rel="apple-touch-icon" href="./icon-512.png">
 </head>
 <body>
+<div id="spaceBg" aria-hidden="true"><i class="sp-obj"></i></div>
 <div id="splash">
   <div class="splashBg" id="splashBg"></div>
-  <div class="spl-cosmos"><img class="spl-icon" src="./icon.svg" alt=""><div class="spl-word">Music<span>LSP</span></div><div class="spl-tag"><i></i>LISTEN BEYOND<i></i></div><div class="spl-spin" aria-hidden="true"></div></div>
+  <div class="spl-cosmos"><img class="spl-icon" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDI0IDEwMjQiIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiPjxkZWZzPgo8bGluZWFyR3JhZGllbnQgaWQ9ImJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjMWQwZjU1Ii8+PHN0b3Agb2Zmc2V0PSIuNiIgc3RvcC1jb2xvcj0iIzA4MDQyMiIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzAzMDIwOCIvPjwvbGluZWFyR3JhZGllbnQ+CjxyYWRpYWxHcmFkaWVudCBpZD0ibmViIiBjeD0iNzglIiBjeT0iODIlIiByPSI1NSUiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzdjM2FlZCIgc3RvcC1vcGFjaXR5PSIuNTUiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiM3YzNhZWQiIHN0b3Atb3BhY2l0eT0iMCIvPjwvcmFkaWFsR3JhZGllbnQ+CjxyYWRpYWxHcmFkaWVudCBpZD0icGwiIGN4PSIzNCUiIGN5PSIyOCUiIHI9Ijg1JSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjOGI1Y2Y2Ii8+PHN0b3Agb2Zmc2V0PSIuNSIgc3RvcC1jb2xvcj0iIzRjMWQ5NSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzE1MDgzNiIvPjwvcmFkaWFsR3JhZGllbnQ+CjxsaW5lYXJHcmFkaWVudCBpZD0icmciIHgxPSIwIiB4Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjZmYzYjVjIi8+PHN0b3Agb2Zmc2V0PSIuNTUiIHN0b3AtY29sb3I9IiNlODc5ZjkiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiM4YjVjZjYiLz48L2xpbmVhckdyYWRpZW50Pgo8bGluZWFyR3JhZGllbnQgaWQ9ImJhciIgeDE9IjAiIHkxPSIwIiB4Mj0iMCIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2ZmZiIvPjxzdG9wIG9mZnNldD0iLjUiIHN0b3AtY29sb3I9IiNmOWE4ZDQiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiNmZjNiNWMiLz48L2xpbmVhckdyYWRpZW50Pgo8ZmlsdGVyIGlkPSJnbCI+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iMTYiLz48L2ZpbHRlcj48Y2xpcFBhdGggaWQ9InIiPjxyZWN0IHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHJ4PSIyMzAiLz48L2NsaXBQYXRoPjxjbGlwUGF0aCBpZD0iZnJvbnQiPjxyZWN0IHg9IjAiIHk9IjUxMiIgd2lkdGg9IjEwMjQiIGhlaWdodD0iMzAwIi8+PC9jbGlwUGF0aD48L2RlZnM+CjxnIGNsaXAtcGF0aD0idXJsKCNyKSI+PHJlY3Qgd2lkdGg9IjEwMjQiIGhlaWdodD0iMTAyNCIgZmlsbD0idXJsKCNiZykiLz48cmVjdCB3aWR0aD0iMTAyNCIgaGVpZ2h0PSIxMDI0IiBmaWxsPSJ1cmwoI25lYikiLz48Y2lyY2xlIGN4PSIyODEiIGN5PSIzNTAiIHI9IjEuNSIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iMC43MyIvPjxjaXJjbGUgY3g9IjUzMCIgY3k9IjE5OCIgcj0iMS41IiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjM0Ii8+PGNpcmNsZSBjeD0iNDUxIiBjeT0iNjAyIiByPSIyLjUiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuNzgiLz48Y2lyY2xlIGN4PSI4MjMiIGN5PSIxMDAiIHI9IjIiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuNjEiLz48Y2lyY2xlIGN4PSI0MDgiIGN5PSIzMjMiIHI9IjIiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuODAiLz48Y2lyY2xlIGN4PSIzMDgiIGN5PSIyNTkiIHI9IjEuNSIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iMC44MCIvPjxjaXJjbGUgY3g9Ijg2NiIgY3k9IjMwNiIgcj0iMi41IiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjQyIi8+PGNpcmNsZSBjeD0iMzU3IiBjeT0iMzM2IiByPSIyLjUiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuMzUiLz48Y2lyY2xlIGN4PSI2NjAiIGN5PSIzODUiIHI9IjMiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuNjAiLz48Y2lyY2xlIGN4PSIyMjIiIGN5PSIyOTMiIHI9IjMiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuNDciLz48Y2lyY2xlIGN4PSI4NzciIGN5PSI5MjYiIHI9IjIuNSIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iMC4zMCIvPjxjaXJjbGUgY3g9IjMzOCIgY3k9IjYyNiIgcj0iMi41IiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjgxIi8+PGNpcmNsZSBjeD0iNTYwIiBjeT0iMjM5IiByPSIzIiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjU1Ii8+PGNpcmNsZSBjeD0iMzM1IiBjeT0iNDgxIiByPSIzIiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjQwIi8+PGNpcmNsZSBjeD0iMzUyIiBjeT0iMzA1IiByPSIxLjUiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuMzUiLz48Y2lyY2xlIGN4PSI1MTMiIGN5PSI2ODEiIHI9IjIuNSIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iMC42MSIvPjxjaXJjbGUgY3g9IjcwMyIgY3k9IjUyMiIgcj0iMi41IiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjM5Ii8+PGNpcmNsZSBjeD0iNzI5IiBjeT0iMjQwIiByPSIxLjUiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuNTUiLz48Y2lyY2xlIGN4PSIyNDciIGN5PSI2OTAiIHI9IjMiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuNDciLz48Y2lyY2xlIGN4PSI0MDQiIGN5PSI0ODYiIHI9IjIuNSIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iMC42OCIvPjxjaXJjbGUgY3g9IjI0MyIgY3k9Ijk2NiIgcj0iMi41IiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjM2Ii8+PGNpcmNsZSBjeD0iMTAzIiBjeT0iNzY1IiByPSIyIiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjQ3Ii8+PGNpcmNsZSBjeD0iNjM2IiBjeT0iNjcwIiByPSIyIiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjM3Ii8+PGNpcmNsZSBjeD0iMjIxIiBjeT0iMzM3IiByPSIzIiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjMyIi8+PGNpcmNsZSBjeD0iNDA1IiBjeT0iNzU0IiByPSIxLjUiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuODQiLz48Y2lyY2xlIGN4PSIzMzIiIGN5PSI3OTIiIHI9IjIuNSIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iMC4zMSIvPjxjaXJjbGUgY3g9IjMzNSIgY3k9IjM2OSIgcj0iMiIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iMC43NyIvPjxjaXJjbGUgY3g9IjQ2MCIgY3k9IjkyMiIgcj0iMS41IiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjQ4Ii8+PGNpcmNsZSBjeD0iMjM2IiBjeT0iOTU1IiByPSIzIiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjQ4Ii8+PGNpcmNsZSBjeD0iMjk2IiBjeT0iNDMwIiByPSIyIiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjUwIi8+PGNpcmNsZSBjeD0iNDkiIGN5PSI0MTIiIHI9IjEuNSIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iMC41NyIvPjxjaXJjbGUgY3g9IjQxMyIgY3k9Ijg0MiIgcj0iMi41IiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjkwIi8+PGNpcmNsZSBjeD0iNjI1IiBjeT0iMTM5IiByPSIzIiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjg5Ii8+PGNpcmNsZSBjeD0iNDc0IiBjeT0iOTc4IiByPSIyIiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjM3Ii8+PGNpcmNsZSBjeD0iMTAzIiBjeT0iOTYiIHI9IjIiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuNjYiLz48Y2lyY2xlIGN4PSIxOTMiIGN5PSI2NjEiIHI9IjEuNSIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iMC42MyIvPjxjaXJjbGUgY3g9IjYzNiIgY3k9IjI5NSIgcj0iMi41IiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjkwIi8+PGNpcmNsZSBjeD0iMTY1IiBjeT0iODk0IiByPSIyLjUiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuNzYiLz48Y2lyY2xlIGN4PSI0NTkiIGN5PSI3MDciIHI9IjIiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuNTkiLz48Y2lyY2xlIGN4PSIyODciIGN5PSI0ODkiIHI9IjMiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuNjAiLz48Y2lyY2xlIGN4PSIyNjQiIGN5PSI0NzEiIHI9IjMiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuNDUiLz48Y2lyY2xlIGN4PSI5NTAiIGN5PSI0NzgiIHI9IjIiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuNjAiLz48Y2lyY2xlIGN4PSI3MiIgY3k9Ijc3IiByPSIyLjUiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuNDUiLz48Y2lyY2xlIGN4PSI1NzgiIGN5PSIyNTMiIHI9IjIiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuNTUiLz48Y2lyY2xlIGN4PSIzMDciIGN5PSIxODUiIHI9IjIuNSIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iMC4zMyIvPjxjaXJjbGUgY3g9IjM2MiIgY3k9IjYxOCIgcj0iMS41IiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjg5Ii8+CjxnIHRyYW5zZm9ybT0icm90YXRlKC0xOCA1MTIgNTEyKSI+PGVsbGlwc2UgY3g9IjUxMiIgY3k9IjUxMiIgcng9IjQzMiIgcnk9IjExMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ1cmwoI3JnKSIgc3Ryb2tlLXdpZHRoPSIzMCIgb3BhY2l0eT0iLjQ1IiBmaWx0ZXI9InVybCgjZ2wpIi8+PGVsbGlwc2UgY3g9IjUxMiIgY3k9IjUxMiIgcng9IjQzMiIgcnk9IjExMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ1cmwoI3JnKSIgc3Ryb2tlLXdpZHRoPSIxMiIvPjwvZz4KPGNpcmNsZSBjeD0iNTEyIiBjeT0iNTEyIiByPSIyNjIiIGZpbGw9InVybCgjcGwpIi8+CjxnIGZpbGw9IiMwMDAiIG9wYWNpdHk9Ii4xNiI+PGNpcmNsZSBjeD0iNDEwIiBjeT0iNDAwIiByPSI0NiIvPjxjaXJjbGUgY3g9IjY0MCIgY3k9IjYyMCIgcj0iNjAiLz48Y2lyY2xlIGN4PSI0NzAiIGN5PSI2NjAiIHI9IjMwIi8+PGNpcmNsZSBjeD0iNjUwIiBjeT0iNDEwIiByPSIyNiIvPjwvZz4KPGc+PHJlY3QgeD0iMjc1IiB5PSI0OTIuMCIgd2lkdGg9IjE4IiBoZWlnaHQ9IjQwIiByeD0iOSIgZmlsbD0idXJsKCNiYXIpIi8+PHJlY3QgeD0iMzEzIiB5PSI0NzQuMCIgd2lkdGg9IjE4IiBoZWlnaHQ9Ijc2IiByeD0iOSIgZmlsbD0idXJsKCNiYXIpIi8+PHJlY3QgeD0iMzUxIiB5PSI0NTIuMCIgd2lkdGg9IjE4IiBoZWlnaHQ9IjEyMCIgcng9IjkiIGZpbGw9InVybCgjYmFyKSIvPjxyZWN0IHg9IjM4OSIgeT0iNDI0LjAiIHdpZHRoPSIxOCIgaGVpZ2h0PSIxNzYiIHJ4PSI5IiBmaWxsPSJ1cmwoI2JhcikiLz48cmVjdCB4PSI0MjciIHk9IjM4Ny4wIiB3aWR0aD0iMTgiIGhlaWdodD0iMjUwIiByeD0iOSIgZmlsbD0idXJsKCNiYXIpIi8+PHJlY3QgeD0iNDY1IiB5PSIzNDcuMCIgd2lkdGg9IjE4IiBoZWlnaHQ9IjMzMCIgcng9IjkiIGZpbGw9InVybCgjYmFyKSIvPjxyZWN0IHg9IjUwMyIgeT0iMjk3LjAiIHdpZHRoPSIxOCIgaGVpZ2h0PSI0MzAiIHJ4PSI5IiBmaWxsPSJ1cmwoI2JhcikiLz48cmVjdCB4PSI1NDEiIHk9IjM0Ny4wIiB3aWR0aD0iMTgiIGhlaWdodD0iMzMwIiByeD0iOSIgZmlsbD0idXJsKCNiYXIpIi8+PHJlY3QgeD0iNTc5IiB5PSIzODcuMCIgd2lkdGg9IjE4IiBoZWlnaHQ9IjI1MCIgcng9IjkiIGZpbGw9InVybCgjYmFyKSIvPjxyZWN0IHg9IjYxNyIgeT0iNDI0LjAiIHdpZHRoPSIxOCIgaGVpZ2h0PSIxNzYiIHJ4PSI5IiBmaWxsPSJ1cmwoI2JhcikiLz48cmVjdCB4PSI2NTUiIHk9IjQ1Mi4wIiB3aWR0aD0iMTgiIGhlaWdodD0iMTIwIiByeD0iOSIgZmlsbD0idXJsKCNiYXIpIi8+PHJlY3QgeD0iNjkzIiB5PSI0NzQuMCIgd2lkdGg9IjE4IiBoZWlnaHQ9Ijc2IiByeD0iOSIgZmlsbD0idXJsKCNiYXIpIi8+PHJlY3QgeD0iNzMxIiB5PSI0OTIuMCIgd2lkdGg9IjE4IiBoZWlnaHQ9IjQwIiByeD0iOSIgZmlsbD0idXJsKCNiYXIpIi8+PC9nPgo8ZyB0cmFuc2Zvcm09InJvdGF0ZSgtMTggNTEyIDUxMikiPjxlbGxpcHNlIGNsaXAtcGF0aD0idXJsKCNmcm9udCkiIGN4PSI1MTIiIGN5PSI1MTIiIHJ4PSI0MzIiIHJ5PSIxMTIiIGZpbGw9Im5vbmUiIHN0cm9rZT0idXJsKCNyZykiIHN0cm9rZS13aWR0aD0iMTIiLz48L2c+PC9nPjwvc3ZnPg==" alt=""><div class="spl-word">Music<span>LSP</span></div><div class="spl-tag"><i></i>LISTEN BEYOND<i></i></div><div class="spl-spin" aria-hidden="true"></div></div>
   <div class="vinylWrap">
     <div class="vinyl" id="vinylDisc">
       <div class="vlabel">
@@ -894,6 +898,8 @@ function revealApp(){
   app?.classList.add("ready");
   setTimeout(() => splash?.classList.add("hide"), 260);
 }
+/* запобіжник: заставка не може висіти вічно, навіть якщо сервер мовчить */
+setTimeout(()=>{ const a=$("appRoot"); if(a && !a.classList.contains("ready")) revealApp(); },9000);
 (async function boot(){
   startSplashShow();
   applyTelegramAvatar();
@@ -919,6 +925,7 @@ function revealApp(){
     $("planChip").textContent = S.me.premium ? "Premium" : "Free";
     $("planChip").classList.toggle("pro", !!S.me.premium);
     if($("adminChip")) $("adminChip").hidden = !S.me.is_admin;
+    try{ applyFx(); }catch(e){}
     applyI18n();
     startSplashShow(S.me.lang);
   }catch(e){
@@ -928,9 +935,9 @@ function revealApp(){
     return;
   }
   await dataReady;
-  startDeviceSync();
-  handleStartParam();
-  await resumeRestore();
+  try{ startDeviceSync(); }catch(e){}
+  try{ handleStartParam(); }catch(e){}
+  try{ await resumeRestore(); }catch(e){}
   revealApp();
 })();
 
@@ -990,15 +997,15 @@ function go(name){
 }
 
 /* ════════ Рендер треків ════════ */
-function rowsHtml(list, ctxKey){
-  return `<div class="rows">` + list.map((t,i)=>`
+function rowsHtml(list, ctxKey){  return `<div class="rows">` + list.map((t,i)=>`
     <div class="row ${current()?.id===t.id?"now":""}" data-i="${i}" data-ctx="${ctxKey}">
       <img class="art" src="${esc(t.cover||"")}" alt="" loading="lazy"
            onerror="this.style.visibility='hidden'">
       <div class="meta">
         <div class="t">${esc(t.title)}</div>
         <div class="s">${t.artist_id?("<button class=\"artist-link\" type=\"button\" data-artist-id=\""+esc(t.artist_id)+"\" data-artist-name=\""+esc(t.artist)+"\">"+esc(t.artist)+"</button>"):esc(t.artist)}${t.duration_str?" · "+esc(t.duration_str):""}</div>
-      </div>      <button class="act" data-menu="${i}">${ICON("kebab")}</button>
+      </div>
+      <button class="act" data-menu="${i}">${ICON("kebab")}</button>
     </div>`).join("") + `</div>`;
 }
 const CTX = {};
@@ -1989,15 +1996,15 @@ function cnApplySnapshot(m){
     // активний пристрій зник (вийшов із бота): лишаємось із тим самим треком і секундою
     if(!current() || wasRemote) cnAdoptLastSession();
     if(wasRemote && prevPlaying && S.autoTakeover!==false){
-      setTimeout(()=>{ try{ if(RESUME.pending && !CN.owner) startPending(); }catch(e){} },350);
-    }
+      setTimeout(()=>{ try{ if(RESUME.pending && !CN.owner) startPending(); }catch(e){} },350);    }
   }
   cnRender();
 }
 /* Пульт: дзеркалимо чергу й трек активного пристрою. */
 function cnAdoptRemote(){
   const st=CN.state; if(!st||!st.track) return;
-  RESUME.pending=null; S.playing=false;  if(Array.isArray(st.queue)&&st.queue.length){ S.queue=st.queue.slice(); S.index=Math.max(0,Math.min(S.queue.length-1,st.index||0)); }
+  RESUME.pending=null; S.playing=false;
+  if(Array.isArray(st.queue)&&st.queue.length){ S.queue=st.queue.slice(); S.index=Math.max(0,Math.min(S.queue.length-1,st.index||0)); }
   else { S.queue=[st.track]; S.index=0; }
   if(CN.paintedId!==st.track.id){ CN.paintedId=st.track.id; paint(st.track); }
 }
@@ -2262,7 +2269,7 @@ let fadeInProgress = false;
 
 /* ── особисті налаштування (Premium-студія) ── */
 const PREF=(()=>{ let p={}; try{ p=JSON.parse(localStorage.getItem("mlsp_prefs")||"{}")||{}; }catch(e){}
-  p.home=(p.home&&typeof p.home==="object")?p.home:{}; p.block=Array.isArray(p.block)?p.block:[];
+  p.fx=(p.fx&&typeof p.fx==="object")?p.fx:{}; p.home=(p.home&&typeof p.home==="object")?p.home:{}; p.block=Array.isArray(p.block)?p.block:[];
   p.quick=(Array.isArray(p.quick)&&p.quick.length)?p.quick.slice(0,3):["like","queue","devices"]; return p; })();
 function prefSave(){ try{ localStorage.setItem("mlsp_prefs",JSON.stringify(PREF)); }catch(e){} }
 function isPrem(){ return !!(S.me&&S.me.premium); }
@@ -2309,48 +2316,54 @@ function openMoreMenu(){
     </div>`);
 }
 function pmStudioHtml(){
-  const p=isPrem();
-  return `<div class="pm-tools">
-      <div class="pm-sub">${p?"Налаштуй MusicLSP під себе":"Відкриється з Premium. Авто-підхоплення доступне всім."}</div>
-      <div class="pm-h">Головна сторінка</div>
-      <div class="pm-chips" id="pmHome">${[["albums","Альбоми"],["feature","Підбірки"],["recent","Слухати знову"],["fresh","Новинки"],["trending","В тренді"],["playlists","Плейлисти"]].map(([k,n])=>`<button class="fchip ${PREF.home[k]!==0?"on":""}" data-pmh="${k}">${n}</button>`).join("")}</div>
-      <div class="pm-h">Швидкі кнопки в плеєрі (до 3)</div>
-      <div class="pm-chips" id="pmQuick">${[["like","Зберегти"],["playlist","У плейлист"],["radio","Радіо"],["share","Поділитися"],["queue","Черга"],["devices","Пристрої"]].map(([k,n])=>`<button class="fchip ${PREF.quick.includes(k)?"on":""}" data-pmq="${k}">${n}</button>`).join("")}</div>
-      <div class="pm-h">Не показувати виконавців</div>
-      <div class="pm-block"><input id="pmBlockIn" placeholder="Ім’я виконавця" autocomplete="off"><button class="pill" id="pmBlockAdd">Додати</button></div>
-      <div class="pm-chips" id="pmBlockList">${PREF.block.map(x=>`<button class="fchip on" data-pmb="${esc(x)}">${esc(x)} ✕</button>`).join("")}</div>
-      <div class="opt"><div class="lbl"><b>Авто-підхоплення</b><span>Вимкнули MusicLSP на ПК — музика продовжиться тут із тієї ж секунди</span></div>
-        <div class="sw ${S.autoTakeover!==false?"on":""}" id="swTake" role="switch"></div></div>
-      <div class="pm-h">Таймер сну</div>
-      <div class="pm-chips" id="sleepPresets">${[15,30,45,60].map(m=>`<button class="fchip" data-sl="${m}">${m} хв</button>`).join("")}<button class="fchip" data-sl="0">Вимк.</button></div>
-      <div class="opt"><div class="lbl"><b>Експорт «Збереженого»</b><span>Список «Виконавець — Назва» у буфер обміну</span></div>
-        <button class="pill" id="exportLiked">Копіювати</button></div>
-    </div>
-  ${p?"":`<button class="btn" style="margin-top:14px" onclick="closeModal();openPlan()">Отримати Premium</button>`}`;
+  const p=isPrem(), fx=PREF.fx, cur=document.documentElement.dataset.space||"nebula";
+  const row=(id,on,t,d)=>`<div class="pm-row"><div class="pm-txt"><b>${t}</b><span>${d}</span></div><div class="sw ${on?"on":""}" id="${id}" role="switch"></div></div>`;
+  const chips=(id,attr,list,isOn)=>`<div class="pm-chips" id="${id}">${list.map(([k,n])=>`<button class="fchip ${isOn(k)?"on":""}" ${attr}="${k}">${n}</button>`).join("")}</div>`;
+  const until=p&&S.me.premium_until?" до "+esc(String(S.me.premium_until).slice(0,10)):"";
+  return `<div class="pm-banner ${p?"on":""}"><span class="pm-crown">★</span><div><b>${p?"MusicLSP Premium":"MusicLSP Free"}</b><span>${p?"Активний"+until:"Теми доступні всім, решта — з Premium"}</span></div></div>
+  <div class="pm-card"><h4>🌌 Оформлення</h4>
+    <div class="pm-themes" id="pmThemes">${SPACE.map(([k,n])=>`<button class="pm-th ${k===cur&&!fx.auto?"on":""}" data-sp="${k}"><i data-k="${k}"></i><span>${n}</span></button>`).join("")}</div>
+    <div class="pm-h">Колір акценту</div>
+    <div class="pm-acc" id="pmAcc">${ACC.map(([a,b],i)=>`<button class="pm-dot ${(fx.acc||0)===i?"on":""}" data-acc="${i}" aria-label="Колір ${i}" style="background:${a?`linear-gradient(135deg,${a},${b})`:"conic-gradient(#f0abfc,#67e8f9,#fde047,#f0abfc)"}"></button>`).join("")}</div>
+    <div class="pm-h">Яскравість фону</div><input type="range" id="pmBright" min="50" max="140" value="${fx.bright||100}">
+    <div class="pm-h">Зорі</div>${chips("pmStars","data-st",[["low","Мало"],["mid","Звичайно"],["high","Багато"]],k=>(fx.stars||"mid")===k)}
+    ${row("swObj",fx.obj!==0,"Планета й космічні об’єкти","Велика деталь у кутку фону")}
+    ${row("swSaver",!!fx.saver,"Економія батареї","Без мерехтіння та розмиття")}
+    ${row("swAuto",!!fx.auto,"Автотема за часом доби","Вранці, вдень, ввечері та вночі — інша тема")}
+  </div>
+  <div class="pm-card"><h4>🏠 Головна сторінка</h4>${chips("pmHome","data-pmh",[["albums","Альбоми"],["feature","Підбірки"],["recent","Слухати знову"],["fresh","Новинки"],["trending","В тренді"],["playlists","Плейлисти"]],k=>PREF.home[k]!==0)}</div>
+  <div class="pm-card"><h4>🎛 Плеєр</h4><div class="pm-h" style="margin-top:0">Швидкі кнопки (до 3)</div>
+    ${chips("pmQuick","data-pmq",[["like","Зберегти"],["playlist","У плейлист"],["radio","Радіо"],["share","Поділитися"],["queue","Черга"],["devices","Пристрої"]],k=>PREF.quick.includes(k))}
+    ${row("swTake",S.autoTakeover!==false,"Авто-підхоплення","Якщо вимкнули на ПК — музика продовжиться тут")}
+    <div class="pm-h">Таймер сну</div><div class="pm-chips" id="sleepPresets">${[15,30,45,60].map(m=>`<button class="fchip" data-sl="${m}">${m} хв</button>`).join("")}<button class="fchip" data-sl="0">Вимк.</button></div></div>
+  <div class="pm-card"><h4>🚫 Не показувати виконавців</h4>
+    <div class="pm-block"><input id="pmBlockIn" placeholder="Ім’я виконавця" autocomplete="off"><button class="fchip on" id="pmBlockAdd">Додати</button></div>
+    <div class="pm-chips" id="pmBlockList">${PREF.block.map(x=>`<button class="fchip on" data-pmb="${esc(x)}">${esc(x)} ✕</button>`).join("")}</div></div>
+  <div class="pm-card"><h4>📦 Дані</h4><div class="pm-row"><div class="pm-txt"><b>Експорт «Збереженого»</b><span>Список «Виконавець — Назва» у буфер обміну</span></div><button class="fchip on" id="exportLiked">Копіювати</button></div></div>
+  ${p?"":`<button class="btn pm-get" onclick="closeModal();openPlan()">Отримати Premium</button>`}`;
 }
 function bindStudio(){
   const need=()=>{ if(isPrem()) return true; toast("Доступно в Premium"); return false; };
+  const fxSet=(k,v)=>{ PREF.fx[k]=v; prefSave(); applyFx(); };
+  document.querySelectorAll("#pmThemes [data-sp]").forEach(b=>b.onclick=()=>{ setSpace(b.dataset.sp); document.querySelectorAll("#pmThemes .pm-th").forEach(x=>x.classList.toggle("on",x===b)); if($("swAuto")) $("swAuto").classList.remove("on"); tap(); });
+  document.querySelectorAll("#pmAcc [data-acc]").forEach(b=>b.onclick=()=>{ if(!need()) return; fxSet("acc",+b.dataset.acc); document.querySelectorAll("#pmAcc .pm-dot").forEach(x=>x.classList.toggle("on",x===b)); tap(); });
+  const br=$("pmBright"); if(br) br.oninput=()=>{ if(!isPrem()){ br.value=100; return toast("Доступно в Premium"); } PREF.fx.bright=+br.value; prefSave(); applyFx(); };
+  document.querySelectorAll("#pmStars [data-st]").forEach(b=>b.onclick=()=>{ if(!need()) return; fxSet("stars",b.dataset.st); document.querySelectorAll("#pmStars .fchip").forEach(x=>x.classList.toggle("on",x===b)); tap(); });
+  [["swObj","obj"],["swSaver","saver"],["swAuto","auto"]].forEach(([id,key])=>{ const el=$(id); if(!el) return; el.onclick=()=>{ if(!need()) return;
+    const v=!el.classList.contains("on"); el.classList.toggle("on",v); fxSet(key,key==="obj"?(v?1:0):v); tap(); }; });
   document.querySelectorAll("#pmHome [data-pmh]").forEach(b=>b.onclick=()=>{ if(!need()) return; const k=b.dataset.pmh;
-    PREF.home[k]=PREF.home[k]===0?1:0; b.classList.toggle("on",PREF.home[k]!==0); prefSave(); applyHomePrefs(); if(window.MLSPv3) MLSPv3.home(); tap(); });
+    PREF.home[k]=PREF.home[k]===0?1:0; b.classList.toggle("on",PREF.home[k]!==0); prefSave(); if(window.MLSPv3) MLSPv3.home(); tap(); });
   document.querySelectorAll("#pmQuick [data-pmq]").forEach(b=>b.onclick=()=>{ if(!need()) return; const k=b.dataset.pmq, i=PREF.quick.indexOf(k);
     if(i>=0) PREF.quick.splice(i,1); else if(PREF.quick.length<3) PREF.quick.push(k); else return toast("Максимум 3 кнопки");
     b.classList.toggle("on",PREF.quick.includes(k)); prefSave(); applyQuick(); tap(); });
   if($("pmBlockAdd")) $("pmBlockAdd").onclick=()=>{ if(!need()) return; const v=$("pmBlockIn").value.trim().toLowerCase();
     if(v.length<2) return toast("Введіть ім’я виконавця"); if(!PREF.block.includes(v)) PREF.block.push(v); prefSave(); openPremiumSettings(); };
   document.querySelectorAll("#pmBlockList [data-pmb]").forEach(b=>b.onclick=()=>{ PREF.block=PREF.block.filter(x=>x!==b.dataset.pmb); prefSave(); openPremiumSettings(); });
-  if($("swTake")) $("swTake").onclick = () => {
-    S.autoTakeover = !(S.autoTakeover!==false); $("swTake").classList.toggle("on", S.autoTakeover);
-    try{ localStorage.setItem("mlsp_autotake", S.autoTakeover?"1":"0"); }catch(e){} tap();
-  };
-  document.querySelectorAll("#sleepPresets [data-sl]").forEach(b=>b.onclick=()=>{
-    if(!S.me.premium) return toast("Доступно в Premium"); setSleep(+b.dataset.sl); tap();
-  });
-  if($("exportLiked")) $("exportLiked").onclick = async () => {
-    if(!S.me.premium) return toast("Доступно в Premium");
-    await loadLiked(); const txt=likedTracks.map(t=>t.artist+" — "+t.title).join("\n");
-    if(!txt) return toast("Немає збережених треків");
-    try{ await navigator.clipboard.writeText(txt); toast("Скопійовано: "+likedTracks.length+" треків"); }catch(e){ toast("Не вдалося скопіювати"); }
-  };
+  if($("swTake")) $("swTake").onclick=()=>{ S.autoTakeover=!(S.autoTakeover!==false); $("swTake").classList.toggle("on",S.autoTakeover);
+    try{ localStorage.setItem("mlsp_autotake",S.autoTakeover?"1":"0"); }catch(e){} tap(); };
+  document.querySelectorAll("#sleepPresets [data-sl]").forEach(b=>b.onclick=()=>{ if(!need()) return; setSleep(+b.dataset.sl); tap(); });
+  if($("exportLiked")) $("exportLiked").onclick=async()=>{ if(!need()) return; await loadLiked(); const txt=likedTracks.map(t=>t.artist+" — "+t.title).join("\n");
+    if(!txt) return toast("Немає збережених треків"); try{ await navigator.clipboard.writeText(txt); toast("Скопійовано: "+likedTracks.length+" треків"); }catch(e){ toast("Не вдалося скопіювати"); } };
 }
 function openPremiumSettings(){
   showModal(`<div class="pm-modal-head"><h3>✦ Premium-налаштування</h3><button class="connect-close" onclick="closeModal()" aria-label="Закрити">✕</button></div>
@@ -2376,6 +2389,36 @@ function openPremiumSettings(){
   });
   bar.addEventListener("click",e=>{ if(bar._sw && Date.now()-bar._sw<350){ e.stopPropagation(); e.preventDefault(); } },true);
 })();
+const SPACE=[["nebula","Nebula","Туманність і планета"],["eclipse","Eclipse","Чорна діра"],["moonrise","Moonrise","Місяць над горизонтом"],["galaxy","Galaxy","Спіральна галактика"],["aurora","Aurora","Північне сяйво"],["supernova","Supernova","Спалах наднової"],["neon","Neon Wave","Червоно-фіолетові хвилі"]];
+const SPBASE={nebula:"#080320",eclipse:"#060507",moonrise:"#030a1f",galaxy:"#05030f",aurora:"#02100f",supernova:"#0b0306",neon:"#07010f"};
+const ACC=[["",""],["#f472b6","#fb923c"],["#38bdf8","#34d399"],["#a3e635","#facc15"],["#a78bfa","#38bdf8"],["#f43f5e","#fb923c"],["#2dd4bf","#818cf8"],["#f8fafc","#94a3b8"]];
+function spChrome(){
+  const b=SPBASE[document.documentElement.dataset.space]||"#080320";
+  try{ const tg=window.Telegram&&Telegram.WebApp;
+    if(tg){ tg.setHeaderColor&&tg.setHeaderColor(b); tg.setBackgroundColor&&tg.setBackgroundColor(b); tg.setBottomBarColor&&tg.setBottomBarColor(b); }
+    let m=document.querySelector('meta[name="theme-color"]'); if(!m){ m=document.createElement("meta"); m.name="theme-color"; document.head.appendChild(m); } m.content=b; }catch(e){}
+}
+function applyFx(){
+  const d=document.documentElement, fx=(!S.me||isPrem())?PREF.fx:{}, hr=new Date().getHours();
+  if(fx.auto) d.dataset.space=hr>=6&&hr<12?"aurora":hr>=12&&hr<18?"supernova":hr>=18&&hr<23?"nebula":"galaxy";
+  else { try{ d.dataset.space=localStorage.getItem("mlsp_space")||"nebula"; }catch(e){ d.dataset.space="nebula"; } }
+  const a=ACC[fx.acc||0]||ACC[0];
+  if(a[0]){ d.style.setProperty("--sp-a1",a[0]); d.style.setProperty("--sp-a2",a[1]); } else { d.style.removeProperty("--sp-a1"); d.style.removeProperty("--sp-a2"); }
+  d.style.setProperty("--sp-bright",String((fx.bright||100)/100));
+  d.dataset.spStars=fx.stars||"mid"; d.dataset.spObj=fx.obj===0?"0":"1"; d.dataset.spSaver=fx.saver?"1":"0";
+  spChrome();
+}
+function setSpace(k){ try{ localStorage.setItem("mlsp_space",k); }catch(e){} PREF.fx.auto=false; prefSave(); applyFx(); }
+try{ applyFx(); setInterval(()=>{ if(PREF.fx.auto) applyFx(); },600000); }catch(e){}
+function openSpaceThemes(){
+  const cur=document.documentElement.dataset.space||"nebula", anim=document.documentElement.dataset.spAnim!=="0";
+  showModal(`<div class="pm-modal-head"><h3>🌌 Оформлення</h3><button class="connect-close" onclick="closeModal()" aria-label="Закрити">✕</button></div>
+    <div class="sp-grid">${SPACE.map(([k,n,d])=>`<button class="sp-card ${k===cur?"on":""}" data-sp="${k}"><span class="sp-prev"></span><b>${n}${k==="nebula"?" ★":""}</b><small>${d}</small></button>`).join("")}</div>
+    <div class="opt"><div class="lbl"><b>Анімація зірок</b><span>Мерехтіння фону</span></div><div class="sw ${anim?"on":""}" id="swSpAnim" role="switch"></div></div>`);
+  document.querySelectorAll(".sp-card").forEach(b=>b.onclick=()=>{ setSpace(b.dataset.sp); document.querySelectorAll(".sp-card").forEach(x=>x.classList.toggle("on",x===b)); tap(); });
+  $("swSpAnim").onclick=()=>{ const on=document.documentElement.dataset.spAnim==="0"; document.documentElement.dataset.spAnim=on?"1":"0";
+    try{ localStorage.setItem("mlsp_spanim",on?"1":"0"); }catch(e){} $("swSpAnim").classList.toggle("on",on); };
+}
 function openYouTube(t){
   try{ cur.pause(); S.playing=false; paintPlayState(); }catch(e){}
   const id=String(t.id).replace(/^yt:/,"");
@@ -2952,7 +2995,6 @@ function renderProfile(){
       <div class="opt"><div class="lbl"><b data-i18n="pr_sleep">Таймер сну</b>
         <span data-i18n="${p?"pr_sleep_on":"pr_sleep_off"}">${p?"Музика вимкнеться сама":"Доступно у Premium"}</span></div>
         <button class="pill" id="sleepBtn" ${S.sleepAt?"":'data-i18n="pr_sleep_off_btn"'}>${S.sleepAt?fmt((S.sleepAt-Date.now())/1000):"Вимкнено"}</button></div>
-
       <div class="opt"><div class="lbl"><b data-i18n="pr_speed">Швидкість відтворення</b></div>
         <button class="pill" id="speedBtn">${S.speed}x</button></div>
 
@@ -2996,6 +3038,7 @@ function renderProfile(){
         }).join("")}
       </div>
     </div>
+
     <button class="plan-showcase" type="button" onclick="openPlan()">
       <span class="plan-showcase-icon">✦</span><span class="plan-showcase-copy"><small>ТВІЙ ДОСТУП</small><b>${p?"MusicLSP Premium":"MusicLSP Free"}</b><span>${p?"Усі можливості вже відкриті":"Відкрий повний список можливостей"}</span></span><span class="plan-showcase-arrow">↗</span>
     </button>
@@ -3583,9 +3626,9 @@ async function admReports(){
 async function admPromo(){
   const d = await admCall(() => req("/api/admin/promos")); if(!d) return;
   $("admBody").innerHTML = `<h3>Новий промокод</h3>
-    <input class="field" id="pcCode" placeholder="Код (порожньо = згенерувати)" autocapitalize="characters" maxlength="32" pattern="[A-Za-z0-9_-]{3,32}" autocomplete="off">
-    <div style="display:flex;gap:8px"><input class="field" id="pcDays" type="number" inputmode="numeric" placeholder="Днів" value="30" min="1" max="3650">
-    <input class="field" id="pcUses" type="number" inputmode="numeric" placeholder="Активацій" value="1" min="1" max="100000"></div>
+    <input class="field" id="pcCode" placeholder="Код (порожньо = згенерувати)" autocapitalize="characters">
+    <div style="display:flex;gap:8px"><input class="field" id="pcDays" type="number" inputmode="numeric" placeholder="Днів" value="30">
+    <input class="field" id="pcUses" type="number" inputmode="numeric" placeholder="Активацій" value="1"></div>
     <button class="btn" id="pcMake">Створити</button>
     <h3 style="margin-top:18px">Активні коди</h3>
     ${d.promos.length ? d.promos.map(p=>`<div class="admRow"><div class="m"><b>${esc(p.code)}</b>
@@ -3593,25 +3636,13 @@ async function admPromo(){
       <button class="admMini danger" data-del="${esc(p.code)}">Видалити</button></div>`).join("")
       : `<div style="color:var(--muted);font-size:13px">Кодів поки немає</div>`}`;
   $("pcMake").onclick = async () => {
-    const button = $("pcMake");
-    const code = $("pcCode").value.trim().toUpperCase();
-    const days = Number($("pcDays").value), uses = Number($("pcUses").value);
-    if(code && !/^[A-Z0-9_-]{3,32}$/.test(code)) return toast("Код має містити 3–32 символи: A–Z, 0–9, _ або -");
-    if(!Number.isInteger(days) || days < 1 || days > 3650) return toast("Вкажи від 1 до 3650 днів");
-    if(!Number.isInteger(uses) || uses < 1 || uses > 100000) return toast("Вкажи від 1 до 100000 активацій");
-    button.disabled = true;
-    try {
-      const r = await admCall(() => post("/api/admin/promos", {action:"create", code, days, uses}));
-      if(r){ toast("Промокод створено"); await admPromo(); }
-    } finally { if(button.isConnected) button.disabled = false; }
+    const r = await admCall(() => post("/api/admin/promos", {action:"create", code:$("pcCode").value,
+      days:+$("pcDays").value||30, uses:+$("pcUses").value||1}));
+    if(r){ toast("Створено"); admPromo(); }
   };
   $("admBody").querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
-    if(!confirm("Видалити промокод "+b.dataset.del+"?")) return;
-    b.disabled = true;
-    try {
-      const r = await admCall(() => post("/api/admin/promos", {action:"delete", code:b.dataset.del}));
-      if(r){ toast("Промокод видалено"); await admPromo(); }
-    } finally { if(b.isConnected) b.disabled = false; }
+    const r = await admCall(() => post("/api/admin/promos", {action:"delete", code:b.dataset.del}));
+    if(r){ toast("Видалено"); admPromo(); }
   });
 }
 
