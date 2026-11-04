@@ -456,52 +456,18 @@ html[data-space] .v3-track,html[data-space] .v3-coll-list .v3-track{border-color
 html[data-space] .v3-coll-actions .v3-pill{padding:12px 18px;font-weight:700}
 html[data-space] .v3-coll-hero img{border:0!important}
 
-/* MusicLSP mobile navigation visibility fix */
-@media (max-width: 900px) {
-  html[data-space] body::after { z-index: 0 !important; }
-  #mlsp-v3 { position: relative !important; z-index: 1 !important; }
-  #mlsp-v3 .v3-mobile-nav {
-    position: fixed !important;
-    z-index: 90 !important;
-    left: 12px !important;
-    right: 12px !important;
-    bottom: max(10px, env(safe-area-inset-bottom)) !important;
-    display: grid !important;
-    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-    gap: 4px !important;
-    min-height: 68px !important;
-    padding: 7px 8px !important;
-    border: 1px solid rgba(139, 190, 230, .24) !important;
-    border-radius: 19px !important;
-    background: rgba(12, 22, 38, .96) !important;
-    box-shadow: 0 10px 34px rgba(0, 0, 0, .42) !important;
-    backdrop-filter: blur(22px) !important;
-    -webkit-backdrop-filter: blur(22px) !important;
-  }
-  #mlsp-v3 .v3-mobile-nav button {
-    display: grid !important;
-    justify-items: center !important;
-    align-content: center !important;
-    gap: 4px !important;
-    min-width: 0 !important;
-    min-height: 52px !important;
-    padding: 5px 2px !important;
-    border: 0 !important;
-    border-radius: 12px !important;
-    background: transparent !important;
-    color: #aab9cb !important;
-    font-size: 9px !important;
-    font-weight: 700 !important;
-    opacity: 1 !important;
-  }
-  #mlsp-v3 .v3-mobile-nav button span:first-child {
-    display: block !important;
-    font-size: 18px !important;
-    line-height: 1 !important;
-    color: inherit !important;
-  }
-  #mlsp-v3 .v3-mobile-nav button.active {
-    color: #8fe1ff !important;
-    background: rgba(82, 174, 226, .16) !important;
-  }
-}
+/* ══ v10.2: повернув нижнє меню (затемнення перекривало його) ══ */
+html[data-space] body::after{display:none!important}
+html[data-space] .v3-mobile-nav::before{content:"";position:absolute;left:0;right:0;bottom:0;height:240px;z-index:-1;pointer-events:none;
+ background:linear-gradient(transparent,var(--sp-base) 70%)}
+html[data-space] .v3-mobile-nav button{position:relative;opacity:1!important;visibility:visible!important}
+html[data-space] .v3-track[data-prof]{display:flex!important;width:100%;text-align:left;padding:12px 4px}
+html[data-space] .v3-track[data-prof] .v3-track-meta{flex:1;min-width:0;white-space:normal}
+
+/* ══ v10.2: нижнє меню знову видно, рядки «Акаунт», м'якший об'єкт на фоні ══ */
+#mlsp-v3{position:relative;z-index:auto!important}
+html[data-space] .v3-mobile-nav{z-index:60!important}
+.sp-obj{opacity:.6}
+.v3-track[data-prof]{display:flex!important;grid-template-columns:none!important;align-items:center;padding:14px 6px}
+.v3-track[data-prof] .v3-track-meta{flex:1;min-width:0;overflow:visible}
+.v3-track[data-prof] b,.v3-track[data-prof] small{display:block;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
