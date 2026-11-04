@@ -31,10 +31,12 @@ from core.config import (
     JAMENDO_CLIENT_ID, JAMENDO_API,
     AUDIUS_APP_NAME, AUDIUS_BOOTSTRAP,
     ARCHIVE_ENABLED, HTTP_TIMEOUT, USER_AGENT,
-    SOUNDCLOUD_CLIENT_ID, SOUNDCLOUD_CLIENT_SECRET, YOUTUBE_API_KEY,
+    SOUNDCLOUD_CLIENT_ID, SOUNDCLOUD_CLIENT_SECRET,
 )
 
 logger = logging.getLogger(__name__)
+import os as _os
+YOUTUBE_API_KEY = _os.environ.get("YOUTUBE_API_KEY", "").strip()   # опційно; без ключа YouTube вимкнено
 
 _thread_http = threading.local()
 _PROVIDER_EXECUTOR = ThreadPoolExecutor(max_workers=12, thread_name_prefix="music-provider")
@@ -995,9 +997,9 @@ def wikimedia_search(query, limit=15):
     try:
         data = _get(WIKIMEDIA_API, {
             "action": "query", "format": "json",
-            "generator": "search", "gsrsearch": f"filetype:audio {query}",
-            "gsrnamespace": 6, "gsrlimit": min(limit * 2, 40),
-            "prop": "imageinfo", "iiprop": "url|mime|extmetadata",        })
+            "generator": "search", "gsrsearch": f"filetype:audio {query}",            "gsrnamespace": 6, "gsrlimit": min(limit * 2, 40),
+            "prop": "imageinfo", "iiprop": "url|mime|extmetadata",
+        })
     except Exception as e:
         logger.warning("Wikimedia Commons запит не вдався: %s", e)
         return []
