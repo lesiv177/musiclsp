@@ -478,3 +478,11 @@ html.nav-hidden .v3-mobile-nav{transform:translateY(130%)!important}
 html.nav-hidden #bar.bar{transform:translateY(76px)}
 html[data-space] body::after{transition:opacity .28s}
 html.nav-hidden body::after{opacity:0}
+
+/* ══ v12: затемнення під меню — частина самих елементів (без окремого шару поверх сторінки) ══ */
+html[data-space] body::after{display:none!important}
+html[data-space] .v3-mobile-nav,html[data-space] #bar.bar{overflow:visible!important}
+html[data-space] .v3-mobile-nav::before{content:"";position:absolute;left:-14px;right:-14px;top:-70px;bottom:-60px;z-index:-1;pointer-events:none;
+ background:linear-gradient(transparent,var(--sp-base) 30%)}
+html[data-space] #bar.bar::before{content:"";position:absolute;left:-14px;right:-14px;top:-44px;bottom:-14px;z-index:-1;pointer-events:none;
+ background:linear-gradient(transparent,color-mix(in srgb,var(--sp-base) 94%,transparent) 42%)}
