@@ -13,8 +13,8 @@
 <link rel="stylesheet" href="./ui-polish.css?v=2">
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
   <link rel="stylesheet" href="./v3.css?v=1">
-  <link rel="stylesheet" href="./theme.css?v=11">
-  <script defer src="./v3.js?v=4"></script>
+  <link rel="stylesheet" href="./theme.css?v=12">
+  <script defer src="./v3.js?v=5"></script>
 <script>try{var d=document.documentElement;d.dataset.space=localStorage.getItem("mlsp_space")||"nebula";d.dataset.spAnim=localStorage.getItem("mlsp_spanim")==="0"?"0":"1";}catch(e){document.documentElement.dataset.space="nebula";}</script>
 <link rel="icon" type="image/svg+xml" href="./icon.svg">
 <link rel="apple-touch-icon" href="./icon-512.png">
@@ -1702,7 +1702,7 @@ async function renderLibrary(){
             <div class="s">${p.count} треків</div></div>
           <button class="act" data-share="${p.id}">${ICON("share")}</button>
         </div>`).join("") + `</div>`
-        : `<div class="empty"><b>Плейлистів немає</b>Free-план дозволяє ${S.limits.playlists}.</div>`);
+        : `<div class="empty"><b>Плейлистів немає</b>Free-план дозволяє ${(S.limits||{}).playlists}.</div>`);
     box.querySelectorAll(".row").forEach(r => r.onclick = ev => {
       if(ev.target.dataset.share !== undefined){ sharePlaylist(+ev.target.dataset.share); return; }
       openPlaylist(+r.dataset.pid);
@@ -1753,7 +1753,7 @@ async function openPlaylist(pid){
 
 async function downloadOfflinePack(pid){
   tap();
-  if(!S.limits.offline_pack) return toast("Офлайн-пакет доступний у Premium");
+  if(!(S.limits||{}).offline_pack) return toast("Офлайн-пакет доступний у Premium");
   toast("Збираю архів…");
   try{
     const res = await fetch(API+"/api/playlist/"+pid+"/offline", {
@@ -2411,14 +2411,32 @@ function applyFx(){
 function setSpace(k){ try{ localStorage.setItem("mlsp_space",k); }catch(e){} PREF.fx.auto=false; prefSave(); applyFx(); }
 try{ applyFx(); setInterval(()=>{ if(PREF.fx.auto) applyFx(); },600000); }catch(e){}
 function openSpaceThemes(){
-  const cur=document.documentElement.dataset.space||"nebula", anim=document.documentElement.dataset.spAnim!=="0";
+  const cur=document.documentElement.dataset.space||"nebula", anim=document.documentElement.dataset.spAnim!=="0", navHide=(()=>{try{return localStorage.getItem("mlsp_navhide")!=="0"}catch(e){return true}})();
   showModal(`<div class="pm-modal-head"><h3>🌌 Оформлення</h3><button class="connect-close" onclick="closeModal()" aria-label="Закрити">✕</button></div>
     <div class="sp-grid">${SPACE.map(([k,n,d])=>`<button class="sp-card ${k===cur?"on":""}" data-sp="${k}"><span class="sp-prev"></span><b>${n}${k==="nebula"?" ★":""}</b><small>${d}</small></button>`).join("")}</div>
-    <div class="opt"><div class="lbl"><b>Анімація зірок</b><span>Мерехтіння фону</span></div><div class="sw ${anim?"on":""}" id="swSpAnim" role="switch"></div></div>`);
+    <div class="opt"><div class="lbl"><b>Анімація зірок</b><span>Мерехтіння фону</span></div><div class="sw ${anim?"on":""}" id="swSpAnim" role="switch"></div></div>
+    <div class="opt"><div class="lbl"><b>Ховати меню при прокрутці</b><span>Нижнє меню з’являється, коли гортаєш вгору</span></div><div class="sw ${navHide?"on":""}" id="swNavHide" role="switch"></div></div>`);
+  $("swNavHide").onclick=()=>{ const on=!$("swNavHide").classList.contains("on"); $("swNavHide").classList.toggle("on",on);
+    try{ localStorage.setItem("mlsp_navhide",on?"1":"0"); }catch(e){} if(!on) document.documentElement.classList.remove("nav-hidden"); };
   document.querySelectorAll(".sp-card").forEach(b=>b.onclick=()=>{ setSpace(b.dataset.sp); document.querySelectorAll(".sp-card").forEach(x=>x.classList.toggle("on",x===b)); tap(); });
   $("swSpAnim").onclick=()=>{ const on=document.documentElement.dataset.spAnim==="0"; document.documentElement.dataset.spAnim=on?"1":"0";
     try{ localStorage.setItem("mlsp_spanim",on?"1":"0"); }catch(e){} $("swSpAnim").classList.toggle("on",on); };
 }
+
+/* нижнє меню та міні-плеєр ховаються при прокрутці вниз і з'являються при прокрутці вгору */
+(function(){
+  const last=new Map(), root=document.documentElement; let hid=false;
+  const set=v=>{ if(v===hid) return; hid=v; root.classList.toggle("nav-hidden",v); };
+  window.addEventListener("scroll",e=>{
+    try{ if(localStorage.getItem("mlsp_navhide")==="0"){ set(false); return; } }catch(_){}
+    const t=e.target, el=(t===document||t===root||t===document.body)?document.scrollingElement:t;
+    if(!el||!el.scrollHeight||el.scrollHeight<=el.clientHeight+40) return;
+    if(el.closest&&el.closest(".modal,.sheet,#adm")) return;
+    const y=el.scrollTop, p=last.has(el)?last.get(el):y; last.set(el,y); const dy=y-p;
+    if(Math.abs(dy)<6) return;
+    if(y<80||dy<0) set(false); else set(true);
+  },{capture:true,passive:true});
+})();
 function openYouTube(t){
   try{ cur.pause(); S.playing=false; paintPlayState(); }catch(e){}
   const id=String(t.id).replace(/^yt:/,"");
@@ -2977,8 +2995,7 @@ function renderProfile(){
 
     <div class="sect"><h2 data-i18n="pr_devices">Мої пристрої</h2>
       <div style="font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:10px" data-i18n="pr_devices_hint">Передавай музику між відкритими MusicLSP на своїх пристроях</div>
-      <button class="btn ghost" id="devicesBtn" data-i18n="devices_manage">Керувати пристроями</button>
-    </div>
+      <button class="btn ghost" id="devicesBtn" data-i18n="devices_manage">Керувати пристроями</button>    </div>
 
     <div class="sect"><h2 data-i18n="pr_sound">Звук</h2>
       <div class="opt"><div class="lbl"><b data-i18n="pr_eq">Еквалайзер</b>
@@ -2995,6 +3012,7 @@ function renderProfile(){
       <div class="opt"><div class="lbl"><b data-i18n="pr_sleep">Таймер сну</b>
         <span data-i18n="${p?"pr_sleep_on":"pr_sleep_off"}">${p?"Музика вимкнеться сама":"Доступно у Premium"}</span></div>
         <button class="pill" id="sleepBtn" ${S.sleepAt?"":'data-i18n="pr_sleep_off_btn"'}>${S.sleepAt?fmt((S.sleepAt-Date.now())/1000):"Вимкнено"}</button></div>
+
       <div class="opt"><div class="lbl"><b data-i18n="pr_speed">Швидкість відтворення</b></div>
         <button class="pill" id="speedBtn">${S.speed}x</button></div>
 
@@ -3033,7 +3051,7 @@ function renderProfile(){
     <div class="sect"><h2 data-i18n="pr_ambient">Жива обкладинка</h2>
       <div class="frow" id="ambientRow">
         ${[["blur","Розмиття"],["vinyl","Вініл"],["particles","Частки"]].map(([k,label])=>{
-          const locked = !S.limits.ambient_styles.includes(k);
+          const locked = !(S.limits||{}).ambient_styles.includes(k);
           return `<button class="fchip ${S.me.ambient_style===k?"on":""}" data-style="${k}" ${locked?"disabled style=\"opacity:.4\"":""}>${esc(label)}${locked?" · Premium":""}</button>`;
         }).join("")}
       </div>
@@ -3319,7 +3337,7 @@ async function loadStats(){
 
 async function openWrapped(){
   tap();
-  if(!S.limits.wrapped){
+  if(!(S.limits||{}).wrapped){
     showModal(`<h3>Мій рік у музиці</h3>
       <div class="empty" style="padding:10px 0">Персональна підсумкова картка — топ артисти, треки й
       години прослуховування за рік — доступна у Premium.</div>

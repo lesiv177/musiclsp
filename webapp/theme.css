@@ -471,3 +471,10 @@ html[data-space] .v3-mobile-nav{z-index:60!important}
 .v3-track[data-prof]{display:flex!important;grid-template-columns:none!important;align-items:center;padding:14px 6px}
 .v3-track[data-prof] .v3-track-meta{flex:1;min-width:0;overflow:visible}
 .v3-track[data-prof] b,.v3-track[data-prof] small{display:block;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
+
+/* ══ v11: ховання меню при прокрутці ══ */
+.v3-mobile-nav,#bar.bar{transition:transform .28s ease}
+html.nav-hidden .v3-mobile-nav{transform:translateY(130%)!important}
+html.nav-hidden #bar.bar{transform:translateY(76px)}
+html[data-space] body::after{transition:opacity .28s}
+html.nav-hidden body::after{opacity:0}

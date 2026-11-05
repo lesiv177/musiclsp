@@ -102,6 +102,7 @@ async function openCollection(kind,item){
    '<div class="v3-coll-actions"><button class="v3-coll-play" id="v3CollPlay">▶ Слухати</button><button class="v3-pill" id="v3CollShuffle">Перемішати</button></div>'+
    '<div class="v3-track-list v3-coll-list">'+list.map((t,i)=>row(t,i,"coll")).join("")+'</div>';
   nav("collection");
+  document.querySelectorAll("#mlsp-v3 [data-page]").forEach(x=>x.classList.toggle("active",x.dataset.page===st.prev));
   bindRows(root,list,"coll");
   $("v3CollBack").onclick=()=>nav(st.prev||"home");
   $("v3CollPlay").onclick=()=>setQueue(list,0);
@@ -119,7 +120,7 @@ async function search(){
   if(seq!==st.seq)return;
   const results=d.results||{};
   if(st.kind==="all"&&results&&!Array.isArray(results)){
-   const tracks=Array.isArray(results.tracks)?results.tracks:[];
+   const tracks=(typeof noBlocked==="function"?noBlocked:(l=>l))(Array.isArray(results.tracks)?results.tracks:[]);
    const albums=Array.isArray(results.albums)?results.albums:[];
    const artists=Array.isArray(results.artists)?results.artists:[];
    if(!tracks.length&&!albums.length&&!artists.length){$("v3Results").innerHTML='<div class="v3-empty">'+E(tr("nothing_found_body","Try another search."))+'</div>';return;}
