@@ -143,5 +143,44 @@ class GlobalSearchCoverageTests(unittest.TestCase):
         self.assertIn("youtube", requested)
 
 
+class InternetArchiveRightsTests(unittest.TestCase):
+    def test_only_explicit_commercial_cc_and_public_domain_licenses_pass(self):
+        self.assertFalse(P._archive_commercially_usable(""))
+        self.assertFalse(P._archive_commercially_usable("https://creativecommons.org/licenses/by-nc/4.0/"))
+        self.assertTrue(P._archive_commercially_usable("https://creativecommons.org/publicdomain/mark/1.0/"))
+        self.assertTrue(P._archive_commercially_usable("https://creativecommons.org/licenses/by/4.0/"))
+        self.assertTrue(P._archive_commercially_usable("https://creativecommons.org/licenses/by-sa/4.0/"))
+        self.assertTrue(P._archive_commercially_usable("https://creativecommons.org/licenses/by-nd/4.0/"))
+
+    def test_missing_archive_license_is_not_labelled_public_domain(self):
+        self.assertEqual(P._archive_license(""), ("", "Ліцензія не вказана"))
+
+    def test_archive_search_excludes_missing_and_noncommercial_licenses(self):
+        docs = [
+            {"identifier": "no-license", "title": "Unknown"},
+            {"identifier": "nc", "title": "Noncommercial",
+             "licenseurl": "https://creativecommons.org/licenses/by-nc/4.0/"},
+            {"identifier": "cc-by", "title": "Commercial CC",
+             "licenseurl": "https://creativecommons.org/licenses/by/4.0/"},
+        ]
+        with (
+            patch.object(P, "ARCHIVE_ENABLED", True),
+            patch.object(P, "_get", return_value={"response": {"docs": docs}}),
+        ):
+            results = P.archive_search("music", limit=10)
+        self.assertEqual([item["id"] for item in results], ["arc:cc-by"])
+        self.assertTrue(results[0]["downloadable"])
+
+    def test_archive_stream_requires_explicit_commercial_license(self):
+        files = [{"name": "recording.mp3"}]
+        unknown = {"metadata": {}, "files": files}
+        licensed = {"metadata": {"licenseurl": "https://creativecommons.org/licenses/by/4.0/"},
+                    "files": files}
+        with patch.object(P, "_get", return_value=unknown):
+            self.assertEqual(P.archive_stream_url("unknown"), "")
+        with patch.object(P, "_get", return_value=licensed):
+            self.assertEqual(P.archive_stream_url("licensed"),
+                             "https://archive.org/download/licensed/recording.mp3")
+
 if __name__ == "__main__":
     unittest.main()
