@@ -94,6 +94,22 @@ class HubTests(unittest.IsolatedAsyncioTestCase):
         await self.hub.handle(1, "mac", {"type": "cmd", "id": "x", "action": "next"})
         self.assertEqual(self.mac.of("error")[-1]["code"], "no_active_device")
 
+    async def test_late_ack_from_superseded_transfer_is_ignored(self):
+        await self.hub.handle(1, "phone", {"type": "claim", "state": state()})
+        self.phone.clear(); self.mac.clear()
+        await self.hub.handle(1, "phone", {"type": "cmd", "id": "first", "action": "transfer", "payload": {"to": "mac"}})
+        first = self.mac.of("exec", action="start")[-1]
+        await self.hub.handle(1, "phone", {"type": "cmd", "id": "second", "action": "transfer", "payload": {"to": "mac"}})
+        second = self.mac.of("exec", action="start")[-1]
+        self.assertNotEqual(first["id"], second["id"])
+        # A delayed response from the cancelled attempt must not transfer ownership.
+        await self.hub.handle(1, "mac", {"type": "ack", "id": first["id"], "ok": True, "state": state(2, pos=90)})
+        self.assertEqual(self.snap(self.phone)["owner"], "phone")
+        self.assertFalse(self.phone.of("exec", action="stop"))
+        await self.hub.handle(1, "mac", {"type": "ack", "id": second["id"], "ok": True, "state": state(pos=12)})
+        self.assertEqual(self.snap(self.phone)["owner"], "mac")
+        self.assertTrue(self.phone.of("exec", action="stop"))
+
     async def test_transfer_success_after_ack(self):
         await self.hub.handle(1, "phone", {"type": "claim", "state": state(pos=10)})
         self.clock.t += 5                                          # минуло 5 с відтворення
