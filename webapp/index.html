@@ -1541,7 +1541,7 @@ async function runSearch(){
       const params = `q=${encodeURIComponent(q)}&type=all&limit=15&sort=${S.sort}`;
       const d = await get(`/api/search?${params}`);
       if(seq !== SEARCH_SEQ) return;
-      renderAllResults(d.results);
+      renderAllResults(d.results, d.apple_results || []);
       return;
     }
     const params = `q=${encodeURIComponent(q)}&type=${S.kind}&limit=40&sort=${S.sort}&sources=${S.sources.join(",")}`;
@@ -1576,8 +1576,8 @@ async function runSearch(){
   }
 }
 
-function renderAllResults(r){
-  const empty = !r.tracks.length && !r.albums.length && !r.artists.length;
+function renderAllResults(r, appleResults = []){
+  const empty = !r.tracks.length && !r.albums.length && !r.artists.length && !appleResults.length;
   if(empty){
     $("qBody").innerHTML = `<div class="empty"><b data-i18n="nothing_found_title">Нічого не знайдено</b><span data-i18n="nothing_found_body">Спробуйте інше слово.</span></div>${NO_RESULTS_HINT}`;
     applyI18n();
@@ -1590,6 +1590,18 @@ function renderAllResults(r){
     html += `<div class="sect"><h2 data-i18n="search_albums">Альбоми</h2>${cardsHtml(r.albums, "all_albums")}</div>`; }
   if(r.artists.length){
     html += `<div class="sect"><h2 data-i18n="search_artists">Артисти</h2>${cardsHtml(r.artists, "all_artists", true)}</div>`; }
+  if(appleResults.length){
+    const appleTitle = ({uk:"Apple Music — каталог",ru:"Apple Music — каталог",en:"Apple Music catalogue",pl:"Katalog Apple Music",de:"Apple-Music-Katalog",es:"Catálogo de Apple Music",fr:"Catalogue Apple Music",tr:"Apple Music kataloğu"})[S.me?.lang||"uk"] || "Apple Music — каталог";
+    html += `<div class="sect apple-catalog"><h2>${esc(appleTitle)}</h2><div class="apple-catalog-list">` +
+      appleResults.slice(0,12).map(x=>{
+        const href = typeof x.external_url==="string" && x.external_url.startsWith("https://") ? x.external_url : "";
+        if(!href) return "";
+        const cover = typeof x.artwork==="string" && x.artwork.startsWith("https://") ? x.artwork : "";
+        const meta = [x.artist,x.album].filter(Boolean).join(" · ");
+        const kind = ({song:"Трек",album:"Альбом",artist:"Виконавець"})[x.kind] || "Apple Music";
+        return `<a class="apple-catalog-item" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${cover?`<img src="${esc(cover)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:`<span class="apple-catalog-placeholder">♫</span>`}<span class="apple-catalog-meta"><b>${esc(x.title||"")}</b><small>${esc(meta||kind)}</small></span><span class="apple-catalog-open" aria-label="Відкрити Apple Music">↗</span></a>`;
+      }).join("") + `</div><p class="apple-catalog-note">Каталог Apple Music · відтворення відкривається в Apple Music</p></div>`;
+  }
   $("qBody").innerHTML = html;
   applyI18n();
   $("qBody").querySelectorAll(".row").forEach(row=>{
