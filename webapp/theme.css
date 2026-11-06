@@ -486,3 +486,6 @@ html[data-space] .v3-mobile-nav::before{content:"";position:absolute;left:-14px;
  background:linear-gradient(transparent,var(--sp-base) 30%)}
 html[data-space] #bar.bar::before{content:"";position:absolute;left:-14px;right:-14px;top:-44px;bottom:-14px;z-index:-1;pointer-events:none;
  background:linear-gradient(transparent,color-mix(in srgb,var(--sp-base) 94%,transparent) 42%)}
+
+/* ══ v13: без «резинки» на краях сторінки (менше смикання меню й плеєра) ══ */
+html,body{overscroll-behavior-y:none}

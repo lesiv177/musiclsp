@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="./ui-polish.css?v=2">
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
   <link rel="stylesheet" href="./v3.css?v=1">
-  <link rel="stylesheet" href="./theme.css?v=14">
+  <link rel="stylesheet" href="./theme.css?v=15">
   <script defer src="./v3.js?v=5"></script>
 <script>try{var d=document.documentElement;d.dataset.space=localStorage.getItem("mlsp_space")||"nebula";d.dataset.spAnim=localStorage.getItem("mlsp_spanim")==="0"?"0":"1";}catch(e){document.documentElement.dataset.space="nebula";}</script>
 <link rel="icon" type="image/svg+xml" href="./icon.svg">
@@ -2425,16 +2425,21 @@ function openSpaceThemes(){
 
 /* нижнє меню та міні-плеєр ховаються при прокрутці вниз і з'являються при прокрутці вгору */
 (function(){
-  const last=new Map(), root=document.documentElement; let hid=false;
-  const set=v=>{ if(v===hid) return; hid=v; root.classList.toggle("nav-hidden",v); };
+  const last=new Map(), root=document.documentElement; let hid=false, lockUntil=0;
+  const set=v=>{ if(v===hid) return; hid=v; lockUntil=Date.now()+260; root.classList.toggle("nav-hidden",v); };
   window.addEventListener("scroll",e=>{
     try{ if(localStorage.getItem("mlsp_navhide")==="0"){ set(false); return; } }catch(_){}
     const t=e.target, el=(t===document||t===root||t===document.body)?document.scrollingElement:t;
     if(!el||!el.scrollHeight||el.scrollHeight<=el.clientHeight+40) return;
     if(el.closest&&el.closest(".modal,.sheet,#adm")) return;
-    const y=el.scrollTop, p=last.has(el)?last.get(el):y; last.set(el,y); const dy=y-p;
+    const max=el.scrollHeight-el.clientHeight, y=el.scrollTop;
+    if(y<0||y>max+0.5) return;                       // «резинка» iOS на краях — ігноруємо
+    const p=last.has(el)?last.get(el):y; last.set(el,y); const dy=y-p;
     if(Math.abs(dy)<6) return;
-    if(y<80||dy<0) set(false); else set(true);
+    if(y<80){ set(false); return; }                  // угорі меню завжди видно
+    if(max-y<14) return;                             // кінець сторінки: нічого не змінюємо
+    if(Date.now()<lockUntil) return;                 // без частих перемикань
+    set(dy>0);
   },{capture:true,passive:true});
 })();
 function openYouTube(t){
@@ -2990,12 +2995,12 @@ function renderProfile(){
     </div>
 
     <div class="sect"><h2 data-i18n="pr_referral">Запросити друзів</h2>
-      <div class="refcard" id="refCard"><div class="skel"></div></div>
-    </div>
+      <div class="refcard" id="refCard"><div class="skel"></div></div>    </div>
 
     <div class="sect"><h2 data-i18n="pr_devices">Мої пристрої</h2>
       <div style="font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:10px" data-i18n="pr_devices_hint">Передавай музику між відкритими MusicLSP на своїх пристроях</div>
-      <button class="btn ghost" id="devicesBtn" data-i18n="devices_manage">Керувати пристроями</button>    </div>
+      <button class="btn ghost" id="devicesBtn" data-i18n="devices_manage">Керувати пристроями</button>
+    </div>
 
     <div class="sect"><h2 data-i18n="pr_sound">Звук</h2>
       <div class="opt"><div class="lbl"><b data-i18n="pr_eq">Еквалайзер</b>
