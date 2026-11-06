@@ -305,9 +305,21 @@ async def h_search(request, u):
 
     qual = quality_for(uid)
     if kind == "all":
-        data = await to_thread(P.search_everything, query, min(limit, 20))
+        async def apple_catalog():
+            if not apple_catalog_configured():
+                return []
+            try:
+                return await to_thread(apple_catalog_search, query, "pl", 12)
+            except AppleMusicError:
+                logger.warning("Apple Music catalogue search failed", exc_info=True)
+                return []
+        data, apple_results = await asyncio.gather(
+            to_thread(P.search_everything, query, min(limit, 20)),
+            apple_catalog(),
+        )
         return ok({"ok": True, "type": kind, "query": query, "sort": sort,
-                   "results": data, "searches_left": max(0, cap - used)})
+                   "results": data, "apple_results": apple_results,
+                   "searches_left": max(0, cap - used)})
     elif kind == "albums":
         data = await to_thread(P.jamendo_search_albums_smart, query, limit, sort)
     elif kind == "artists":
