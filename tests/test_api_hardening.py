@@ -72,6 +72,39 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(response.closed)
 
 
+class AppleSearchRouteTests(unittest.IsolatedAsyncioTestCase):
+    async def _search(self, apple_side_effect=None, apple_results=None):
+        request = SimpleNamespace(
+            query={"q": "example artist", "type": "all", "limit": "10", "sort": "relevance", "sources": ""},
+            headers={},
+        )
+        base_results = {"tracks": [{"id": "jam:1", "title": "Open track"}], "albums": [], "artists": []}
+        async def inline_to_thread(fn, *args, **kwargs):
+            return fn(*args, **kwargs)
+        with patch.object(api, "auth_user", return_value={"uid": 7}), \
+             patch.object(api.db, "limits_for", return_value={"search_results_max": 30}), \
+             patch.object(api.db, "bump_counter", return_value=(True, 2, 20)), \
+             patch.object(api, "quality_for", return_value="high"), \
+             patch.object(api.P, "search_everything", return_value=base_results), \
+             patch.object(api, "apple_catalog_configured", return_value=True), \
+             patch.object(api, "apple_catalog_search", side_effect=apple_side_effect, return_value=apple_results or []), \
+             patch.object(api, "to_thread", side_effect=inline_to_thread):
+            response = await api.h_search(request)
+        return json.loads(response.text)
+
+    async def test_global_search_merges_apple_catalogue_without_changing_playable_results(self):
+        apple = [{"id": "apple_music:song:123", "kind": "song", "title": "Apple Song",
+                  "external_url": "https://music.apple.com/pl/album/example/123"}]
+        payload = await self._search(apple_results=apple)
+        self.assertEqual(payload["results"]["tracks"][0]["id"], "jam:1")
+        self.assertEqual(payload["apple_results"], apple)
+
+    async def test_apple_catalogue_failure_does_not_break_global_search(self):
+        payload = await self._search(apple_side_effect=api.AppleMusicError("upstream unavailable"))
+        self.assertEqual(payload["results"]["tracks"][0]["id"], "jam:1")
+        self.assertEqual(payload["apple_results"], [])
+
+
 if __name__ == "__main__":
     unittest.main()
 
