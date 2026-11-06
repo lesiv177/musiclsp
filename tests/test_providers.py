@@ -182,5 +182,40 @@ class InternetArchiveRightsTests(unittest.TestCase):
             self.assertEqual(P.archive_stream_url("licensed"),
                              "https://archive.org/download/licensed/recording.mp3")
 
+class OpenCatalogueRightsTests(unittest.TestCase):
+    def test_openverse_requires_commercially_usable_explicit_license(self):
+        base = {"id": "a", "url": "https://audio.example/track.mp3", "title": "Track"}
+        self.assertIsNone(P._ov_track({**base, "license": "by-nc",
+                                      "license_url": "https://creativecommons.org/licenses/by-nc/4.0/"}))
+        self.assertIsNone(P._ov_track({**base, "license": "", "license_url": ""}))
+        allowed = P._ov_track({**base, "license": "by",
+                               "license_url": "https://creativecommons.org/licenses/by/4.0/"})
+        self.assertIsNotNone(allowed)
+        self.assertTrue(allowed["downloadable"])
+
+    def test_wikimedia_requires_explicit_commercially_usable_license(self):
+        def page(license_url):
+            return {"title": "File:Track.ogg", "pageid": 9, "imageinfo": [{
+                "mime": "audio/ogg", "url": "https://upload.wikimedia.org/track.ogg",
+                "extmetadata": {"LicenseUrl": {"value": license_url}},
+            }]}
+        self.assertIsNone(P._wm_track(page("")))
+        self.assertIsNone(P._wm_track(page("https://creativecommons.org/licenses/by-nc/4.0/")))
+        self.assertIsNotNone(P._wm_track(page("https://creativecommons.org/licenses/by/4.0/")))
+
+    def test_ccmixter_json_requires_commercially_usable_license(self):
+        base = {"id": "cc1", "title": "Track", "file_url": "https://ccmixter.example/track.mp3"}
+        self.assertIsNone(P._ccm_from_json({**base, "license_url": ""}))
+        self.assertIsNone(P._ccm_from_json({**base,
+            "license_url": "https://creativecommons.org/licenses/by-nc/4.0/"}))
+        self.assertIsNotNone(P._ccm_from_json({**base,
+            "license_url": "https://creativecommons.org/licenses/by/4.0/"}))
+
+    def test_ccmixter_xml_ignores_entries_without_allowed_license(self):
+        xml = '<rss><channel><item><title>Track</title><enclosure url="https://ccmixter.example/a.mp3"/><license href="https://creativecommons.org/licenses/by-nc/4.0/"/></item></channel></rss>'
+        self.assertEqual(P._ccm_from_xml(xml, 10), [])
+        allowed_xml = '<rss><channel><item><title>Track</title><enclosure url="https://ccmixter.example/a.mp3"/><license href="https://creativecommons.org/licenses/by/4.0/"/></item></channel></rss>'
+        self.assertEqual(len(P._ccm_from_xml(allowed_xml, 10)), 1)
+
 if __name__ == "__main__":
     unittest.main()
