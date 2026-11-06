@@ -134,3 +134,15 @@ html[data-theme="ember"]{--v3-panel:#24150f}
 html[data-theme="aurora"]{--v3-panel:#0d2226}
 html[data-theme="neon"]{--v3-panel:#241025}
 html[data-theme="paper"]{--v3-panel:#fffdf8}
+
+/* Apple Music catalogue results are external catalogue links, never MusicLSP streams. */
+.apple-catalog-list{display:grid;gap:7px;margin-top:10px}
+.apple-catalog-item{display:flex;align-items:center;gap:12px;min-width:0;padding:9px 11px;border-radius:13px;background:var(--v3-panel,rgba(255,255,255,.045));color:inherit;text-decoration:none;border:1px solid var(--line,rgba(255,255,255,.07))}
+.apple-catalog-item img,.apple-catalog-placeholder{width:46px;height:46px;flex:0 0 46px;border-radius:8px;object-fit:cover}
+.apple-catalog-placeholder{display:grid;place-items:center;background:var(--surface-2,rgba(255,255,255,.08));font-size:23px}
+.apple-catalog-meta{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}
+.apple-catalog-meta b,.apple-catalog-meta small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.apple-catalog-meta b{font-size:13px;font-weight:650}
+.apple-catalog-meta small,.apple-catalog-note{font-size:11px;color:var(--muted)}
+.apple-catalog-open{font-size:17px;color:var(--muted)}
+.apple-catalog-note{margin:9px 2px 0}
