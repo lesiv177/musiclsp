@@ -1314,8 +1314,11 @@ def search_everything(query, limit=12):
     тому треки тягнемо з усіх шести джерел, а не лише Jamendo/Audius."""
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=4) as ex:
+        # Include optional official catalogues in global search as well.
+        # Their own enablement checks keep them inactive without credentials.
         f_tr = ex.submit(search_tracks_smart, query, limit=limit, sources=[
-            "jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia"])
+            "soundcloud", "jamendo", "audius", "archive", "ccmixter",
+            "openverse", "wikimedia", "youtube"])
         f_al = ex.submit(jamendo_search_albums_smart, query, limit=limit)
         f_ja = ex.submit(jamendo_search_artists, query, limit=limit)
         f_au = ex.submit(audius_search_users, query, limit=max(4, limit // 3))
