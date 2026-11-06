@@ -493,3 +493,10 @@ html,body{overscroll-behavior-y:none}
 /* ══ v14: міні-плеєр опускається вниз разом зі сховом меню (через bottom, бо transform у старих стилях заблоковано !important) ══ */
 #bar.bar{transition:bottom .28s ease,opacity .2s ease}
 html.nav-hidden #bar.bar{bottom:calc(14px + env(safe-area-inset-bottom,0px))!important}
+
+/* Keep V3 card surfaces theme-aware after the account theme stylesheet. */
+html[data-theme="midnight"]{--v3-panel:#101729!important}
+html[data-theme="ember"]{--v3-panel:#24150f!important}
+html[data-theme="aurora"]{--v3-panel:#0d2226!important}
+html[data-theme="neon"]{--v3-panel:#241025!important}
+html[data-theme="paper"]{--v3-panel:#fffdf8!important}
