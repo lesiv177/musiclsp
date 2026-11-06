@@ -22,7 +22,8 @@ class SourceCapability:
     playback_mode: str
     env_required: tuple[str, ...] = ()
     approval_required: bool = False
-    implemented: bool = False
+    implemented: bool = False  # authorised playback adapter
+    catalogue_implemented: bool = False
     note: str = ""
 
     def configured(self) -> bool:
@@ -44,6 +45,7 @@ OPTIONAL_SOURCES = (
         key="apple_music", label="Apple Music", category="catalogue",
         playback_mode="official_client",
         env_required=("APPLE_MUSIC_DEVELOPER_TOKEN",),
+        catalogue_implemented=True,
         note="Catalogue API plus MusicKit playback in an authorised client; no server-side audio stream.",
     ),
     SourceCapability(
@@ -88,6 +90,7 @@ def source_status() -> dict:
             "configured": source.configured(),
             "available": source.available(),
             "implemented": source.implemented,
+            "catalogue_implemented": source.catalogue_implemented,
             "approval_required": source.approval_required,
             "note": source.note,
         }
