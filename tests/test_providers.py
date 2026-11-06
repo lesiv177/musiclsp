@@ -128,5 +128,20 @@ class SoundCloudPriorityTests(unittest.TestCase):
             session.return_value.head.assert_called_once()
 
 
+class GlobalSearchCoverageTests(unittest.TestCase):
+    def test_global_search_requests_optional_catalogues(self):
+        with (
+            patch.object(P, "search_tracks_smart", return_value=[]) as tracks,
+            patch.object(P, "jamendo_search_albums_smart", return_value=[]),
+            patch.object(P, "jamendo_search_artists", return_value=[]),
+            patch.object(P, "audius_search_users", return_value=[]),
+        ):
+            result = P.search_everything("test", limit=8)
+        self.assertEqual(result, {"tracks": [], "albums": [], "artists": []})
+        requested = tracks.call_args.kwargs["sources"]
+        self.assertIn("soundcloud", requested)
+        self.assertIn("youtube", requested)
+
+
 if __name__ == "__main__":
     unittest.main()
