@@ -2886,9 +2886,11 @@ async function shareCurrentTrack(){
 
 function openTrackMenu(t){
   tap();
+  const licenseUrl = /^https:\/\/creativecommons\.org\/(?:licenses|publicdomain)\//i.test(t.license||"") ? t.license : "";
   showModal(`<h3>${esc(t.title)}</h3>
     <div style="color:var(--muted);font-size:13px;margin:-8px 0 16px">${esc(t.artist)} · 
       ${esc(t.source_label||"")} · ${esc(t.license_short||"")}</div>
+    ${licenseUrl?`<a class="btn ghost" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px" href="${esc(licenseUrl)}" target="_blank" rel="noopener noreferrer">Умови ліцензії: ${esc(t.license_short||"Creative Commons")}</a>`:""}
     <button class="btn ghost" onclick='queueNext(${JSON.stringify(t).replace(/'/g,"&#39;")})'>Поставити наступним</button>
     <button class="btn ghost" onclick='addToLib(${JSON.stringify(t).replace(/'/g,"&#39;")})'>Зберегти в бібліотеку</button>
     <button class="btn ghost" onclick='openAddToPlaylist(${JSON.stringify(t).replace(/'/g,"&#39;")})'>Додати в плейлист</button>
