@@ -141,6 +141,7 @@ class Hub:
         self._persist = persist      # async (uid, state_dict|None) -> None
         self._now = clock
         self._locks = {}
+        self._transfer_seq = 0
 
     # ── допоміжне ────────────────────────────────────────────────────────────
 
@@ -386,7 +387,11 @@ class Hub:
         # Грало — продовжуємо грати; було на паузі — відновлюємо з паузою? Spotify
         # завжди запускає відтворення на цільовому пристрої, робимо так само.
         payload["playing"] = True
-        tid = f"t{int(time.time() * 1000)}"
+        # A per-hub monotonic sequence prevents same-millisecond transfer ID
+        # collisions, so a late ACK from a superseded attempt cannot complete
+        # a newer handoff to the same device.
+        self._transfer_seq += 1
+        tid = f"t{self._transfer_seq:x}"
         deadline = self._now() + TRANSFER_TIMEOUT
         acc.pending = {"id": tid, "to": to, "requester": requester, "cid": cid,
                        "deadline": deadline}
