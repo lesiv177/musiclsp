@@ -2496,7 +2496,7 @@ function play(t, startAt){
     S.playing = true;
     reportPlay(t); // історія лише після фактичного старту аудіо
     paintPlayState();
-    claimLocalPlayback();          // цей пристрій стає активним, інші — пультами
+    if(!CN.bypass) claimLocalPlayback(); // під час handoff чекаємо ack; не перехоплюємо передачу передчасно
     return true;
   }).catch((e)=>{
     CN.lastPlayError = (e && e.name) || "";
