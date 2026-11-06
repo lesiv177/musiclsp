@@ -297,7 +297,8 @@ async def h_search(request, u):
         sort = "relevance"
     sources_raw = (request.query.get("sources") or "").strip()
     sources = [s for s in sources_raw.split(",")
-               if s in ("jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia")] or None
+               if s in ("soundcloud", "jamendo", "audius", "archive", "ccmixter",
+                        "openverse", "wikimedia", "youtube")] or None
 
     allowed, used, cap = await to_thread(db.bump_counter, uid, "searches")
     if not allowed:
