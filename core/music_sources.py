@@ -22,15 +22,18 @@ class SourceCapability:
     playback_mode: str
     env_required: tuple[str, ...] = ()
     approval_required: bool = False
+    implemented: bool = False
     note: str = ""
 
     def configured(self) -> bool:
         return all(bool(os.getenv(name, "").strip()) for name in self.env_required)
 
     def available(self) -> bool:
+        if not self.implemented or not self.configured():
+            return False
         if self.approval_required and not _enabled(f"{self.key.upper()}_APPROVED"):
             return False
-        return self.configured()
+        return True
 
 
 # Optional commercial services remain disabled until credentials AND the
@@ -84,6 +87,7 @@ def source_status() -> dict:
             "playback_mode": source.playback_mode,
             "configured": source.configured(),
             "available": source.available(),
+            "implemented": source.implemented,
             "approval_required": source.approval_required,
             "note": source.note,
         }
