@@ -85,8 +85,8 @@ class MiniAppContractTests(unittest.TestCase):
 
     def test_track_menu_exposes_safe_creative_commons_license_link(self):
         self.assertIn("const licenseUrl = /^https:", JS)
-        self.assertIn("creativecommons\\\\.org", JS)
-        self.assertIn("href=\\\"${esc(licenseUrl)}\\\"", JS)
+        self.assertIn("creativecommons\\.org", JS)
+        self.assertIn('href="${esc(licenseUrl)}"', JS)
         self.assertIn("Умови ліцензії:", JS)
 
     def test_player_controls_have_implementations(self):
