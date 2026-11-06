@@ -581,14 +581,16 @@ _CC_LICENSE_LABELS = [
 ]
 
 
-def _archive_commercially_usable(licenseurl):
-    """Only explicit public-domain/CC licenses suitable for commercial use pass.
-
-    Missing metadata is not evidence of public domain. NonCommercial variants
-    are excluded because MusicLSP may be monetised.
-    """
-    url = (licenseurl or "").strip().lower()
-    if not url or "-nc" in url or "/by-nc" in url:
+def _cc_commercially_usable(license_url="", license_code=""):
+    """Conservative commercial-use allowlist for Creative Commons metadata."""
+    code = (license_code or "").strip().lower().replace("https://creativecommons.org/licenses/", "")
+    code = code.strip("/").split("/")[0]
+    url = (license_url or "").strip().lower()
+    if "nc" in code or "-nc" in url or "/by-nc" in url:
+        return False
+    if code:
+        return code in {"cc0", "pdm", "by", "by-sa", "by-nd"}
+    if not url:
         return False
     return any(token in url for token in (
         "creativecommons.org/publicdomain/zero/",
@@ -597,6 +599,14 @@ def _archive_commercially_usable(licenseurl):
         "creativecommons.org/licenses/by-sa/",
         "creativecommons.org/licenses/by-nd/",
     ))
+
+def _archive_commercially_usable(licenseurl):
+    """Only explicit public-domain/CC licenses suitable for commercial use pass.
+
+    Missing metadata is not evidence of public domain. NonCommercial variants
+    are excluded because MusicLSP may be monetised.
+    """
+    return _cc_commercially_usable(licenseurl)
 
 
 def _archive_license(licenseurl):
@@ -749,6 +759,8 @@ def _ccm_from_json(entry):
         if not audio_url:
             return None
         license_url = entry.get("license_url") or entry.get("license") or ""
+        if not _cc_commercially_usable(license_url):
+            return None
         link = entry.get("upload_url") or entry.get("url") or "https://ccmixter.org"
         uid = str(entry.get("upload_id") or entry.get("id") or
                   hashlib.sha1(audio_url.encode()).hexdigest()[:12])
@@ -810,7 +822,7 @@ def _ccm_from_xml(xml_text, limit):
                     link = href
             elif tag == "license":
                 license_url = child.get("href") or (child.text or "") or license_url
-        if not audio_url:
+        if not audio_url or not _cc_commercially_usable(license_url):
             continue
         out.append({
             "id": f"ccm:{hashlib.sha1(audio_url.encode()).hexdigest()[:12]}",
@@ -895,6 +907,9 @@ def _ov_track(item):
         dur_ms = item.get("duration") or 0
         dur_s = int(dur_ms / 1000) if dur_ms else 0
         license_url = item.get("license_url") or ""
+        license_code = item.get("license") or ""
+        if not _cc_commercially_usable(license_url, license_code):
+            return None
         provider = item.get("provider") or item.get("source") or "openverse"
         uid = str(item.get("id") or hashlib.sha1(audio_url.encode()).hexdigest()[:12])
         return {
@@ -992,6 +1007,8 @@ def _wm_track(page):
         artist = _wm_strip_html(_m("Artist")) or _wm_strip_html(_m("Credit")) or "Wikimedia Commons"
         license_url = _m("LicenseUrl")
         license_short = _m("LicenseShortName") or _cc_short(license_url)
+        if not _cc_commercially_usable(license_url):
+            return None
         page_url = f"https://commons.wikimedia.org/wiki/{urllib.parse.quote(page.get('title') or '')}"
         uid = str(page.get("pageid") or hashlib.sha1(url.encode()).hexdigest()[:12])
         return {
