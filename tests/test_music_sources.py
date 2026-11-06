@@ -12,7 +12,11 @@ class OptionalMusicSourceRegistryTests(unittest.TestCase):
 
     def test_apple_music_requires_developer_token(self):
         with patch.dict(os.environ, {"APPLE_MUSIC_DEVELOPER_TOKEN": "test-token"}, clear=True):
-            self.assertIn("apple_music", available_sources())
+            status = source_status()["apple_music"]
+            self.assertTrue(status["configured"])
+            self.assertFalse(status["implemented"])
+            self.assertFalse(status["available"])
+            self.assertEqual(available_sources(), ())
 
     def test_commercial_sources_require_explicit_approval(self):
         env = {
@@ -28,10 +32,11 @@ class OptionalMusicSourceRegistryTests(unittest.TestCase):
             self.assertEqual(available_sources(), ())
             for key in ("TIDAL", "SEVEN_DIGITAL", "AMAZON_MUSIC", "EPIDEMIC_SOUND"):
                 os.environ[f"{key}_APPROVED"] = "true"
-            self.assertEqual(
-                set(available_sources()),
-                {"tidal", "seven_digital", "amazon_music", "epidemic_sound"},
-            )
+            status = source_status()
+            for key in ("tidal", "seven_digital", "amazon_music", "epidemic_sound"):
+                self.assertTrue(status[key]["configured"])
+                self.assertFalse(status[key]["available"])
+            self.assertEqual(available_sources(), ())
 
     def test_status_never_exposes_credentials(self):
         with patch.dict(os.environ, {"APPLE_MUSIC_DEVELOPER_TOKEN": "do-not-leak"}, clear=True):
