@@ -908,7 +908,7 @@ def _ov_track(item):
         dur_s = int(dur_ms / 1000) if dur_ms else 0
         license_url = item.get("license_url") or ""
         license_code = item.get("license") or ""
-        if not _cc_commercially_usable(license_url, license_code):
+        if not license_url or not _cc_commercially_usable(license_url, license_code):
             return None
         provider = item.get("provider") or item.get("source") or "openverse"
         uid = str(item.get("id") or hashlib.sha1(audio_url.encode()).hexdigest()[:12])
