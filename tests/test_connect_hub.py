@@ -148,6 +148,20 @@ class HubTests(unittest.IsolatedAsyncioTestCase):
         await self.hub.handle(1, "mac", {"type": "ack", "id": start["id"], "ok": True, "state": state()})
         self.assertEqual(self.snap(self.phone)["owner"], "mac")
 
+    async def test_target_disconnect_cancels_pending_transfer_and_keeps_owner(self):
+        await self.hub.handle(1, "phone", {"type": "claim", "state": state(pos=25)})
+        self.phone.clear(); self.mac.clear()
+        await self.hub.handle(1, "phone", {"type": "cmd", "id": "handoff", "action": "transfer", "payload": {"to": "mac"}})
+        start = self.mac.of("exec", action="start")[-1]
+        await self.hub.disconnect(1, "mac", self.mac.send)
+        self.assertEqual(self.snap(self.phone)["owner"], "phone")
+        self.assertEqual(self.snap(self.phone)["transfer"], "")
+        self.assertEqual(self.phone.of("error")[-1]["code"], "target_lost")
+        # A late ACK from the now-disconnected target is ignored.
+        await self.hub.handle(1, "mac", {"type": "ack", "id": start["id"], "ok": True, "state": state(pos=26)})
+        self.assertEqual(self.snap(self.phone)["owner"], "phone")
+        self.assertFalse(self.phone.of("exec", action="stop"))
+
     async def test_transfer_timeout(self):
         await self.hub.handle(1, "phone", {"type": "claim", "state": state()})
         await self.hub.handle(1, "phone", {"type": "cmd", "action": "transfer", "payload": {"to": "mac"}})
