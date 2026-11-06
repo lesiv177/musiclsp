@@ -25,6 +25,7 @@ from core import db
 from core import runtime as RT
 from core import providers as P
 from core import smart as SM
+from core.music_sources import source_status as optional_music_source_status
 from core.connect import Hub, valid_device_id
 from core.auth import verify_init_data
 from core.config import (
@@ -121,6 +122,7 @@ async def h_health(request):
             "wikimedia": True,
             "soundcloud": P.soundcloud_enabled(),
         },
+        "optional_sources": optional_music_source_status(),
     })
 
 
