@@ -14,6 +14,7 @@ class OptionalMusicSourceRegistryTests(unittest.TestCase):
         with patch.dict(os.environ, {"APPLE_MUSIC_DEVELOPER_TOKEN": "test-token"}, clear=True):
             status = source_status()["apple_music"]
             self.assertTrue(status["configured"])
+            self.assertTrue(status["catalogue_implemented"])
             self.assertFalse(status["implemented"])
             self.assertFalse(status["available"])
             self.assertEqual(available_sources(), ())
