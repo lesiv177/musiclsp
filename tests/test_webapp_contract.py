@@ -123,5 +123,15 @@ class MiniAppContractTests(unittest.TestCase):
             self.assertIn(function, self.functions, f"Missing profile/admin action: {function}")
 
 
+    def test_connect_handoff_does_not_claim_before_server_ack(self):
+        play = JS.split("function play(t, startAt)", 1)[1].split("\\n}", 1)[0]
+        handoff = JS.split("async function cnStartHere(m)", 1)[1].split("\\nfunction cnShowTap", 1)[0]
+        self.assertIn("if(!CN.bypass) claimLocalPlayback()", play,
+                      "A transfer target must not claim ownership before the server accepts its ack")
+        self.assertIn("CN.bypass=true", handoff)
+        self.assertIn('ack({ok:true,state:local})', handoff,
+                      "A handoff must be acknowledged only after local playback succeeds")
+
+
 if __name__ == "__main__":
     unittest.main()
