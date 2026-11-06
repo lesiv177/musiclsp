@@ -489,3 +489,7 @@ html[data-space] #bar.bar::before{content:"";position:absolute;left:-14px;right:
 
 /* ══ v13: без «резинки» на краях сторінки (менше смикання меню й плеєра) ══ */
 html,body{overscroll-behavior-y:none}
+
+/* ══ v14: міні-плеєр опускається вниз разом зі сховом меню (через bottom, бо transform у старих стилях заблоковано !important) ══ */
+#bar.bar{transition:bottom .28s ease,opacity .2s ease}
+html.nav-hidden #bar.bar{bottom:calc(14px + env(safe-area-inset-bottom,0px))!important}
