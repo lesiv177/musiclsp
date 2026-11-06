@@ -581,14 +581,33 @@ _CC_LICENSE_LABELS = [
 ]
 
 
+def _archive_commercially_usable(licenseurl):
+    """Only explicit public-domain/CC licenses suitable for commercial use pass.
+
+    Missing metadata is not evidence of public domain. NonCommercial variants
+    are excluded because MusicLSP may be monetised.
+    """
+    url = (licenseurl or "").strip().lower()
+    if not url or "-nc" in url or "/by-nc" in url:
+        return False
+    return any(token in url for token in (
+        "creativecommons.org/publicdomain/zero/",
+        "creativecommons.org/publicdomain/mark/",
+        "creativecommons.org/licenses/by/",
+        "creativecommons.org/licenses/by-sa/",
+        "creativecommons.org/licenses/by-nd/",
+    ))
+
+
 def _archive_license(licenseurl):
-    url = (licenseurl or "").lower()
+    url = (licenseurl or "").strip()
     if not url:
-        return "https://creativecommons.org/publicdomain/mark/1.0/", "Public Domain"
+        return "", "Ліцензія не вказана"
+    lower = url.lower()
     for needle, label in _CC_LICENSE_LABELS:
-        if needle in url:
-            return licenseurl, label
-    return licenseurl, "Відкрита ліцензія (Internet Archive)"
+        if needle in lower:
+            return url, label
+    return url, "Ліцензію потрібно перевірити"
 
 
 def archive_search(query, limit=20):
@@ -607,7 +626,10 @@ def archive_search(query, limit=20):
         if isinstance(creator, list):
             creator = creator[0] if creator else ""
         ident = d.get("identifier") or ""
-        license_url, license_short = _archive_license(d.get("licenseurl"))
+        raw_license = d.get("licenseurl") or ""
+        if not _archive_commercially_usable(raw_license):
+            continue
+        license_url, license_short = _archive_license(raw_license)
         out.append({
             "id": f"arc:{ident}",
             "title": d.get("title") or ident,
@@ -675,6 +697,10 @@ def archive_stream_url(identifier):
     """Шукає перший придатний аудіофайл у записі архіву."""
     meta = _get(f"https://archive.org/metadata/{identifier}")
     if not meta:
+        return ""
+    metadata = meta.get("metadata") or {}
+    license_url = metadata.get("licenseurl") or meta.get("licenseurl") or ""
+    if not _archive_commercially_usable(license_url):
         return ""
     files = meta.get("files") or []
     for ext in (".mp3", ".ogg", ".m4a", ".flac"):
