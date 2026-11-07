@@ -148,6 +148,15 @@ class SQLiteDevicePersistenceTests(unittest.TestCase):
         self.assertTrue(db.pl_remove_track(owner, playlist["id"], "track-1"))
         self.assertEqual(db.pl_get(playlist["id"])["tracks"], [])
 
+    def test_playlist_remove_and_delete_report_missing_or_foreign_resources(self):
+        owner = 987662
+        playlist, error = db.pl_create(owner, "Owned playlist")
+        self.assertEqual(error, "")
+        self.assertFalse(db.pl_remove_track(owner, playlist["id"], "missing-track"))
+        self.assertFalse(db.pl_delete(owner + 1, playlist["id"]))
+        self.assertTrue(db.pl_delete(owner, playlist["id"]))
+        self.assertIsNone(db.pl_get(playlist["id"]))
+
     def test_playlist_copy_cannot_read_or_copy_another_users_playlist(self):
         owner = 987661
         playlist, error = db.pl_create(owner, "Private playlist")
