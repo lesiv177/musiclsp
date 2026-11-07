@@ -619,7 +619,7 @@ async def h_release_radar_get(request, u):
         name = followed.get("artist_name") or artist.get("name") or ""
         if not name:
             continue
-        albums = await to_thread(P.search_albums_smart, name, 8)
+        albums = await to_thread(P.search_albums_smart, name, 8, "newest")
         for album in albums or []:
             album_artist = str(album.get("artist") or album.get("artist_name") or "").casefold()
             if album_artist and name.casefold() not in album_artist and album_artist not in name.casefold():
