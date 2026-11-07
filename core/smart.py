@@ -76,34 +76,31 @@ def is_dead(track_id):
 # ─── Перевірка посилань ──────────────────────────────────────────────────────
 
 def check_url(url, timeout=4):
-    """True — грає або невідомо; False — точно мертве (404/410/5xx, відмова).
-    Таймаут не карає трек: повільне джерело ≠ мертве."""
+    """True = verified, False = permanently unavailable, None = transient/unknown."""
     if not url:
         return False
     key = ("url", url)
     hit = cache_get(key)
     if hit is not None:
         return hit
-    ok = True
-    ttl = 300
     try:
-        r = P._http_session().head(url, timeout=timeout, allow_redirects=True)
-        if r.status_code in (403, 405, 501):          # HEAD не підтримується — пробуємо шматок
-            r = P._http_session().get(url, timeout=timeout, headers={"Range": "bytes=0-1"},
-                               stream=True, allow_redirects=True)
-            r.close()
-        status = r.status_code
+        response = P._http_session().head(url, timeout=timeout, allow_redirects=True)
+        if response.status_code in (403, 405, 501):
+            response = P._http_session().get(
+                url, timeout=timeout, headers={"Range": "bytes=0-1"},
+                stream=True, allow_redirects=True,
+            )
+            response.close()
+        status = response.status_code
         if status in (408, 429) or status >= 500:
-            # Тимчасова помилка/ліміт провайдера — не оголошуємо трек мертвим.
-            ok, ttl = True, 30
-        else:
-            ok = status not in (404, 410) and status < 400
+            # A transient provider/network failure is not a positive or negative verdict.
+            return None
+        ok = status < 400 and status not in (404, 410)
+        cache_put(key, ok, 300 if ok else 120)
+        return ok
     except Exception:
-        # Timeout/network error не доводить, що сам URL мертвий.
-        ok, ttl = True, 30
-    cache_put(key, ok, ttl)
-    return ok
-
+        # Do not cache a network timeout as either a working or dead URL.
+        return None
 
 def _preflight_track(track, quality="mp32"):
     """Повертає True лише якщо отримано URL і він пройшов мережеву перевірку."""
@@ -119,8 +116,10 @@ def _preflight_track(track, quality="mp32"):
     if not url:
         # Resolver failure may be a provider timeout; retry on the next request.
         return False
-    if not check_url(url, timeout=5):
-        mark_dead(tid)
+    verdict = check_url(url, timeout=5)
+    if verdict is not True:
+        if verdict is False:
+            mark_dead(tid)
         return False
     track["stream"] = url
     cache_put(("stream", tid, quality), url, STREAM_TTL)
@@ -249,9 +248,13 @@ def _resolve_checked(track_id, quality, force=False):
     if is_dead(track_id) and not force:
         return ""
     url = P.resolve_stream(track_id, quality)
-    if url and check_url(url):
-        cache_put(key, url, STREAM_TTL)
-        return url
+    if url:
+        verdict = check_url(url)
+        if verdict is True:
+            cache_put(key, url, STREAM_TTL)
+            return url
+        if verdict is False:
+            mark_dead(track_id)
     return ""
 
 
@@ -276,10 +279,12 @@ def _alternative(track_id, title, artist, quality):
     for _, t in cands[:3]:
         url = t.get("stream") or P.resolve_stream(t["id"], quality)
         candidate_prefix = P.split_id(t["id"])[0]
-        if url and (candidate_prefix in ("aud", "sc") or check_url(url)):
+        verdict = check_url(url) if url else False
+        if verdict is True:
             logger.info("Запасне джерело: %s → %s", track_id, t["id"])
             return url, t["id"]
-        mark_dead(t["id"])
+        if verdict is False:
+            mark_dead(t["id"])
     return "", ""
 
 
@@ -288,8 +293,6 @@ def resolve_stream_robust(track_id, quality="mp32", title="", artist="", force=F
     url = _resolve_checked(track_id, quality, force=force)
     if url:
         return url, track_id
-    if not force:
-        mark_dead(track_id)
     return "", ""
 
 
