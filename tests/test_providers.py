@@ -328,6 +328,40 @@ class GlobalSearchCoverageTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in results], ["aud:1"])
 
 
+class BalancedCatalogueCoverageTests(unittest.TestCase):
+    def test_album_search_interleaves_providers_and_deduplicates_releases(self):
+        jamendo = [
+            {"id": "jam:1", "title": "Same Album", "artist": "Same Artist"},
+            {"id": "jam:2", "title": "Jamendo Two", "artist": "Artist Two"},
+            {"id": "jam:3", "title": "Jamendo Three", "artist": "Artist Three"},
+        ]
+        audius = [
+            {"id": "aud:1", "title": "Same Album", "artist": "Same Artist"},
+            {"id": "aud:2", "title": "Audius Two", "artist": "Artist Four"},
+        ]
+        with (
+            patch.object(P, "_run_parallel_grouped", return_value=[jamendo, audius]),
+        ):
+            results = P.search_albums("album", limit=10)
+        self.assertEqual([item["id"] for item in results],
+                         ["jam:1", "aud:2", "jam:2", "jam:3"])
+
+    def test_artist_search_interleaves_provider_results(self):
+        jamendo = [
+            {"id": "jam:1", "name": "Jamendo One"},
+            {"id": "jam:2", "name": "Jamendo Two"},
+            {"id": "jam:3", "name": "Jamendo Three"},
+        ]
+        audius = [
+            {"id": "aud:1", "name": "Audius One"},
+            {"id": "aud:2", "name": "Audius Two"},
+        ]
+        with patch.object(P, "_run_parallel_grouped", return_value=[jamendo, audius]):
+            results = P.search_artists("artist", limit=10)
+        self.assertEqual([item["id"] for item in results],
+                         ["jam:1", "aud:1", "jam:2", "aud:2", "jam:3"])
+
+
 class InternetArchiveRightsTests(unittest.TestCase):
     def test_only_explicit_commercial_cc_and_public_domain_licenses_pass(self):
         self.assertFalse(P._archive_commercially_usable(""))
