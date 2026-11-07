@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="./ui-polish.css?v=2">
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
   <link rel="stylesheet" href="./v3.css?v=1">
-  <link rel="stylesheet" href="./theme.css?v=17">
+  <link rel="stylesheet" href="./theme.css?v=16">
   <script defer src="./v3.js?v=5"></script>
 <script>try{var d=document.documentElement;d.dataset.space=localStorage.getItem("mlsp_space")||"nebula";d.dataset.spAnim=localStorage.getItem("mlsp_spanim")==="0"?"0":"1";}catch(e){document.documentElement.dataset.space="nebula";}</script>
 <link rel="icon" type="image/svg+xml" href="./icon.svg">
@@ -1541,7 +1541,7 @@ async function runSearch(){
       const params = `q=${encodeURIComponent(q)}&type=all&limit=15&sort=${S.sort}`;
       const d = await get(`/api/search?${params}`);
       if(seq !== SEARCH_SEQ) return;
-      renderAllResults(d.results, d.apple_results || []);
+      renderAllResults(d.results);
       return;
     }
     const params = `q=${encodeURIComponent(q)}&type=${S.kind}&limit=40&sort=${S.sort}&sources=${S.sources.join(",")}`;
@@ -1576,8 +1576,8 @@ async function runSearch(){
   }
 }
 
-function renderAllResults(r, appleResults = []){
-  const empty = !r.tracks.length && !r.albums.length && !r.artists.length && !appleResults.length;
+function renderAllResults(r){
+  const empty = !r.tracks.length && !r.albums.length && !r.artists.length;
   if(empty){
     $("qBody").innerHTML = `<div class="empty"><b data-i18n="nothing_found_title">Нічого не знайдено</b><span data-i18n="nothing_found_body">Спробуйте інше слово.</span></div>${NO_RESULTS_HINT}`;
     applyI18n();
@@ -1590,18 +1590,6 @@ function renderAllResults(r, appleResults = []){
     html += `<div class="sect"><h2 data-i18n="search_albums">Альбоми</h2>${cardsHtml(r.albums, "all_albums")}</div>`; }
   if(r.artists.length){
     html += `<div class="sect"><h2 data-i18n="search_artists">Артисти</h2>${cardsHtml(r.artists, "all_artists", true)}</div>`; }
-  if(appleResults.length){
-    const appleTitle = ({uk:"Apple Music — каталог",ru:"Apple Music — каталог",en:"Apple Music catalogue",pl:"Katalog Apple Music",de:"Apple-Music-Katalog",es:"Catálogo de Apple Music",fr:"Catalogue Apple Music",tr:"Apple Music kataloğu"})[S.me?.lang||"uk"] || "Apple Music — каталог";
-    html += `<div class="sect apple-catalog"><h2>${esc(appleTitle)}</h2><div class="apple-catalog-list">` +
-      appleResults.slice(0,12).map(x=>{
-        const href = typeof x.external_url==="string" && x.external_url.startsWith("https://") ? x.external_url : "";
-        if(!href) return "";
-        const cover = typeof x.artwork==="string" && x.artwork.startsWith("https://") ? x.artwork : "";
-        const meta = [x.artist,x.album].filter(Boolean).join(" · ");
-        const kind = ({song:"Трек",album:"Альбом",artist:"Виконавець"})[x.kind] || "Apple Music";
-        return `<a class="apple-catalog-item" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${cover?`<img src="${esc(cover)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:`<span class="apple-catalog-placeholder">♫</span>`}<span class="apple-catalog-meta"><b>${esc(x.title||"")}</b><small>${esc(meta||kind)}</small></span><span class="apple-catalog-open" aria-label="Відкрити Apple Music">↗</span></a>`;
-      }).join("") + `</div><p class="apple-catalog-note">Каталог Apple Music · відтворення відкривається в Apple Music</p></div>`;
-  }
   $("qBody").innerHTML = html;
   applyI18n();
   $("qBody").querySelectorAll(".row").forEach(row=>{
@@ -2101,12 +2089,7 @@ async function cnExec(m){
     case "pause": cur.pause(); S.playing=false; paintPlayState(); return publishDeviceState(true);
     case "play":
       if(RESUME.pending) return startPending();
-      try{ await cur.play(); S.playing=true; paintPlayState(); publishDeviceState(true); }catch(e){
-        // The controller optimistically marked the session as playing. Re-publish
-        // the owner's actual paused state so every remote device is corrected.
-        S.playing=false; paintPlayState(); publishDeviceState(true);
-        toast("Торкніться ▶ на цьому пристрої");
-      }
+      try{ await cur.play(); S.playing=true; paintPlayState(); publishDeviceState(true); }catch(e){ toast("Торкніться ▶ на цьому пристрої"); }
       return;
     case "next": return nextTrack(false);
     case "previous": return prevTrack();
@@ -2501,7 +2484,7 @@ function play(t, startAt){
     S.playing = true;
     reportPlay(t); // історія лише після фактичного старту аудіо
     paintPlayState();
-    if(!CN.bypass) claimLocalPlayback(); // під час handoff чекаємо ack; не перехоплюємо передачу передчасно
+    claimLocalPlayback();          // цей пристрій стає активним, інші — пультами
     return true;
   }).catch((e)=>{
     CN.lastPlayError = (e && e.name) || "";
@@ -2891,11 +2874,9 @@ async function shareCurrentTrack(){
 
 function openTrackMenu(t){
   tap();
-  const licenseUrl = /^https:\/\/creativecommons\.org\/(?:licenses|publicdomain)\//i.test(t.license||"") ? t.license : "";
   showModal(`<h3>${esc(t.title)}</h3>
     <div style="color:var(--muted);font-size:13px;margin:-8px 0 16px">${esc(t.artist)} · 
       ${esc(t.source_label||"")} · ${esc(t.license_short||"")}</div>
-    ${licenseUrl?`<a class="btn ghost" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px" href="${esc(licenseUrl)}" target="_blank" rel="noopener noreferrer">Умови ліцензії: ${esc(t.license_short||"Creative Commons")}</a>`:""}
     <button class="btn ghost" onclick='queueNext(${JSON.stringify(t).replace(/'/g,"&#39;")})'>Поставити наступним</button>
     <button class="btn ghost" onclick='addToLib(${JSON.stringify(t).replace(/'/g,"&#39;")})'>Зберегти в бібліотеку</button>
     <button class="btn ghost" onclick='openAddToPlaylist(${JSON.stringify(t).replace(/'/g,"&#39;")})'>Додати в плейлист</button>
