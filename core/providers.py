@@ -215,6 +215,7 @@ def jamendo_search_albums(query, limit=20, offset=0, sort="relevance"):
             "artist": a.get("artist_name") or "",
             "cover": a.get("image") or "",
             "year": (a.get("releasedate") or "")[:4],
+            "release_date": str(a.get("releasedate") or "")[:10],
             "source": "jamendo",
             "source_label": "Jamendo",
             "source_url": a.get("shareurl") or "",
@@ -471,6 +472,7 @@ def _aud_album(item):
         "source_label": "Audius",
         "source_url": f"https://audius.co{permalink}" if permalink.startswith("/") else "https://audius.co",
         "year": str(item.get("release_date") or "")[:4],
+        "release_date": str(item.get("release_date") or "")[:10],
     }
 
 
