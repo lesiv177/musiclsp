@@ -2,54 +2,66 @@ import os
 import unittest
 from unittest.mock import patch
 
-from core.music_sources import OPTIONAL_SOURCES, available_sources, source_status
+from core.music_sources import MUSIC_SOURCES, available_sources, source_status
 
 
-class OptionalMusicSourceRegistryTests(unittest.TestCase):
-    def test_optional_sources_are_disabled_without_credentials(self):
+class MusicSourceRegistryTests(unittest.TestCase):
+    def test_registry_contains_only_implemented_integrations(self):
+        keys = [source.key for source in MUSIC_SOURCES]
+        self.assertEqual(len(keys), len(set(keys)))
+        self.assertEqual(set(keys), {
+            "audius", "archive", "ccmixter", "openverse", "wikimedia",
+            "jamendo", "soundcloud", "youtube",
+        })
+        self.assertTrue(all(source.implemented for source in MUSIC_SOURCES))
+
+    def test_commercial_providers_require_credentials_and_explicit_approval(self):
         with patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(available_sources(), ())
+            status = source_status()
+        self.assertFalse(status["jamendo"]["available"])
+        self.assertFalse(status["soundcloud"]["available"])
+        self.assertFalse(status["youtube"]["available"])
+        self.assertTrue(status["audius"]["available"])
+        self.assertTrue(status["archive"]["available"])
+        self.assertTrue(status["ccmixter"]["available"])
+        self.assertTrue(status["openverse"]["available"])
+        self.assertTrue(status["wikimedia"]["available"])
 
-    def test_apple_music_requires_token_and_implemented_adapter(self):
-        with patch.dict(os.environ, {"APPLE_MUSIC_DEVELOPER_TOKEN": "test-token"}, clear=True):
-            status = source_status()["apple_music"]
-            self.assertTrue(status["configured"])
-            self.assertTrue(status["catalogue_implemented"])
-            self.assertFalse(status["implemented"])
-            self.assertFalse(status["available"])
-            self.assertEqual(available_sources(), ())
+    def test_jamendo_requires_client_id_and_approval(self):
+        env = {"JAMENDO_CLIENT_ID": "test-id", "JAMENDO_COMMERCIAL_APPROVED": "true"}
+        with patch.dict(os.environ, env, clear=True):
+            self.assertTrue(source_status()["jamendo"]["available"])
+            self.assertIn("jamendo", available_sources())
 
-    def test_commercial_sources_require_adapter_and_explicit_approval(self):
+    def test_soundcloud_requires_credentials_and_approval(self):
         env = {
-            "TIDAL_CLIENT_ID": "id",
-            "TIDAL_CLIENT_SECRET": "secret",
-            "SEVENDIGITAL_API_KEY": "key",
-            "SEVENDIGITAL_PARTNER_ID": "partner",
-            "AMAZON_MUSIC_CLIENT_ID": "id",
-            "AMAZON_MUSIC_CLIENT_SECRET": "secret",
-            "EPIDEMIC_SOUND_API_TOKEN": "token",
+            "SOUNDCLOUD_CLIENT_ID": "test-id",
+            "SOUNDCLOUD_CLIENT_SECRET": "test-secret",
+            "SOUNDCLOUD_AGGREGATION_APPROVED": "true",
         }
         with patch.dict(os.environ, env, clear=True):
-            self.assertEqual(available_sources(), ())
-            for key in ("TIDAL", "SEVEN_DIGITAL", "AMAZON_MUSIC", "EPIDEMIC_SOUND"):
-                os.environ[f"{key}_APPROVED"] = "true"
-            status = source_status()
-            for key in ("tidal", "seven_digital", "amazon_music", "epidemic_sound"):
-                self.assertTrue(status[key]["configured"])
-                self.assertFalse(status[key]["implemented"])
-                self.assertFalse(status[key]["available"])
-            self.assertEqual(available_sources(), ())
+            self.assertTrue(source_status()["soundcloud"]["available"])
+            self.assertIn("soundcloud", available_sources())
+
+    def test_archive_can_be_disabled(self):
+        with patch.dict(os.environ, {"ARCHIVE_ENABLED": "0"}, clear=True):
+            self.assertFalse(source_status()["archive"]["available"])
+
+    def test_youtube_is_catalogue_only_and_needs_api_key(self):
+        with patch.dict(os.environ, {"YOUTUBE_API_KEY": "test-key"}, clear=True):
+            status = source_status()["youtube"]
+        self.assertTrue(status["available"])
+        self.assertEqual(status["playback_mode"], "official_embed")
+        self.assertEqual(status["catalogue_types"], ["tracks"])
 
     def test_status_never_exposes_credentials(self):
-        with patch.dict(os.environ, {"APPLE_MUSIC_DEVELOPER_TOKEN": "do-not-leak"}, clear=True):
+        with patch.dict(os.environ, {
+            "JAMENDO_CLIENT_ID": "private-id",
+            "SOUNDCLOUD_CLIENT_SECRET": "private-secret",
+        }, clear=True):
             status = source_status()
-        self.assertNotIn("do-not-leak", repr(status))
-        self.assertTrue(status["apple_music"]["configured"])
-        self.assertFalse(status["apple_music"]["available"])
-
-    def test_registry_has_unique_keys(self):
-        keys = [source.key for source in OPTIONAL_SOURCES]
-        self.assertEqual(len(keys), len(set(keys)))
+        self.assertNotIn("private-id", repr(status))
+        self.assertNotIn("private-secret", repr(status))
 
 
 if __name__ == "__main__":
