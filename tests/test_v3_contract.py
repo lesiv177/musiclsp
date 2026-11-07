@@ -65,7 +65,7 @@ class V3ContractTests(unittest.TestCase):
         self.assertIn('preservedLegacy.forEach((n,i)=>{const slot=$(["v3AvatarSlot","v3PlanSlot","v3DeviceSlot"][i]);if(n&&slot)slot.appendChild(n);})', V3_JS)
 
     def test_playlist_track_removal_control_is_rendered_and_does_not_play(self):
-        self.assertIn('data-remove-playlist-track="'+i+', V3_JS)
+        self.assertIn('data-remove-playlist-track=', V3_JS)
         self.assertIn('if(e.target.closest("[data-remove-playlist-track]"))return;', V3_JS)
         self.assertIn('data-remove-playlist-track]', V3_JS)
 
