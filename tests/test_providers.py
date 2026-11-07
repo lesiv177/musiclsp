@@ -85,6 +85,29 @@ class AudiusAlbumCatalogueTests(unittest.TestCase):
         self.assertIsNone(P._aud_album({**base, "is_unlisted": True}))
 
 
+class AudiusPlaylistVisibilityTests(unittest.TestCase):
+    def test_trending_playlists_exclude_private_unlisted_and_invalid_items(self):
+        payload = {"data": [
+            {"id": "public", "playlist_name": "Public"},
+            {"id": "private", "playlist_name": "Private", "is_private": True},
+            {"id": "unlisted", "playlist_name": "Unlisted", "is_unlisted": True},
+            {"id": "", "playlist_name": "No ID"},
+            {"id": "no-title", "playlist_name": ""},
+        ]}
+        with (
+            patch.object(P, "audius_host", return_value="https://audius.test"),
+            patch.object(P, "_get", return_value=payload),
+        ):
+            results = P.audius_trending_playlists(limit=10)
+        self.assertEqual([item["id"] for item in results], ["aud:public"])
+
+
+class JamendoPlaylistFallbackTests(unittest.TestCase):
+    def test_synthetic_jamendo_collections_hidden_when_source_not_approved(self):
+        with patch.object(P, "jamendo_enabled", return_value=False):
+            self.assertEqual(P._synthetic_collections(10), [])
+
+
 class SoundCloudPriorityTests(unittest.TestCase):
     def _empty_provider_patches(self):
         return [
