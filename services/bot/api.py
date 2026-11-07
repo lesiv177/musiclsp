@@ -555,7 +555,7 @@ async def h_stream(request):
     if not tid:
         return fail("Немає id треку")
     qual = quality_for(int(u["uid"])) if u else "mp31"
-    # перевірка посилання + запасне джерело, якщо основне не відповідає
+    # перевірка посилання на точний вибраний трек; підміни іншим треком немає
     force = request.query.get("r") == "1"
     url, _played = await to_thread(SM.resolve_stream_robust, tid, qual,
                                    (request.query.get("t") or "")[:200],
