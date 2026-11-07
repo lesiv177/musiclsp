@@ -13,8 +13,8 @@
 <link rel="stylesheet" href="./ui-polish.css?v=2">
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
   <link rel="stylesheet" href="./v3.css?v=3">
-  <link rel="stylesheet" href="./theme.css?v=17">
-  <script defer src="./v3.js?v=6"></script>
+  <link rel="stylesheet" href="./theme.css?v=21">
+  <script defer src="./v3.js?v=7"></script>
 <script>try{var d=document.documentElement;d.dataset.space=localStorage.getItem("mlsp_space")||"nebula";d.dataset.spAnim=localStorage.getItem("mlsp_spanim")==="0"?"0":"1";}catch(e){document.documentElement.dataset.space="nebula";}</script>
 <link rel="icon" type="image/svg+xml" href="./icon.svg">
 <link rel="apple-touch-icon" href="./icon-512.png">
@@ -216,6 +216,15 @@
 /* ════════ Ініціалізація ════════ */
 const tg = window.Telegram?.WebApp;
 tg?.ready(); tg?.expand();
+/* ПК: велике вікно (повноекранний режим), телефон: окрема мобільна розкладка */
+try{
+  const plat=(tg&&tg.platform)||"", desk=/^(tdesktop|macos|weba|webk|web|unigram)$/.test(plat);
+  document.documentElement.dataset.device=desk?"desktop":"mobile";
+  if(desk && tg && typeof tg.requestFullscreen==="function" && !tg.isFullscreen){
+    try{ tg.requestFullscreen(); }catch(e){}
+    document.addEventListener("click",()=>{ try{ if(!tg.isFullscreen) tg.requestFullscreen(); }catch(e){} },{once:true});
+  }
+}catch(e){}
 try { tg?.setHeaderColor?.("#0E0B18"); tg?.setBackgroundColor?.("#0E0B18"); } catch(e){}
 // Telegram Mini App не має API для фонового відтворення — коли застосунок
 // повністю згорнутий чи закритий, Telegram зупиняє його WebView і музика
@@ -926,6 +935,7 @@ setTimeout(()=>{ const a=$("appRoot"); if(a && !a.classList.contains("ready")) r
     $("planChip").classList.toggle("pro", !!S.me.premium);
     if($("adminChip")) $("adminChip").hidden = !S.me.is_admin;
     try{ applyFx(); }catch(e){}
+    document.documentElement.dataset.premium=S.me.premium?"1":"0";
     applyI18n();
     startSplashShow(S.me.lang);
   }catch(e){
@@ -987,8 +997,7 @@ function go(name){
       setTimeout(()=>b.classList.remove("bump"), 400);
     }
     b.classList.toggle("on", becomesOn);
-  });
-  if(name==="Me"){ refreshMe().then(renderProfile); renderProfile(); }
+  });  if(name==="Me"){ refreshMe().then(renderProfile); renderProfile(); }
   const topTitle=$("topTitle"); if(topTitle) topTitle.textContent="MusicLSP";
   if(name==="Lib") renderLibrary();
   if(name==="Explore") loadExplore();
@@ -1987,8 +1996,7 @@ function cnApplySnapshot(m){
   const mine=CN.owner===CN.id;
   const guard=CN.bypass || Date.now()<CN.guardUntil;
   const localPlaying=!!current() && !cur.paused && !cur.ended;
-  if(!guard && localPlaying){
-    if(CN.owner && !mine){ cur.pause(); S.playing=false; paintPlayState(); }   // грає інший пристрій
+  if(!guard && localPlaying){    if(CN.owner && !mine){ cur.pause(); S.playing=false; paintPlayState(); }   // грає інший пристрій
     else if(!CN.owner){ claimLocalPlayback(); }                                 // втратили зʼєднання — забираємо назад
   }
   if(CN.remote()) cnAdoptRemote();
@@ -2987,8 +2995,7 @@ function renderProfile(){
     <button class="pm-open" type="button" onclick="openPremiumSettings()"><b>✦ Premium-налаштування</b><small>Налаштуй MusicLSP під себе</small></button>
     <div class="profile-quick-actions" aria-label="Швидкі дії профілю">
       <button type="button" onclick="go('Lib')"><span class="pqa-icon">♫</span><span><b data-i18n="lib_liked">Збережене</b><small data-i18n="lib_playlists">Плейлисти</small></span><i>›</i></button>
-      <button type="button" onclick="openWrapped()"><span class="pqa-icon">↗</span><span><b data-i18n="pr_wrapped">Мій рік у музиці</b><small data-i18n="pr_stats">Статистика</small></span><i>›</i></button>
-      <button type="button" onclick="openPlan()"><span class="pqa-icon">✦</span><span><b data-i18n="pr_premium">Premium</b><small data-i18n="pr_theme_all">Усі теми відкриті</small></span><i>›</i></button>
+      <button type="button" onclick="openWrapped()"><span class="pqa-icon">↗</span><span><b data-i18n="pr_wrapped">Мій рік у музиці</b><small data-i18n="pr_stats">Статистика</small></span><i>›</i></button>      <button type="button" onclick="openPlan()"><span class="pqa-icon">✦</span><span><b data-i18n="pr_premium">Premium</b><small data-i18n="pr_theme_all">Усі теми відкриті</small></span><i>›</i></button>
     </div>
     <div class="sect" id="profileStats"><h2 data-i18n="pr_stats">Статистика</h2><div id="statBox"><div class="skel"></div></div>
       <button class="pill" style="margin-top:10px" onclick="openWrapped()">${ICON("gift","sm")}<span data-i18n="pr_wrapped">Мій рік у музиці</span></button>
@@ -3844,5 +3851,4 @@ paintStaticIcons();
 </script>
 </body>
 </html>
-
 
