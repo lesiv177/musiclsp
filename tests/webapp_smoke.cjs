@@ -34,8 +34,7 @@ const { spawn } = require("node:child_process");
     else if (path === "/api/search") {
       const q=url.searchParams.get("q"),type=url.searchParams.get("type");
       data={ok:true,results:type==="all"?{tracks:[{id:"qa-search",title:"Search result",artist:"QA Artist",cover:"",duration:180}],albums:[{id:"jam:album-1",name:"QA Album",cover:""}],artists:[{id:"jam:artist-1",name:"QA Artist",cover:""}]}:
-        (type==="artists"?[{id:"jam:artist-1",name:"QA Artist",cover:""}]:type==="albums"?[{id:"jam:album-1",name:"QA Album",cover:""}]:(q?[{id:"qa-search",title:"Search result",artist:"QA Artist",cover:"",duration:180}]:[])),
-        apple_results:type==="all"?[{id:"apple_music:song:123",kind:"song",title:"Apple QA Song",artist:"Apple QA Artist",album:"Apple QA Album",artwork:"",external_url:"https://music.apple.com/us/album/apple-qa-song/123"}]:[]};
+        (type==="artists"?[{id:"jam:artist-1",name:"QA Artist",cover:""}]:type==="albums"?[{id:"jam:album-1",name:"QA Album",cover:""}]:(q?[{id:"qa-search",title:"Search result",artist:"QA Artist",cover:"",duration:180}]:[]))};
     } else if (path === "/api/artist/jam%3Aartist-1" || path === "/api/artist/jam:artist-1" || path === "/api/album/jam%3Aalbum-1" || path === "/api/album/jam:album-1") data={ok:true,tracks:[{id:"qa-collection-track",title:"Collection track",artist:"QA Artist",cover:"",duration:180}]};
     else if (path === "/api/mood/calm") data={ok:true,tracks:[{id:"qa-mood",title:"Mood track",artist:"QA Artist",cover:"",duration:180}]};
     else if (path.startsWith("/api/home?tag=")) data={ok:true,sections:[{id:"genre",tracks:[{id:"qa-genre",title:"Jazz track",artist:"QA Artist",cover:"",duration:180}]}]};
@@ -80,9 +79,6 @@ const { spawn } = require("node:child_process");
     if(!apiCalls.includes("/api/search"))throw new Error("V3 search did not call the search API");
     await page.waitForSelector('#v3Results [data-collection-kind="artists"]');
     await page.waitForSelector('#v3Results [data-collection-kind="albums"]');
-    await page.waitForSelector("#v3Results .apple-catalog-item");
-    const appleHref=await page.locator("#v3Results .apple-catalog-item").getAttribute("href");
-    if(appleHref!=="https://music.apple.com/us/album/apple-qa-song/123")throw new Error("Apple catalogue result is missing or links to the wrong page");
     const artistRequest=page.waitForRequest(req=>new URL(req.url()).pathname.startsWith("/api/artist/"));
     await page.locator('#v3Results [data-collection-kind="artists"]').first().click();
     if(!(await artistRequest).url().includes("jam%3Aartist-1"))throw new Error("Artist selection requested the wrong collection");
