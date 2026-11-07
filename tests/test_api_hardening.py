@@ -46,7 +46,7 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(api.P, "jamendo_enabled", return_value=False),
             patch.object(api.P, "audius_host", return_value="https://audius.example"),
-            patch.object(api.P, "source_status", return_value={}),
+            patch.object(api.P, "source_status", return_value={"jamendo": {"available": False}, "audius": {"available": True}}),
         ):
             response = await api.h_health(SimpleNamespace())
         payload = json.loads(response.text)
