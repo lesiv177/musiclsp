@@ -1169,6 +1169,8 @@ def soundcloud_search(query, limit=15):
 
 
 def soundcloud_stream_url(raw):
+    if not soundcloud_enabled():
+        return ""
     h = _sc_headers()
     if not h:
         return ""
@@ -1183,6 +1185,8 @@ def soundcloud_stream_url(raw):
 
 
 def soundcloud_track(raw):
+    if not soundcloud_enabled():
+        return None
     with _sc_lock:
         hit = _SC_CACHE.get(f"sc:{raw}")
     if hit:
