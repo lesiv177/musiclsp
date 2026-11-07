@@ -585,3 +585,8 @@ html[data-premium="1"] .v3-upgrade-nav{display:none!important}
  .v3-coll-hero img{width:220px;height:220px}
 }
 html[data-premium="1"] body #mlsp-v3 #v3Nav button.v3-upgrade-nav{display:none!important}
+
+/* v15.2: keep the mini-player clear of the mobile navigation in every scroll state. */
+@media (max-width:900px){
+ html.nav-hidden body #bar.bar.on,html body #bar.bar.on{bottom:calc(60px + env(safe-area-inset-bottom,0px) + 14px)!important}
+}
