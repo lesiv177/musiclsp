@@ -33,6 +33,7 @@ from core.config import (
     ARCHIVE_ENABLED, HTTP_TIMEOUT, USER_AGENT,
     SOUNDCLOUD_CLIENT_ID, SOUNDCLOUD_CLIENT_SECRET,
 )
+from core.music_sources import DEFAULT_TRACK_SEARCH_ORDER, source_status
 
 logger = logging.getLogger(__name__)
 import os as _os
@@ -40,6 +41,7 @@ YOUTUBE_API_KEY = _os.environ.get("YOUTUBE_API_KEY", "").strip()   # опцій�
 
 _thread_http = threading.local()
 _PROVIDER_EXECUTOR = ThreadPoolExecutor(max_workers=12, thread_name_prefix="music-provider")
+_CATALOGUE_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="music-catalogue")
 
 
 def _http_session():
@@ -94,6 +96,15 @@ JAMENDO_TAGS = [
 ]
 
 
+def _approval_enabled(name):
+    return _os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def jamendo_enabled():
+    # Jamendo's API terms require a separate commercial-use agreement.
+    return bool(JAMENDO_CLIENT_ID) and _approval_enabled("JAMENDO_COMMERCIAL_APPROVED")
+
+
 def _jam_params(**extra):
     p = {"client_id": JAMENDO_CLIENT_ID, "format": "json"}
     p.update(extra)
@@ -101,7 +112,10 @@ def _jam_params(**extra):
 
 
 def _jam_track(t, audioformat="mp32"):
-    """Нормалізує трек Jamendo у внутрішній формат."""
+    """Нормалізує лише треки з явно дозволеною для комерційного використання CC-ліцензією."""
+    license_url = (t.get("license_ccurl") or "").strip()
+    if not _cc_commercially_usable(license_url):
+        return None
     tid = str(t.get("id") or "")
     audio = t.get("audio") or ""
     # Jamendo дозволяє перевизначити формат через параметр у стрім-URL
@@ -122,8 +136,8 @@ def _jam_track(t, audioformat="mp32"):
         "source": "jamendo",
         "source_label": "Jamendo",
         "source_url": t.get("shareurl") or f"https://www.jamendo.com/track/{tid}",
-        "license": t.get("license_ccurl") or "https://creativecommons.org/licenses/",
-        "license_short": _cc_short(t.get("license_ccurl")),
+        "license": license_url,
+        "license_short": _cc_short(license_url),
         "stream": audio,
         "downloadable": bool(int(t.get("audiodownload_allowed") or 0)) if str(
             t.get("audiodownload_allowed", "")
@@ -156,7 +170,7 @@ SORT_TO_JAMENDO_ORDER = {
 
 
 def jamendo_search_tracks(query, limit=25, offset=0, audioformat="mp32", sort="relevance"):
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return []
     params = dict(
         search=query, limit=limit, offset=offset,
@@ -168,11 +182,11 @@ def jamendo_search_tracks(query, limit=25, offset=0, audioformat="mp32", sort="r
     data = _get(f"{JAMENDO_API}/tracks/", _jam_params(**params))
     if not data:
         return []
-    return [_jam_track(t, audioformat) for t in data.get("results", [])]
+    return [track for t in data.get("results", []) if (track := _jam_track(t, audioformat))]
 
 
 def jamendo_tag_tracks(tag, limit=25, offset=0, audioformat="mp32", order="popularity_month"):
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return []
     data = _get(f"{JAMENDO_API}/tracks/", _jam_params(
         tags=tag, limit=limit, offset=offset, include="licenses",
@@ -180,11 +194,11 @@ def jamendo_tag_tracks(tag, limit=25, offset=0, audioformat="mp32", order="popul
     ))
     if not data:
         return []
-    return [_jam_track(t, audioformat) for t in data.get("results", [])]
+    return [track for t in data.get("results", []) if (track := _jam_track(t, audioformat))]
 
 
 def jamendo_search_albums(query, limit=20, offset=0, sort="relevance"):
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return []
     params = dict(namesearch=query, limit=limit, offset=offset, imagesize=400)
     order = SORT_TO_JAMENDO_ORDER.get(sort)
@@ -209,7 +223,7 @@ def jamendo_search_albums(query, limit=20, offset=0, sort="relevance"):
 
 
 def jamendo_album_tracks(album_id, audioformat="mp32"):
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return []
     data = _get(f"{JAMENDO_API}/albums/tracks/", _jam_params(
         id=album_id, audioformat=audioformat, imagesize=400, include="licenses",
@@ -223,12 +237,14 @@ def jamendo_album_tracks(album_id, audioformat="mp32"):
         t.setdefault("album_name", album.get("name"))
         t.setdefault("album_image", album.get("image"))
         t.setdefault("album_id", album.get("id"))
-        tracks.append(_jam_track(t, audioformat))
+        track = _jam_track(t, audioformat)
+        if track:
+            tracks.append(track)
     return tracks
 
 
 def jamendo_playlists(limit=15):
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return []
     data = _get(f"{JAMENDO_API}/playlists/", _jam_params(
         limit=limit, imagesize=400, order="creationdate_desc",
@@ -249,7 +265,7 @@ def jamendo_playlists(limit=15):
 
 
 def jamendo_playlist_tracks(playlist_id, audioformat="mp32"):
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return []
     data = _get(f"{JAMENDO_API}/playlists/tracks/", _jam_params(
         id=playlist_id, audioformat=audioformat, imagesize=400, include="licenses",
@@ -259,12 +275,14 @@ def jamendo_playlist_tracks(playlist_id, audioformat="mp32"):
     pl = data["results"][0]
     tracks = []
     for t in pl.get("tracks", []):
-        tracks.append(_jam_track(t, audioformat))
+        track = _jam_track(t, audioformat)
+        if track:
+            tracks.append(track)
     return tracks
 
 
 def jamendo_search_artists(query, limit=20):
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return []
     data = _get(f"{JAMENDO_API}/artists/", _jam_params(
         namesearch=query, limit=limit, imagesize=400,
@@ -282,7 +300,7 @@ def jamendo_search_artists(query, limit=20):
 
 
 def jamendo_artist_tracks(artist_id, limit=40, audioformat="mp32"):
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return []
     data = _get(f"{JAMENDO_API}/artists/tracks/", _jam_params(
         id=artist_id, limit=1, track_limit=limit,
@@ -295,12 +313,14 @@ def jamendo_artist_tracks(artist_id, limit=40, audioformat="mp32"):
     for t in artist.get("tracks", []):
         t.setdefault("artist_name", artist.get("name"))
         t.setdefault("artist_id", artist.get("id"))
-        out.append(_jam_track(t, audioformat))
+        track = _jam_track(t, audioformat)
+        if track:
+            out.append(track)
     return out
 
 
 def jamendo_track(track_id, audioformat="mp32"):
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return None
     data = _get(f"{JAMENDO_API}/tracks/", _jam_params(
         id=track_id, audioformat=audioformat, imagesize=400, include="licenses musicinfo",
@@ -312,7 +332,7 @@ def jamendo_track(track_id, audioformat="mp32"):
 
 def jamendo_similar(track_id, limit=20, audioformat="mp32"):
     """Треки, схожі на заданий — основа Smart Radio."""
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return []
     data = _get(f"{JAMENDO_API}/tracks/similar/", _jam_params(
         id=track_id, limit=limit, audioformat=audioformat,
@@ -320,7 +340,7 @@ def jamendo_similar(track_id, limit=20, audioformat="mp32"):
     ))
     if not data:
         return []
-    return [_jam_track(t, audioformat) for t in data.get("results", [])]
+    return [track for t in data.get("results", []) if (track := _jam_track(t, audioformat))]
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -377,8 +397,30 @@ def audius_host(force_new=False):
         return _audius_host
 
 
+def _aud_content_accessible(item):
+    """Reject Audius items whose creator settings disallow public API playback."""
+    if not isinstance(item, dict):
+        return False
+    if item.get("is_available") is False or item.get("is_streamable") is False:
+        return False
+    if item.get("is_delete") is True or item.get("is_unlisted") is True:
+        return False
+    if item.get("is_stream_gated") is True or item.get("is_private") is True:
+        return False
+    return True
+
+
 def _aud_track(t):
-    tid = str(t.get("id") or "")
+    # Respect creator API/stream restrictions as well as explicit CC-NC terms.
+    if not _aud_content_accessible(t):
+        return None
+    license = str(t.get("license") or "").strip().lower()
+    compact_license = re.sub(r"[^a-z]", "", license)
+    if "noncommercial" in compact_license or re.search(r"(^|[-_])nc($|[-_])", license):
+        return None
+    tid = str(t.get("id") or "").strip()
+    if not tid:
+        return None
     art = t.get("artwork") or {}
     cover = art.get("480x480") or art.get("150x150") or art.get("1000x1000") or ""
     user = t.get("user") or {}
@@ -405,6 +447,76 @@ def _aud_track(t):
     }
 
 
+def _aud_album(item):
+    """Normalise Audius albums; Audius represents album releases as playlists."""
+    if not _aud_content_accessible(item):
+        return None
+    is_album = item.get("is_album") is True or str(item.get("type") or "").lower() == "album"
+    if not is_album:
+        return None
+    album_id = str(item.get("id") or "").strip()
+    title = str(item.get("playlist_name") or item.get("name") or "").strip()
+    if not album_id or not title:
+        return None
+    user = item.get("user") or {}
+    artwork = item.get("artwork") or {}
+    cover = artwork.get("480x480") or artwork.get("150x150") or artwork.get("1000x1000") or ""
+    permalink = str(item.get("permalink") or "")
+    return {
+        "id": f"aud:{album_id}",
+        "title": title,
+        "artist": user.get("name") or user.get("handle") or "",
+        "cover": cover,
+        "source": "audius",
+        "source_label": "Audius",
+        "source_url": f"https://audius.co{permalink}" if permalink.startswith("/") else "https://audius.co",
+        "year": str(item.get("release_date") or "")[:4],
+    }
+
+
+def audius_search_albums(query, limit=20):
+    host = audius_host()
+    if not host:
+        return []
+    data = _get(f"{host}/v1/playlists/search", {
+        "query": query, "app_name": AUDIUS_APP_NAME, "limit": limit,
+    })
+    if not data:
+        return []
+    return [album for item in (data.get("data") or [])[:limit]
+            if (album := _aud_album(item))]
+
+
+def audius_album_tracks(album_id, limit=60):
+    host = audius_host()
+    if not host:
+        return []
+    params = {"app_name": AUDIUS_APP_NAME}
+    meta_data = _get(f"{host}/v1/playlists/{album_id}", params)
+    meta = (meta_data or {}).get("data") or {}
+    data = _get(f"{host}/v1/playlists/{album_id}/tracks", {**params, "limit": limit})
+    if not data:
+        return []
+    album_name = meta.get("playlist_name") or ""
+    user = meta.get("user") or {}
+    artist_name = user.get("name") or user.get("handle") or ""
+    artwork = meta.get("artwork") or {}
+    cover = artwork.get("480x480") or artwork.get("150x150") or artwork.get("1000x1000") or ""
+    tracks = []
+    for raw in (data.get("data") or [])[:limit]:
+        track = _aud_track(raw)
+        if not track:
+            continue
+        track["album"] = album_name
+        track["album_id"] = f"aud:{album_id}"
+        if artist_name:
+            track["artist"] = artist_name
+        if cover:
+            track["cover"] = cover
+        tracks.append(track)
+    return tracks
+
+
 def audius_search_tracks(query, limit=25):
     host = audius_host()
     if not host:
@@ -414,7 +526,7 @@ def audius_search_tracks(query, limit=25):
     })
     if not data:
         return []
-    return [_aud_track(t) for t in (data.get("data") or [])][:limit]
+    return [track for t in (data.get("data") or [])[:limit] if (track := _aud_track(t))]
 
 
 def audius_trending(genre=None, limit=25):
@@ -427,7 +539,7 @@ def audius_trending(genre=None, limit=25):
     data = _get(f"{host}/v1/tracks/trending", params)
     if not data:
         return []
-    return [_aud_track(t) for t in (data.get("data") or [])][:limit]
+    return [track for t in (data.get("data") or [])[:limit] if (track := _aud_track(t))]
 
 
 def audius_trending_playlists(limit=15):
@@ -440,12 +552,18 @@ def audius_trending_playlists(limit=15):
     if not data:
         return []
     out = []
-    for p in (data.get("data") or [])[:limit]:
-        art = p.get("artwork") or {}
+    for playlist in (data.get("data") or [])[:limit]:
+        if not _aud_content_accessible(playlist):
+            continue
+        playlist_id = str(playlist.get("id") or "").strip()
+        title = str(playlist.get("playlist_name") or "").strip()
+        if not playlist_id or not title:
+            continue
+        art = playlist.get("artwork") or {}
         cover = art.get("480x480") or art.get("150x150") or art.get("1000x1000") or ""
         out.append({
-            "id": f"aud:{p.get('id')}",
-            "title": p.get("playlist_name") or "",
+            "id": f"aud:{playlist_id}",
+            "title": title,
             "cover": cover,
             "source": "audius",
             "source_label": "Audius",
@@ -463,7 +581,7 @@ def audius_playlist_tracks(playlist_id, limit=60):
     })
     if not data:
         return []
-    return [_aud_track(t) for t in (data.get("data") or [])][:limit]
+    return [track for t in (data.get("data") or []) if (track := _aud_track(t))][:limit]
 
 
 def audius_track(track_id):
@@ -545,7 +663,8 @@ def audius_user_tracks(user_id, limit=40):
     })
     if not data:
         return []
-    return [_aud_track(t) for t in (data.get("data") or [])]
+    return [track for raw in (data.get("data") or [])[:limit]
+            if (track := _aud_track(raw))]
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -581,14 +700,43 @@ _CC_LICENSE_LABELS = [
 ]
 
 
-def _archive_license(licenseurl):
-    url = (licenseurl or "").lower()
+def _cc_commercially_usable(license_url="", license_code=""):
+    """Conservative commercial-use allowlist for Creative Commons metadata."""
+    code = (license_code or "").strip().lower().replace("https://creativecommons.org/licenses/", "")
+    code = code.strip("/").split("/")[0]
+    url = (license_url or "").strip().lower()
+    if "nc" in code or "-nc" in url or "/by-nc" in url:
+        return False
+    if code:
+        return code in {"cc0", "pdm", "by", "by-sa", "by-nd"}
     if not url:
-        return "https://creativecommons.org/publicdomain/mark/1.0/", "Public Domain"
+        return False
+    return any(token in url for token in (
+        "creativecommons.org/publicdomain/zero/",
+        "creativecommons.org/publicdomain/mark/",
+        "creativecommons.org/licenses/by/",
+        "creativecommons.org/licenses/by-sa/",
+        "creativecommons.org/licenses/by-nd/",
+    ))
+
+def _archive_commercially_usable(licenseurl):
+    """Only explicit public-domain/CC licenses suitable for commercial use pass.
+
+    Missing metadata is not evidence of public domain. NonCommercial variants
+    are excluded because MusicLSP may be monetised.
+    """
+    return _cc_commercially_usable(licenseurl)
+
+
+def _archive_license(licenseurl):
+    url = (licenseurl or "").strip()
+    if not url:
+        return "", "Ліцензія не вказана"
+    lower = url.lower()
     for needle, label in _CC_LICENSE_LABELS:
-        if needle in url:
-            return licenseurl, label
-    return licenseurl, "Відкрита ліцензія (Internet Archive)"
+        if needle in lower:
+            return url, label
+    return url, "Ліцензію потрібно перевірити"
 
 
 def archive_search(query, limit=20):
@@ -607,7 +755,10 @@ def archive_search(query, limit=20):
         if isinstance(creator, list):
             creator = creator[0] if creator else ""
         ident = d.get("identifier") or ""
-        license_url, license_short = _archive_license(d.get("licenseurl"))
+        raw_license = d.get("licenseurl") or ""
+        if not _archive_commercially_usable(raw_license):
+            continue
+        license_url, license_short = _archive_license(raw_license)
         out.append({
             "id": f"arc:{ident}",
             "title": d.get("title") or ident,
@@ -654,7 +805,10 @@ def archive_collection_tracks(collection, limit=40, subject=None):
         if isinstance(creator, list):
             creator = creator[0] if creator else ""
         ident = d.get("identifier") or ""
-        license_url, license_short = _archive_license(d.get("licenseurl"))
+        raw_license = d.get("licenseurl") or ""
+        if not ident or not _archive_commercially_usable(raw_license):
+            continue
+        license_url, license_short = _archive_license(raw_license)
         out.append({
             "id": f"arc:{ident}",
             "title": d.get("title") or ident,
@@ -672,9 +826,15 @@ def archive_collection_tracks(collection, limit=40, subject=None):
 
 
 def archive_stream_url(identifier):
-    """Шукає перший придатний аудіофайл у записі архіву."""
+    """Шукає перший придатний аудіофайл у записі активного архівного джерела."""
+    if not ARCHIVE_ENABLED:
+        return ""
     meta = _get(f"https://archive.org/metadata/{identifier}")
     if not meta:
+        return ""
+    metadata = meta.get("metadata") or {}
+    license_url = metadata.get("licenseurl") or meta.get("licenseurl") or ""
+    if not _archive_commercially_usable(license_url):
         return ""
     files = meta.get("files") or []
     for ext in (".mp3", ".ogg", ".m4a", ".flac"):
@@ -691,7 +851,7 @@ def archive_stream_url(identifier):
 #  на ліцензію й на оригінал сторінки автора.
 # ════════════════════════════════════════════════════════════════════════════
 
-CCMIXTER_API = "http://ccmixter.org/api/query"
+CCMIXTER_API = "https://ccmixter.org/api/query"
 
 _ccm_lock = threading.Lock()
 _CCM_CACHE = {}
@@ -723,6 +883,8 @@ def _ccm_from_json(entry):
         if not audio_url:
             return None
         license_url = entry.get("license_url") or entry.get("license") or ""
+        if not _cc_commercially_usable(license_url):
+            return None
         link = entry.get("upload_url") or entry.get("url") or "https://ccmixter.org"
         uid = str(entry.get("upload_id") or entry.get("id") or
                   hashlib.sha1(audio_url.encode()).hexdigest()[:12])
@@ -784,7 +946,7 @@ def _ccm_from_xml(xml_text, limit):
                     link = href
             elif tag == "license":
                 license_url = child.get("href") or (child.text or "") or license_url
-        if not audio_url:
+        if not audio_url or not _cc_commercially_usable(license_url):
             continue
         out.append({
             "id": f"ccm:{hashlib.sha1(audio_url.encode()).hexdigest()[:12]}",
@@ -810,7 +972,7 @@ def ccmixter_search(query, limit=15):
         return []
     out = []
     try:
-        data = _get(CCMIXTER_API, {"query": query, "type": "any", "f": "json", "limit": limit})
+        data = _get(CCMIXTER_API, {"search": query, "search_type": "any", "f": "json", "limit": limit})
         if isinstance(data, list):
             for entry in data[:limit]:
                 t = _ccm_from_json(entry)
@@ -820,7 +982,7 @@ def ccmixter_search(query, limit=15):
         logger.warning("ccMixter JSON запит не вдався: %s", e)
     if not out:
         try:
-            r = _http_session().get(CCMIXTER_API, params={"query": query, "type": "any"},
+            r = _http_session().get(CCMIXTER_API, params={"search": query, "search_type": "any", "f": "rss"},
                               timeout=HTTP_TIMEOUT)
             if r.status_code == 200 and r.text:
                 out = _ccm_from_xml(r.text, limit)
@@ -869,6 +1031,9 @@ def _ov_track(item):
         dur_ms = item.get("duration") or 0
         dur_s = int(dur_ms / 1000) if dur_ms else 0
         license_url = item.get("license_url") or ""
+        license_code = item.get("license") or ""
+        if not license_url or not _cc_commercially_usable(license_url, license_code):
+            return None
         provider = item.get("provider") or item.get("source") or "openverse"
         uid = str(item.get("id") or hashlib.sha1(audio_url.encode()).hexdigest()[:12])
         return {
@@ -966,6 +1131,8 @@ def _wm_track(page):
         artist = _wm_strip_html(_m("Artist")) or _wm_strip_html(_m("Credit")) or "Wikimedia Commons"
         license_url = _m("LicenseUrl")
         license_short = _m("LicenseShortName") or _cc_short(license_url)
+        if not _cc_commercially_usable(license_url):
+            return None
         page_url = f"https://commons.wikimedia.org/wiki/{urllib.parse.quote(page.get('title') or '')}"
         uid = str(page.get("pageid") or hashlib.sha1(url.encode()).hexdigest()[:12])
         return {
@@ -1033,7 +1200,10 @@ _SC_CACHE = {}
 
 
 def soundcloud_enabled():
-    return bool(SOUNDCLOUD_CLIENT_ID and SOUNDCLOUD_CLIENT_SECRET)
+    # SoundCloud restricts third-party aggregated on-demand streaming unless
+    # the app has explicit approval for that use case.
+    return bool(SOUNDCLOUD_CLIENT_ID and SOUNDCLOUD_CLIENT_SECRET
+                and _approval_enabled("SOUNDCLOUD_AGGREGATION_APPROVED"))
 
 
 def _sc_token():
@@ -1114,6 +1284,8 @@ def soundcloud_search(query, limit=15):
 
 
 def soundcloud_stream_url(raw):
+    if not soundcloud_enabled():
+        return ""
     h = _sc_headers()
     if not h:
         return ""
@@ -1128,6 +1300,8 @@ def soundcloud_stream_url(raw):
 
 
 def soundcloud_track(raw):
+    if not soundcloud_enabled():
+        return None
     with _sc_lock:
         hit = _SC_CACHE.get(f"sc:{raw}")
     if hit:
@@ -1220,52 +1394,42 @@ def _run_parallel(jobs, timeout=4):
 
 
 def search_tracks(query, limit=30, quality="mp32", sources=None, sort="relevance", genre=None):
-    """Змішаний пошук по всіх легальних джерелах з дедуплікацією.
-
-    Раніше типовим значенням тут було лише ["jamendo", "audius"] — а Internet
-    Archive (нетлейбли, укр/рос добірки), ccMixter і Openverse хоч і були
-    повністю реалізовані, фактично ніколи не викликались зі звичайного
-    пошуку, бо жоден виклик не передавав `sources` явно. Через це вся
-    робота з розширення бібліотеки була "мертвим кодом" з погляду юзера.
-    Тепер типово шукаємо по всіх шести джерелах відразу (додано Wikimedia
-    Commons напряму — Openverse і так частково тягне звідти, але напряму
-    дістаємо більше й точніше фільтруємо)."""
-    yt_on = youtube_enabled() and (not sources or "youtube" in sources)
-    sc_on = soundcloud_enabled() and (not sources or "soundcloud" in sources)
-    sources = [s for s in (sources or ["jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia"]) if s not in ("soundcloud", "youtube")]
-    # Джерела опитуємо ПАРАЛЕЛЬНО (раніше — по черзі, і найповільніше гальмувало всіх).
-    # Порядок результатів лишається детермінованим: jamendo, audius, archive, …
-    jobs = []
-    if sc_on:                       # SoundCloud — основне джерело
-        jobs.append(lambda: soundcloud_search(query, limit=limit))
-    # SoundCloud вимкнено: пошук працює лише з джерелами, які підтримуємо.
-    if "jamendo" in sources:
-        jobs.append(lambda: jamendo_search_tracks(query, limit=limit, audioformat=quality, sort=sort))
-    if "audius" in sources:
-        jobs.append(lambda: audius_search_tracks(query, limit=max(10, limit // 2)))
-    if "archive" in sources:
-        jobs.append(lambda: archive_search(query, limit=12))
-    if "ccmixter" in sources:
-        jobs.append(lambda: ccmixter_search(query, limit=10))
-    if "openverse" in sources:
-        jobs.append(lambda: openverse_search(query, limit=10))
-    if "wikimedia" in sources:
-        jobs.append(lambda: wikimedia_search(query, limit=10))
-    if yt_on:                       # YouTube — лише каталог, в кінці списку
-        jobs.append(lambda: youtube_search(query, limit=8))
-    results = _run_parallel(jobs, timeout=5)
-    _rank = {"soundcloud": 0, "youtube": 2}
-    results = sorted(results, key=lambda t: _rank.get(t.get("source"), 1))   # SC першим, YouTube останнім
+    """Search the active source registry in a stable order and deduplicate results."""
+    requested = set(DEFAULT_TRACK_SEARCH_ORDER if sources is None else sources)
+    searchers = {
+        "soundcloud": lambda: soundcloud_search(query, limit=limit),
+        "jamendo": lambda: jamendo_search_tracks(query, limit=limit, audioformat=quality, sort=sort),
+        "audius": lambda: audius_search_tracks(query, limit=max(10, limit // 2)),
+        "archive": lambda: archive_search(query, limit=12),
+        "ccmixter": lambda: ccmixter_search(query, limit=10),
+        "openverse": lambda: openverse_search(query, limit=10),
+        "wikimedia": lambda: wikimedia_search(query, limit=10),
+        "youtube": lambda: youtube_search(query, limit=8),
+    }
+    enabled = {
+        "soundcloud": soundcloud_enabled,
+        "jamendo": jamendo_enabled,
+        "audius": lambda: True,  # discovery nodes are resolved inside the adapter
+        "archive": lambda: ARCHIVE_ENABLED,
+        "ccmixter": lambda: True,
+        "openverse": lambda: True,
+        "wikimedia": lambda: True,
+        "youtube": youtube_enabled,
+    }
+    jobs = [searchers[key] for key in DEFAULT_TRACK_SEARCH_ORDER
+            if key in requested and key in searchers and enabled[key]()]
+    results = _run_parallel(jobs, timeout=6)
 
     seen, out = set(), []
-    for t in results:
-        key = (t["title"].strip().lower(), t["artist"].strip().lower())
-        if key in seen:
+    for track in results:
+        title = str(track.get("title") or "").strip().casefold()
+        artist = str(track.get("artist") or "").strip().casefold()
+        key = (title, artist)
+        if not title or key in seen:
             continue
         seen.add(key)
-        out.append(t)
+        out.append(track)
     return out[:limit]
-
 
 def _normalize_query(text):
     """Прибирає пунктуацію й зайві пробіли — щоб пошук був терпимим до одруків."""
@@ -1291,46 +1455,89 @@ def search_tracks_smart(query, limit=30, quality="mp32", sources=None, sort="rel
     return []
 
 
-def jamendo_search_albums_smart(query, limit=20, sort="relevance"):
-    """Той самий пошук альбомів, з відкатом на очищений запит і окремі слова."""
-    out = jamendo_search_albums(query, limit=limit, sort=sort)
+def search_albums(query, limit=20, sort="relevance"):
+    """Merge album catalogue results from every active album-capable provider."""
+    return _run_parallel([
+        lambda: jamendo_search_albums(query, limit=limit, sort=sort),
+        lambda: audius_search_albums(query, limit=limit),
+    ], timeout=6)[:limit]
+
+
+def search_albums_smart(query, limit=20, sort="relevance"):
+    """Search albums with conservative query normalisation fallback."""
+    out = search_albums(query, limit=limit, sort=sort)
     if out:
         return out
     norm = _normalize_query(query)
-    if norm and norm.lower() != (query or "").strip().lower():
-        out = jamendo_search_albums(norm, limit=limit, sort=sort)
+    if norm and norm.casefold() != (query or "").strip().casefold():
+        out = search_albums(norm, limit=limit, sort=sort)
         if out:
             return out
-    for word in [w for w in norm.split() if len(w) > 2]:
-        out = jamendo_search_albums(word, limit=limit, sort=sort)
+    for word in [word for word in norm.split() if len(word) > 2]:
+        out = search_albums(word, limit=limit, sort=sort)
+        if out:
+            return out
+    return []
+
+
+def search_artists(query, limit=20):
+    """Merge artist catalogue results from every implemented artist provider."""
+    results = _run_parallel([
+        lambda: jamendo_search_artists(query, limit=limit),
+        lambda: audius_search_users(query, limit=limit),
+    ], timeout=6)
+    seen, out = set(), []
+    for artist in results:
+        if not isinstance(artist, dict) or not artist.get("id") or not artist.get("name"):
+            continue
+        key = str(artist["id"]).casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(artist)
+    return out[:limit]
+
+
+def search_artists_smart(query, limit=20):
+    """Artist search with the same query fallback policy as tracks and albums."""
+    out = search_artists(query, limit=limit)
+    if out:
+        return out
+    norm = _normalize_query(query)
+    if norm and norm.casefold() != (query or "").strip().casefold():
+        out = search_artists(norm, limit=limit)
+        if out:
+            return out
+    for word in [word for word in norm.split() if len(word) > 2]:
+        out = search_artists(word, limit=limit)
         if out:
             return out
     return []
 
 
 def search_everything(query, limit=12):
-    """Об'єднаний пошук: треки + альбоми + артисти одним запитом. Це саме
-    той пошук, який виконує вкладка "Усе" (типова при відкритті пошуку) —
-    тому треки тягнемо з усіх шести джерел, а не лише Jamendo/Audius."""
-    from concurrent.futures import ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=4) as ex:
-        f_tr = ex.submit(search_tracks_smart, query, limit=limit, sources=[
-            "jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia"])
-        f_al = ex.submit(jamendo_search_albums_smart, query, limit=limit)
-        f_ja = ex.submit(jamendo_search_artists, query, limit=limit)
-        f_au = ex.submit(audius_search_users, query, limit=max(4, limit // 3))
-        def _r(f):
-            try:
-                return f.result(timeout=9) or []
-            except Exception:
-                return []
-        tracks, albums, jam_artists, aud_artists = _r(f_tr), _r(f_al), _r(f_ja), _r(f_au)
-    return {
-        "tracks": tracks,
-        "albums": albums,
-        "artists": jam_artists + aud_artists,
-    }
-
+    """Bounded global catalogue search across tracks, albums and artists."""
+    # Each entity family uses one aggregator and the same bounded provider pool.
+    futures = [
+        _CATALOGUE_EXECUTOR.submit(search_tracks_smart, query, limit=limit, sources=DEFAULT_TRACK_SEARCH_ORDER),
+        _CATALOGUE_EXECUTOR.submit(search_albums_smart, query, limit=limit),
+        _CATALOGUE_EXECUTOR.submit(search_artists_smart, query, limit=limit),
+    ]
+    done, pending = wait(futures, timeout=7)
+    for future in pending:
+        future.cancel()
+    values = []
+    for future in futures:
+        if future not in done:
+            values.append([])
+            continue
+        try:
+            values.append(future.result() or [])
+        except Exception as exc:
+            logger.warning("Catalogue lookup failed: %s", type(exc).__name__)
+            values.append([])
+    tracks, albums, artists = values
+    return {"tracks": tracks, "albums": albums, "artists": artists}
 
 MOOD_MAP = {
     "chill":  {"tags": ["chillout", "lounge", "acoustic"], "label": "Спокій"},
@@ -1426,10 +1633,9 @@ _ARCHIVE_CURATED_COLLECTIONS = [
 
 
 def _synthetic_collections(limit):
-    """Запасний варіант, коли офіційні плейлисти Jamendo/Audius порожні
-    (лімітований ключ, нема куратора цього тижня, тимчасовий збій тощо).
-    Пакуємо вже наявний каталог у добірки за жанром — це той самий легальний
-    контент, просто інше групування, тому нічого юридично не змінюється."""
+    """Build Jamendo-tag collections only when its approved catalogue is enabled."""
+    if not jamendo_enabled():
+        return []
     out = []
     for tag, label in _CURATED_FALLBACK_TAGS[:limit]:
         cover = ""
@@ -1448,6 +1654,8 @@ def _synthetic_collections(limit):
 
 
 def _archive_curated_tiles(limit=2):
+    if not ARCHIVE_ENABLED:
+        return []
     out = []
     for coll, subject, label in _ARCHIVE_CURATED_COLLECTIONS[:limit]:
         cover = ""
@@ -1541,6 +1749,10 @@ def resolve_stream(full_id, quality="mp32"):
         t = jamendo_track(raw, audioformat=quality)
         return t["stream"] if t else ""
     if prefix == "aud":
+        # Re-fetch metadata at resolution so an explicitly NonCommercial
+        # track cannot bypass the catalogue filter via a stale/direct ID.
+        if not audius_track(raw):
+            return ""
         return audius_stream_url_verified(raw)
     if prefix == "arc":
         return archive_stream_url(raw)

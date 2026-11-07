@@ -29,7 +29,7 @@ from core.connect import Hub, valid_device_id
 from core.auth import verify_init_data
 from core.config import (
     ADMIN_IDS, PREMIUM_FEATURES, FREE_LIMITS, PREMIUM_LIMITS,
-    APP_VERSION, JAMENDO_CLIENT_ID, BOT_USERNAME, REFERRAL_REWARD_DAYS,
+    APP_VERSION, BOT_USERNAME, REFERRAL_REWARD_DAYS,
     ADMIN_CMD_PASSWORD,
 )
 
@@ -109,18 +109,12 @@ async def h_options(request):
 
 
 async def h_health(request):
+    registry = P.source_status()
     return ok({
         "ok": True,
         "version": APP_VERSION,
-        "sources": {
-            "jamendo": bool(JAMENDO_CLIENT_ID),
-            "audius": bool(P.audius_host()),
-            "archive": True,
-            "ccmixter": True,
-            "openverse": True,
-            "wikimedia": True,
-            "soundcloud": P.soundcloud_enabled(),
-        },
+        "sources": {key: value["available"] for key, value in registry.items()},
+        "source_registry": registry,
     })
 
 
@@ -294,7 +288,8 @@ async def h_search(request, u):
         sort = "relevance"
     sources_raw = (request.query.get("sources") or "").strip()
     sources = [s for s in sources_raw.split(",")
-               if s in ("jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia")] or None
+               if s in ("soundcloud", "jamendo", "audius", "archive", "ccmixter",
+                        "openverse", "wikimedia", "youtube")] or None
 
     allowed, used, cap = await to_thread(db.bump_counter, uid, "searches")
     if not allowed:
@@ -306,11 +301,9 @@ async def h_search(request, u):
         return ok({"ok": True, "type": kind, "query": query, "sort": sort,
                    "results": data, "searches_left": max(0, cap - used)})
     elif kind == "albums":
-        data = await to_thread(P.jamendo_search_albums_smart, query, limit, sort)
+        data = await to_thread(P.search_albums_smart, query, limit, sort)
     elif kind == "artists":
-        jam = await to_thread(P.jamendo_search_artists, query, limit)
-        aud = await to_thread(P.audius_search_users, query, max(5, limit // 3))
-        data = jam + aud
+        data = await to_thread(P.search_artists_smart, query, limit)
     elif kind == "public_domain":
         data = await to_thread(P.archive_search, query, limit)
     else:
@@ -488,9 +481,12 @@ async def h_track(request, u):
 async def h_album(request, u):
     uid = int(u["uid"])
     prefix, raw = P.split_id(request.match_info["aid"])
-    if prefix != "jam":
-        return fail("Альбоми доступні для Jamendo", 400)
-    tracks = await to_thread(P.jamendo_album_tracks, raw, quality_for(uid))
+    if prefix == "jam":
+        tracks = await to_thread(P.jamendo_album_tracks, raw, quality_for(uid))
+    elif prefix == "aud":
+        tracks = await to_thread(P.audius_album_tracks, raw)
+    else:
+        return fail("Невідоме джерело альбому", 400)
     if not tracks:
         return fail("Альбом порожній або не знайдений", 404)
     return ok({"ok": True, "tracks": tracks, "album": {
@@ -559,7 +555,7 @@ async def h_stream(request):
     if not tid:
         return fail("Немає id треку")
     qual = quality_for(int(u["uid"])) if u else "mp31"
-    # перевірка посилання + запасне джерело, якщо основне не відповідає
+    # перевірка посилання на точний вибраний трек; підміни іншим треком немає
     force = request.query.get("r") == "1"
     url, _played = await to_thread(SM.resolve_stream_robust, tid, qual,
                                    (request.query.get("t") or "")[:200],
@@ -1034,7 +1030,7 @@ async def h_admin_system(request, u):
     return ok({
         "ok": True,
         "providers": {
-            "jamendo": bool(JAMENDO_CLIENT_ID), "audius": True,
+            "jamendo": P.jamendo_enabled(), "audius": True,
             "archive": bool(getattr(CFG, "ARCHIVE_ENABLED", True)),
             "soundcloud": bool(P.soundcloud_enabled()),
             "youtube": bool(getattr(P, "youtube_enabled", lambda: False)()),

@@ -42,6 +42,17 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(api.valid_device_id("bad device"))
         self.assertFalse(api.valid_device_id("x" * 81))
 
+    async def test_health_reports_jamendo_disabled_without_commercial_approval(self):
+        with (
+            patch.object(api.P, "jamendo_enabled", return_value=False),
+            patch.object(api.P, "audius_host", return_value="https://audius.example"),
+            patch.object(api.P, "source_status", return_value={"jamendo": {"available": False}, "audius": {"available": True}}),
+        ):
+            response = await api.h_health(SimpleNamespace())
+        payload = json.loads(response.text)
+        self.assertFalse(payload["sources"]["jamendo"])
+        self.assertTrue(payload["sources"]["audius"])
+
     def test_connect_routes_are_registered(self):
         app = api.build_app()
         paths = {route.resource.canonical for route in app.router.routes()}
@@ -74,6 +85,46 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MusicCatalogueRouteTests(unittest.IsolatedAsyncioTestCase):
+    async def test_album_search_uses_merged_provider_catalogue(self):
+        request = SimpleNamespace(
+            query={"q": "Example Album", "type": "albums", "limit": "10", "sort": "relevance", "sources": ""},
+            headers={},
+        )
+        albums = [{"id": "aud:album-1", "title": "Example Album", "source": "audius"}]
+        async def inline_to_thread(fn, *args, **kwargs):
+            return fn(*args, **kwargs)
+        with (
+            patch.object(api, "auth_user", return_value={"uid": 7}),
+            patch.object(api.db, "limits_for", return_value={"search_results_max": 30}),
+            patch.object(api.db, "bump_counter", return_value=(True, 2, 20)),
+            patch.object(api, "quality_for", return_value="high"),
+            patch.object(api, "to_thread", side_effect=inline_to_thread),
+            patch.object(api.P, "search_albums_smart", return_value=albums) as search,
+        ):
+            response = await api.h_search(request)
+        payload = json.loads(response.text)
+        self.assertEqual(payload["results"], albums)
+        search.assert_called_once_with("Example Album", 10, "relevance")
+
+    async def test_audius_album_route_returns_album_tracks(self):
+        request = SimpleNamespace(match_info={"aid": "aud:album-1"}, headers={})
+        tracks = [{"id": "aud:track-1", "title": "Track", "album": "Album"}]
+        async def inline_to_thread(fn, *args, **kwargs):
+            return fn(*args, **kwargs)
+        with (
+            patch.object(api, "auth_user", return_value={"uid": 7}),
+            patch.object(api, "quality_for", return_value="high"),
+            patch.object(api, "to_thread", side_effect=inline_to_thread),
+            patch.object(api.P, "audius_album_tracks", return_value=tracks) as album_tracks,
+        ):
+            response = await api.h_album(request)
+        payload = json.loads(response.text)
+        self.assertEqual(payload["tracks"], tracks)
+        self.assertEqual(payload["album"]["id"], "aud:album-1")
+        album_tracks.assert_called_once_with("album-1")
 
 
 class SearchRouteTests(unittest.TestCase):
