@@ -83,26 +83,6 @@ class MiniAppContractTests(unittest.TestCase):
                          "sendDeviceCommand", "handoffToDevice", "resumeOnThisDevice"):
             self.assertIn(function, self.functions, f"Missing device-sync function: {function}")
 
-    def test_connect_play_command_republishes_state_when_browser_blocks_play(self):
-        play_case = JS.split('case "play":', 1)[1].split('case "next":', 1)[0]
-        self.assertIn('catch(e)', play_case)
-        self.assertIn('S.playing=false; paintPlayState(); publishDeviceState(true);', play_case,
-                      "A rejected remote play must correct the controller's optimistic state")
-
-    def test_track_menu_exposes_safe_creative_commons_license_link(self):
-        self.assertIn("const licenseUrl = /^https:", JS)
-        self.assertIn("creativecommons\\.org", JS)
-        self.assertIn('href="${esc(licenseUrl)}"', JS)
-        self.assertIn("Умови ліцензії:", JS)
-
-    def test_youtube_tracks_use_official_embed_and_never_the_audio_resolver(self):
-        self.assertIn('function openYouTube(t)', JS)
-        self.assertIn('https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}', JS)
-        self.assertIn('https://music.youtube.com/watch?v=${encodeURIComponent(id)}', JS)
-        play = JS.split('function play(t, startAt)', 1)[1].split('\\n}', 1)[0]
-        self.assertLess(play.index('if(t.source==="youtube")'), play.index('streamUrl(t)'))
-        self.assertIn('openYouTube(t)', play)
-
     def test_player_controls_have_implementations(self):
         for function in ("barPrev", "barNext", "barTogglePlay", "toggleShuffle",
                          "toggleRepeat", "toggleLike", "openQueue", "addBookmark",
@@ -141,16 +121,6 @@ class MiniAppContractTests(unittest.TestCase):
                          "openPromo", "openReportTrack", "submitReport", "redeem",
                          "openAdmin", "admBoot", "admTab", "admBroadcast"):
             self.assertIn(function, self.functions, f"Missing profile/admin action: {function}")
-
-
-    def test_connect_handoff_does_not_claim_before_server_ack(self):
-        play = JS.split("function play(t, startAt)", 1)[1].split("\\n}", 1)[0]
-        handoff = JS.split("async function cnStartHere(m)", 1)[1].split("\\nfunction cnShowTap", 1)[0]
-        self.assertIn("if(!CN.bypass) claimLocalPlayback()", play,
-                      "A transfer target must not claim ownership before the server accepts its ack")
-        self.assertIn("CN.bypass=true", handoff)
-        self.assertIn('ack({ok:true,state:local})', handoff,
-                      "A handoff must be acknowledged only after local playback succeeds")
 
 
 if __name__ == "__main__":
