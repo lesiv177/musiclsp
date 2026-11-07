@@ -183,7 +183,7 @@ def jamendo_tag_tracks(tag, limit=25, offset=0, audioformat="mp32", order="popul
     ))
     if not data:
         return []
-    return [_jam_track(t, audioformat) for t in data.get("results", [])]
+    return [track for t in data.get("results", []) if (track := _jam_track(t, audioformat))]
 
 
 def jamendo_search_albums(query, limit=20, offset=0, sort="relevance"):
@@ -264,7 +264,9 @@ def jamendo_playlist_tracks(playlist_id, audioformat="mp32"):
     pl = data["results"][0]
     tracks = []
     for t in pl.get("tracks", []):
-        tracks.append(_jam_track(t, audioformat))
+        track = _jam_track(t, audioformat)
+        if track:
+            tracks.append(track)
     return tracks
 
 
@@ -327,7 +329,7 @@ def jamendo_similar(track_id, limit=20, audioformat="mp32"):
     ))
     if not data:
         return []
-    return [_jam_track(t, audioformat) for t in data.get("results", [])]
+    return [track for t in data.get("results", []) if (track := _jam_track(t, audioformat))]
 
 
 # ════════════════════════════════════════════════════════════════════════════
