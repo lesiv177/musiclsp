@@ -201,6 +201,27 @@ const { spawn } = require("node:child_process");
     if (await page.evaluate(()=>window.__barPlayClicks) !== 1)
       throw new Error("Desktop mini-player play/pause button did not receive click");
 
+    for (const width of [1024,1366,1600]) {
+      await page.setViewportSize({width,height:900});
+      const layout = await page.evaluate(() => {
+        const root=document.querySelector("#mlsp-v3"), sidebar=root.querySelector(".v3-sidebar"), main=root.querySelector(".v3-main");
+        const grid=getComputedStyle(root).gridTemplateColumns.split(" ").filter(Boolean);
+        return {gridColumns:grid.length,sidebar:getComputedStyle(sidebar).display,mainWidth:main.getBoundingClientRect().width,rootWidth:root.getBoundingClientRect().width};
+      });
+      if(layout.gridColumns!==2||layout.sidebar==="none"||layout.mainWidth<500)
+        throw new Error("Desktop layout is not balanced at "+width+"px: "+JSON.stringify(layout));
+    }
+    await page.setViewportSize({width:390,height:844});
+    await page.evaluate(()=>document.querySelector("#bar").classList.add("on"));
+    const mobileDock = await page.evaluate(() => {
+      const nav=document.querySelector("#mlsp-v3 .v3-mobile-nav"), bar=document.querySelector("#bar");
+      const n=nav.getBoundingClientRect(), b=bar.getBoundingClientRect();
+      return {navDisplay:getComputedStyle(nav).display,navPosition:getComputedStyle(nav).position,barVisible:getComputedStyle(bar).display!=="none",overlap:Math.min(n.bottom,b.bottom)-Math.max(n.top,b.top)>0};
+    });
+    if(mobileDock.navDisplay!=="grid"||mobileDock.navPosition!=="fixed"||!mobileDock.barVisible||mobileDock.overlap)
+      throw new Error("Mobile dock/player layout is broken or overlapping: "+JSON.stringify(mobileDock));
+    await page.evaluate(()=>document.querySelector("#bar").classList.remove("on"));
+    await page.setViewportSize({width:1366,height:900});
     // Queue management is part of the retained player runtime.
     await page.evaluate(()=>{window.eval('S.queue=[{id:"qa-1",title:"One",artist:"QA"},{id:"qa-2",title:"Two",artist:"QA"},{id:"qa-3",title:"Three",artist:"QA"}];S.index=0;');openQueue();});
     await page.locator('#qModal [data-down="0"]').click();
