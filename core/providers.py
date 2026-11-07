@@ -1495,20 +1495,21 @@ def search_albums(query, limit=20, sort="relevance"):
         lambda: jamendo_search_albums(query, limit=limit, sort=sort),
         lambda: audius_search_albums(query, limit=limit),
     ], timeout=6)
-    seen, out = set(), []
-    for album in _interleave_catalogue_groups(groups):
-        if not isinstance(album, dict) or not album.get("id") or not album.get("title"):
-            continue
-        title = _normalize_query(str(album.get("title") or "")).casefold()
-        artist = _normalize_query(str(album.get("artist") or "")).casefold()
-        key = ("release", title, artist) if artist else ("id", str(album["id"]).casefold())
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append(album)
-        if len(out) >= max(1, int(limit)):
-            break
-    return out
+    seen, unique_groups = set(), []
+    for group in groups:
+        unique = []
+        for album in group:
+            if not isinstance(album, dict) or not album.get("id") or not album.get("title"):
+                continue
+            title = _normalize_query(str(album.get("title") or "")).casefold()
+            artist = _normalize_query(str(album.get("artist") or "")).casefold()
+            key = ("release", title, artist) if artist else ("id", str(album["id"]).casefold())
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(album)
+        unique_groups.append(unique)
+    return list(_interleave_catalogue_groups(unique_groups))[:int(limit)]
 
 
 def search_albums_smart(query, limit=20, sort="relevance"):
