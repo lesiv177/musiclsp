@@ -221,6 +221,7 @@ const { spawn } = require("node:child_process");
     }
     await page.setViewportSize({width:390,height:844});
     await page.evaluate(()=>{document.documentElement.classList.remove("nav-hidden");document.querySelector("#bar").classList.add("on")});
+    await page.waitForTimeout(350); // Let the dock/player position transition finish before measuring.
     const mobileDock = await page.evaluate(() => {
       const nav=document.querySelector("#mlsp-v3 .v3-mobile-nav"), bar=document.querySelector("#bar");
       const n=nav.getBoundingClientRect(), b=bar.getBoundingClientRect();
