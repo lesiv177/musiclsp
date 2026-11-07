@@ -1379,8 +1379,18 @@ def search_tracks(query, limit=30, quality="mp32", sources=None, sort="relevance
         "wikimedia": lambda: wikimedia_search(query, limit=10),
         "youtube": lambda: youtube_search(query, limit=8),
     }
+    enabled = {
+        "soundcloud": soundcloud_enabled,
+        "jamendo": jamendo_enabled,
+        "audius": lambda: True,  # discovery nodes are resolved inside the adapter
+        "archive": lambda: ARCHIVE_ENABLED,
+        "ccmixter": lambda: True,
+        "openverse": lambda: True,
+        "wikimedia": lambda: True,
+        "youtube": youtube_enabled,
+    }
     jobs = [searchers[key] for key in DEFAULT_TRACK_SEARCH_ORDER
-            if key in requested and key in searchers]
+            if key in requested and key in searchers and enabled[key]()]
     results = _run_parallel(jobs, timeout=6)
 
     seen, out = set(), []
