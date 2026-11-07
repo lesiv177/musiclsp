@@ -107,6 +107,35 @@ class SQLiteDevicePersistenceTests(unittest.TestCase):
         self.assertNotIn("extra", saved["tracks"][0])
         self.assertEqual(db.queue_get(987649)["tracks"], [])
 
+    def test_library_favorites_are_unique_per_user_and_track(self):
+        track = {"id": "jam:favorite-1", "title": "Favorite"}
+        self.assertTrue(db.lib_add(987644, track))
+        self.assertFalse(db.lib_add(987644, track))
+        self.assertTrue(db.lib_add(987645, track))
+        self.assertEqual([item["id"] for item in db.lib_list(987644)], ["jam:favorite-1"])
+        self.assertEqual([item["id"] for item in db.lib_list(987645)], ["jam:favorite-1"])
+        self.assertFalse(db.lib_add(987644, {}))
+
+    def test_library_unique_index_migration_keeps_latest_duplicate(self):
+        with db.conn_cursor() as (conn, cur):
+            cur.execute("DROP INDEX IF EXISTS idx_library_uid_tid")
+            cur.execute(
+                "INSERT INTO library (uid, tid, title) VALUES (?, ?, ?)",
+                (987643, "aud:duplicate", "Older title"),
+            )
+            cur.execute(
+                "INSERT INTO library (uid, tid, title) VALUES (?, ?, ?)",
+                (987643, "aud:duplicate", "Latest title"),
+            )
+        db.init_db()
+        saved = db.lib_list(987643)
+        self.assertEqual(len(saved), 1)
+        self.assertEqual(saved[0]["title"], "Latest title")
+        with db.conn_cursor() as (conn, cur):
+            cur.execute("PRAGMA index_list('library')")
+            indexes = [row["name"] for row in cur.fetchall()]
+        self.assertIn("idx_library_uid_tid", indexes)
+
     def test_album_artist_collection_add_remove_and_scope(self):
         self.assertTrue(db.collection_add(987648, "album", "alb:1", {"title": "Album"}))
         self.assertTrue(db.collection_add(987648, "artist", "art:1", {"name": "Artist"}))
