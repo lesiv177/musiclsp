@@ -216,6 +216,8 @@ const { spawn } = require("node:child_process");
       });
       if(layout.gridColumns!==2||layout.sidebar==="none"||layout.mainWidth<500)
         throw new Error("Desktop layout is not balanced at "+width+"px: "+JSON.stringify(layout));
+      const searchStyle=await page.evaluate(()=>{const top=document.querySelector("#mlsp-v3 .v3-topbar"),field=document.querySelector("#mlsp-v3 .v3-top-search"),a=getComputedStyle(top),b=getComputedStyle(field),r=field.getBoundingClientRect();return {topBackground:a.backgroundColor,topBorder:a.borderTopWidth,fieldHeight:r.height,fieldRadius:b.borderRadius,fieldWidth:r.width,fieldDisplay:b.display};});
+      if(searchStyle.fieldDisplay==="none"||searchStyle.fieldHeight<40||searchStyle.fieldWidth<300||searchStyle.fieldRadius==="0px")throw new Error("Desktop search field styling is broken: "+JSON.stringify(searchStyle));
     }
     await page.setViewportSize({width:390,height:844});
     await page.evaluate(()=>document.querySelector("#bar").classList.add("on"));
