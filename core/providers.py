@@ -552,12 +552,18 @@ def audius_trending_playlists(limit=15):
     if not data:
         return []
     out = []
-    for p in (data.get("data") or [])[:limit]:
-        art = p.get("artwork") or {}
+    for playlist in (data.get("data") or [])[:limit]:
+        if not _aud_content_accessible(playlist):
+            continue
+        playlist_id = str(playlist.get("id") or "").strip()
+        title = str(playlist.get("playlist_name") or "").strip()
+        if not playlist_id or not title:
+            continue
+        art = playlist.get("artwork") or {}
         cover = art.get("480x480") or art.get("150x150") or art.get("1000x1000") or ""
         out.append({
-            "id": f"aud:{p.get('id')}",
-            "title": p.get("playlist_name") or "",
+            "id": f"aud:{playlist_id}",
+            "title": title,
             "cover": cover,
             "source": "audius",
             "source_label": "Audius",
