@@ -209,7 +209,7 @@ SCHEMA_PG = [
         source_url TEXT, position INTEGER DEFAULT 0
     )""",
     """CREATE TABLE IF NOT EXISTS saved_queues (
-        uid BIGINT PRIMARY KEY, tracks_json TEXT DEFAULT '[]', updated_at TIMESTAMP DEFAULT NOW()
+        uid BIGINT PRIMARY KEY, tracks_json TEXT DEFAULT '[]', current_index INTEGER DEFAULT 0, updated_at TIMESTAMP DEFAULT NOW()
     )""",
     """CREATE TABLE IF NOT EXISTS followed_artists (
         uid BIGINT, artist_id TEXT, artist_name TEXT, artist_json TEXT DEFAULT '{}',
@@ -873,7 +873,7 @@ def search_history_clear(uid):
         return cur.rowcount
 
 
-def queue_save(uid, tracks):
+def queue_save(uid, tracks, current_index=0):
     clean = []
     for item in (tracks or [])[:500]:
         if not isinstance(item, dict) or not item.get("id"):
@@ -881,23 +881,23 @@ def queue_save(uid, tracks):
         clean.append({k: item.get(k) for k in ("id", "title", "artist", "cover", "duration", "source", "license", "source_url") if item.get(k) is not None})
     payload = json.dumps(clean, ensure_ascii=False)
     with conn_cursor() as (conn, cur):
-        cur.execute(q("""INSERT INTO saved_queues(uid, tracks_json, updated_at) VALUES (%s,%s,%s)
-                         ON CONFLICT(uid) DO UPDATE SET tracks_json=excluded.tracks_json, updated_at=excluded.updated_at"""),
-                    (int(uid), payload, now_str()))
+        cur.execute(q("""INSERT INTO saved_queues(uid, tracks_json, current_index, updated_at) VALUES (%s,%s,%s,%s)
+                         ON CONFLICT(uid) DO UPDATE SET tracks_json=excluded.tracks_json, current_index=excluded.current_index, updated_at=excluded.updated_at"""),
+                    (int(uid), payload, max(0, min(int(current_index or 0), max(0, len(clean) - 1))), now_str()))
     return len(clean)
 
 
 def queue_get(uid):
     with conn_cursor() as (conn, cur):
-        cur.execute(q("SELECT tracks_json, updated_at FROM saved_queues WHERE uid=%s"), (int(uid),))
+        cur.execute(q("SELECT tracks_json, current_index, updated_at FROM saved_queues WHERE uid=%s"), (int(uid),))
         row = one(cur)
     if not row:
-        return {"tracks": [], "updated_at": None}
+        return {"tracks": [], "current_index": 0, "updated_at": None}
     try:
         tracks = json.loads(row.get("tracks_json") or "[]")
     except (TypeError, ValueError):
         tracks = []
-    return {"tracks": tracks if isinstance(tracks, list) else [], "updated_at": row.get("updated_at")}
+    return {"tracks": tracks if isinstance(tracks, list) else [], "current_index": int(row.get("current_index") or 0), "updated_at": row.get("updated_at")}
 
 
 def collection_list(uid, kind=""):
