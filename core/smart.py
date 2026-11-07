@@ -258,38 +258,8 @@ def _resolve_checked(track_id, quality, force=False):
     return ""
 
 
-def _alternative(track_id, title, artist, quality):
-    """Той самий трек в іншому джерелі: (url, id) або ('', '')."""
-    if not title:
-        t = P.get_track(track_id, quality) or {}
-        title, artist = t.get("title", ""), t.get("artist", "")
-    if not title:
-        return "", ""
-    prefix = P.split_id(track_id)[0]
-    query = f"{artist} {title}".strip()
-    cands = []
-    for t in P.search_tracks(query, 10, quality):
-        if t["id"] == track_id or is_dead(t["id"]):
-            continue
-        ts = _sim(title, t.get("title", ""))
-        as_ = _sim(artist, t.get("artist", "")) if artist else 1.0
-        if ts >= 0.8 and as_ >= 0.6:
-            cands.append((ts + as_ + (0.05 if P.split_id(t["id"])[0] != prefix else 0), t))
-    cands.sort(key=lambda x: -x[0])
-    for _, t in cands[:3]:
-        url = t.get("stream") or P.resolve_stream(t["id"], quality)
-        candidate_prefix = P.split_id(t["id"])[0]
-        verdict = check_url(url) if url else False
-        if verdict is True:
-            logger.info("Запасне джерело: %s → %s", track_id, t["id"])
-            return url, t["id"]
-        if verdict is False:
-            mark_dead(t["id"])
-    return "", ""
-
-
 def resolve_stream_robust(track_id, quality="mp32", title="", artist="", force=False):
-    """Повертає лише перевірений URL саме вибраного треку; без повторів і fallback."""
+    """Return a verified URL for the exact requested track; never substitute a fuzzy match."""
     url = _resolve_checked(track_id, quality, force=force)
     if url:
         return url, track_id
