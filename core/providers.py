@@ -1457,12 +1457,56 @@ def search_tracks_smart(query, limit=30, quality="mp32", sources=None, sort="rel
     return []
 
 
+def _run_parallel_grouped(jobs, timeout=6):
+    """Run provider jobs concurrently while retaining each provider's result group."""
+    if not jobs:
+        return []
+    futures = [_PROVIDER_EXECUTOR.submit(job) for job in jobs]
+    done, pending = wait(futures, timeout=max(0.1, float(timeout)))
+    for future in pending:
+        future.cancel()
+    grouped = []
+    for future in futures:
+        if future not in done:
+            grouped.append([])
+            continue
+        try:
+            result = future.result()
+            grouped.append(result if isinstance(result, list) else [])
+        except Exception as exc:
+            logger.warning("Catalogue provider failed: %s", type(exc).__name__)
+            grouped.append([])
+    return grouped
+
+
+def _interleave_catalogue_groups(groups):
+    """Round-robin provider results so an early full catalogue cannot starve others."""
+    for index in range(max((len(group) for group in groups), default=0)):
+        for group in groups:
+            if index < len(group):
+                yield group[index]
+
+
 def search_albums(query, limit=20, sort="relevance"):
-    """Merge album catalogue results from every active album-capable provider."""
-    return _run_parallel([
+    """Merge album catalogues fairly and collapse duplicate releases across providers."""
+    groups = _run_parallel_grouped([
         lambda: jamendo_search_albums(query, limit=limit, sort=sort),
         lambda: audius_search_albums(query, limit=limit),
-    ], timeout=6)[:limit]
+    ], timeout=6)
+    seen, out = set(), []
+    for album in _interleave_catalogue_groups(groups):
+        if not isinstance(album, dict) or not album.get("id") or not album.get("title"):
+            continue
+        title = _normalize_query(str(album.get("title") or "")).casefold()
+        artist = _normalize_query(str(album.get("artist") or "")).casefold()
+        key = ("release", title, artist) if artist else ("id", str(album["id"]).casefold())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(album)
+        if len(out) >= max(1, int(limit)):
+            break
+    return out
 
 
 def search_albums_smart(query, limit=20, sort="relevance"):
@@ -1483,13 +1527,13 @@ def search_albums_smart(query, limit=20, sort="relevance"):
 
 
 def search_artists(query, limit=20):
-    """Merge artist catalogue results from every implemented artist provider."""
-    results = _run_parallel([
+    """Merge artist catalogues fairly without allowing one provider to starve another."""
+    groups = _run_parallel_grouped([
         lambda: jamendo_search_artists(query, limit=limit),
         lambda: audius_search_users(query, limit=limit),
     ], timeout=6)
     seen, out = set(), []
-    for artist in results:
+    for artist in _interleave_catalogue_groups(groups):
         if not isinstance(artist, dict) or not artist.get("id") or not artist.get("name"):
             continue
         key = str(artist["id"]).casefold()
@@ -1497,7 +1541,9 @@ def search_artists(query, limit=20):
             continue
         seen.add(key)
         out.append(artist)
-    return out[:limit]
+        if len(out) >= max(1, int(limit)):
+            break
+    return out
 
 
 def search_artists_smart(query, limit=20):
