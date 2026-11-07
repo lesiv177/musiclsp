@@ -300,7 +300,7 @@ async def h_search(request, u):
     await to_thread(db.search_history_add, uid, query, kind)
     qual = quality_for(uid)
     if kind == "all":
-        data = await to_thread(P.search_everything, query, min(limit, 20))
+        data = await to_thread(P.search_everything, query, min(limit, 20), qual, sources, sort)
         return ok({"ok": True, "type": kind, "query": query, "sort": sort,
                    "results": data, "searches_left": max(0, cap - used)})
     elif kind == "albums":
