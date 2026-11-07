@@ -260,7 +260,7 @@ async def h_connect_ws(request):
                 except ValueError:
                     continue
                 try:
-                    await CONNECT.handle(uid, device_id, data)
+                    await CONNECT.handle(uid, device_id, data, send=send)
                 except Exception:
                     logger.exception("Connect: помилка обробки повідомлення")
             elif message.type in (WSMsgType.ERROR, WSMsgType.CLOSE, WSMsgType.CLOSED):
