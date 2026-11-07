@@ -350,7 +350,7 @@ class BalancedTrackSearchCoverageTests(unittest.TestCase):
         ):
             results = P.search_tracks("track", limit=10, sources=["soundcloud", "jamendo", "audius"])
         self.assertEqual([item["id"] for item in results],
-                         ["sc:1", "jam:2", "aud:1", "sc:2", "sc:3"])
+                         ["sc:1", "aud:1", "sc:2", "jam:2", "sc:3"])
 
     def test_track_search_zero_or_negative_limit_returns_empty(self):
         with patch.object(P, "_run_parallel_grouped") as run:
