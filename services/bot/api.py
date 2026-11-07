@@ -8,6 +8,7 @@ HTTP API для Mini App.
 """
 
 import io
+import csv
 import hmac
 import json
 import math
@@ -592,6 +593,92 @@ async def h_library_post(request, u):
         return ok({"ok": True, "in_library": False})
     await to_thread(db.lib_add, uid, track)
     return ok({"ok": True, "in_library": True})
+
+
+@require_auth
+async def h_queue_get(request, u):
+    return ok({"ok": True, **(await to_thread(db.queue_get, int(u["uid"])))})
+
+
+@require_auth
+async def h_queue_post(request, u):
+    body = await json_object(request)
+    if body is None or not isinstance(body.get("tracks"), list):
+        return fail("Очікується список треків")
+    count = await to_thread(db.queue_save, int(u["uid"]), body["tracks"])
+    return ok({"ok": True, "count": count})
+
+
+@require_auth
+async def h_collection_get(request, u):
+    kind = request.query.get("kind", "")
+    if kind not in ("", "album", "artist"):
+        return fail("Невідомий тип колекції")
+    items = await to_thread(db.collection_list, int(u["uid"]), kind)
+    return ok({"ok": True, "items": items})
+
+
+@require_auth
+async def h_collection_post(request, u):
+    uid = int(u["uid"])
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
+    kind, item_id = body.get("kind", ""), body.get("id", "")
+    if body.get("action") == "remove":
+        done = await to_thread(db.collection_remove, uid, kind, item_id)
+        return ok({"ok": True, "removed": bool(done)})
+    data = body.get("item") or {}
+    if not isinstance(data, dict) or not item_id:
+        return fail("Немає елемента колекції")
+    done = await to_thread(db.collection_add, uid, kind, item_id, data)
+    return ok({"ok": bool(done), "saved": bool(done)}) if done else fail("Невірний тип елемента")
+
+
+@require_auth
+async def h_import_playlist(request, u):
+    uid = int(u["uid"])
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
+    rows = body.get("tracks")
+    if rows is None and isinstance(body.get("csv"), str):
+        try:
+            rows = list(csv.DictReader(io.StringIO(body["csv"])))
+        except csv.Error:
+            return fail("Не вдалося прочитати CSV")
+    if not isinstance(rows, list) or not rows:
+        return fail("Немає треків для імпорту")
+    if len(rows) > 100:
+        return fail("За один раз можна імпортувати до 100 треків", 413)
+    name = str(body.get("name") or "Імпортована музика").strip()[:80]
+    playlist, err = await to_thread(db.pl_create, uid, name, "Імпортована музична бібліотека")
+    if not playlist:
+        return fail(err or "Не вдалося створити плейлист")
+    imported, missed = [], []
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            missed.append(index)
+            continue
+        title = str(row.get("trackName") or row.get("title") or row.get("Track Name") or "").strip()[:160]
+        artist = str(row.get("artistName") or row.get("artist") or row.get("Artist Name") or "").strip()[:160]
+        if not title:
+            missed.append(index)
+            continue
+        query = (title + " " + artist).strip()
+        matches = await to_thread(P.search_tracks_smart, query, 5, quality_for(uid))
+        if not matches:
+            missed.append(index)
+            continue
+        candidate = matches[0]
+        done, _ = await to_thread(db.pl_add_track, uid, int(playlist["id"]), candidate)
+        if done:
+            imported.append(candidate.get("id"))
+        else:
+            missed.append(index)
+    result = await to_thread(db.pl_get, int(playlist["id"]))
+    return ok({"ok": True, "playlist": result, "imported": len(imported),
+               "unmatched_rows": missed, "total": len(rows)})
 
 
 @require_auth
@@ -1229,6 +1316,11 @@ def build_app():
     r.add_get("/api/stream", h_stream)
     r.add_get("/api/library", h_library_get)
     r.add_post("/api/library", h_library_post)
+    r.add_get("/api/queue", h_queue_get)
+    r.add_post("/api/queue", h_queue_post)
+    r.add_get("/api/collection", h_collection_get)
+    r.add_post("/api/collection", h_collection_post)
+    r.add_post("/api/library/import", h_import_playlist)
     r.add_get("/api/playlists", h_playlists_get)
     r.add_post("/api/playlists", h_playlists_post)
     r.add_get("/api/playlist/{pid}", h_playlist_get)
