@@ -24,12 +24,16 @@ class StreamValidationTests(unittest.TestCase):
             self.assertTrue(smart.check_url("https://audio.example.test/unique-range-check"))
             session.return_value.get.assert_called_once()
 
-    def test_check_url_does_not_treat_network_timeout_as_dead_track(self):
+    def test_preflight_does_not_mark_track_dead_on_network_timeout(self):
+        track_id = "aud:transient-timeout-regression"
         url = "https://audio.example.test/transient-timeout-regression"
-        with patch.object(smart.P, "_http_session") as session:
+        with (
+            patch.object(smart.P, "resolve_stream", return_value=url),
+            patch.object(smart.P, "_http_session") as session,
+        ):
             session.return_value.head.side_effect = TimeoutError("temporary timeout")
-            self.assertTrue(smart.check_url(url))
-        self.assertFalse(smart.is_dead("aud:transient-timeout-regression"))
+            self.assertTrue(smart._preflight_track({"id": track_id}))
+        self.assertFalse(smart.is_dead(track_id))
 
     def test_check_url_treats_provider_rate_limit_and_server_error_as_transient(self):
         class Response:
