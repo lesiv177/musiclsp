@@ -641,7 +641,8 @@ def audius_user_tracks(user_id, limit=40):
     })
     if not data:
         return []
-    return [_aud_track(t) for t in (data.get("data") or [])]
+    return [track for raw in (data.get("data") or [])[:limit]
+            if (track := _aud_track(raw))]
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -1442,14 +1443,48 @@ def search_albums_smart(query, limit=20, sort="relevance"):
     return []
 
 
+def search_artists(query, limit=20):
+    """Merge artist catalogue results from every implemented artist provider."""
+    results = _run_parallel([
+        lambda: jamendo_search_artists(query, limit=limit),
+        lambda: audius_search_users(query, limit=limit),
+    ], timeout=6)
+    seen, out = set(), []
+    for artist in results:
+        if not isinstance(artist, dict) or not artist.get("id") or not artist.get("name"):
+            continue
+        key = str(artist["id"]).casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(artist)
+    return out[:limit]
+
+
+def search_artists_smart(query, limit=20):
+    """Artist search with the same query fallback policy as tracks and albums."""
+    out = search_artists(query, limit=limit)
+    if out:
+        return out
+    norm = _normalize_query(query)
+    if norm and norm.casefold() != (query or "").strip().casefold():
+        out = search_artists(norm, limit=limit)
+        if out:
+            return out
+    for word in [word for word in norm.split() if len(word) > 2]:
+        out = search_artists(word, limit=limit)
+        if out:
+            return out
+    return []
+
+
 def search_everything(query, limit=12):
     """Bounded global catalogue search across tracks, albums and artists."""
-    # Track search already fans out through the shared, bounded provider pool.
+    # Each entity family uses one aggregator and the same bounded provider pool.
     tracks = search_tracks_smart(query, limit=limit, sources=DEFAULT_TRACK_SEARCH_ORDER)
     futures = [
         _PROVIDER_EXECUTOR.submit(search_albums_smart, query, limit=limit),
-        _PROVIDER_EXECUTOR.submit(jamendo_search_artists, query, limit=limit),
-        _PROVIDER_EXECUTOR.submit(audius_search_users, query, limit=max(4, limit // 3)),
+        _PROVIDER_EXECUTOR.submit(search_artists_smart, query, limit=limit),
     ]
     done, pending = wait(futures, timeout=7)
     for future in pending:
@@ -1464,13 +1499,8 @@ def search_everything(query, limit=12):
         except Exception as exc:
             logger.warning("Catalogue lookup failed: %s", type(exc).__name__)
             values.append([])
-    albums, jam_artists, aud_artists = values
-    return {
-        "tracks": tracks,
-        "albums": albums,
-        "artists": jam_artists + aud_artists,
-    }
-
+    albums, artists = values
+    return {"tracks": tracks, "albums": albums, "artists": artists}
 
 MOOD_MAP = {
     "chill":  {"tags": ["chillout", "lounge", "acoustic"], "label": "Спокій"},
