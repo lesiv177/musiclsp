@@ -253,6 +253,10 @@ body{min-height:100dvh!important}
   .v3-home-heading .v3-page-title{font-size:clamp(29px,5vw,40px)}
   .v3-section{margin:24px 0 30px}
 }
+/* Keep the mobile navigation dock clear of the expanded mini-player. */
+@media(max-width:900px){
+  body:has(#bar.on) #mlsp-v3 .v3-mobile-nav{bottom:calc(104px + env(safe-area-inset-bottom))}
+}
 @media(max-width:520px){
   #mlsp-v3{padding:0 15px 145px}
   .v3-main{padding-top:8px}
