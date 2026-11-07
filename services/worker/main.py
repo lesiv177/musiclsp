@@ -16,12 +16,13 @@ import time
 import asyncio
 import logging
 import datetime
+import hashlib
 
 from core import db
 from core import providers as P
 from core.config import (
     WORKER_INTERVAL, BOT_TOKEN, APP_NAME, APP_VERSION, FREE_LIMITS,
-    RENEWAL_REMINDER_HOURS,
+    RENEWAL_REMINDER_HOURS, RELEASE_RADAR_INTERVAL,
 )
 
 logging.basicConfig(format="%(asctime)s | %(levelname)s | %(message)s", level=logging.INFO)
@@ -29,14 +30,129 @@ log = logging.getLogger("worker")
 
 
 async def notify(uid, text):
-    """Тихе повідомлення. Якщо бот не налаштований — просто пропускаємо."""
+    """Тихе повідомлення; повертає True лише після підтвердження Telegram."""
     if not BOT_TOKEN:
-        return
+        return False
     try:
         from telegram import Bot
         await Bot(BOT_TOKEN).send_message(uid, text)
+        return True
     except Exception as e:
         log.debug("Не доставлено %s: %s", uid, e)
+        return False
+
+
+def release_notification_key(album):
+    """Стабільний ключ релізу з урахуванням джерела для дедуплікації."""
+    if not isinstance(album, dict):
+        return ""
+    source_id = str(album.get("id") or "").strip()
+    source = str(album.get("source") or album.get("provider") or "").strip().lower()
+    if source_id:
+        identity = f"{source}:{source_id}"
+    else:
+        identity = "|".join((
+            str(album.get("title") or "").strip().casefold(),
+            str(album.get("artist") or album.get("artist_name") or "").strip().casefold(),
+            str(album.get("release_date") or "")[:10],
+            source,
+        ))
+    if not identity.strip("|"):
+        return ""
+    return hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+
+_RELEASE_RADAR_TEXT = {
+    "uk": ("🎧 Нові релізи від артистів, на яких ви підписані:", "Відкрийте Release Radar у MusicLSP."),
+    "pl": ("🎧 Nowe wydania obserwowanych artystów:", "Otwórz Release Radar w MusicLSP."),
+    "en": ("🎧 New releases from artists you follow:", "Open Release Radar in MusicLSP."),
+    "ru": ("🎧 Новые релизы артистов, на которых вы подписаны:", "Откройте Release Radar в MusicLSP."),
+}
+
+
+async def notify_release_radar():
+    """Надсилає годинний дайджест нових релізів і не повторює вже доставлені."""
+    if not BOT_TOKEN:
+        return 0
+    follows = await asyncio.to_thread(db.artist_following_all)
+    if not follows:
+        return 0
+
+    grouped = {}
+    for followed in follows:
+        uid = int(followed.get("uid") or 0)
+        if uid and len(grouped.get(uid, {}).get("follows", [])) < 30:
+            group = grouped.setdefault(uid, {"lang": followed.get("lang", "uk"), "follows": []})
+            group["follows"].append(followed)
+
+    semaphore = asyncio.Semaphore(5)
+
+    async def lookup(followed):
+        artist = followed.get("artist") or {}
+        name = str(followed.get("artist_name") or artist.get("name") or "").strip()
+        if not name:
+            return []
+        async with semaphore:
+            try:
+                albums = await asyncio.to_thread(P.search_albums_smart, name, 8, "newest")
+            except Exception as exc:
+                log.warning("Release Radar notification lookup failed for %s: %s",
+                            name[:80], type(exc).__name__)
+                return []
+        matched = []
+        for album in albums or []:
+            if not isinstance(album, dict) or not is_recent_release(album, days=7):
+                continue
+            album_artist = str(album.get("artist") or album.get("artist_name") or "").strip().casefold()
+            if album_artist and name.casefold() not in album_artist and album_artist not in name.casefold():
+                continue
+            item = dict(album)
+            item["followed_artist"] = name
+            item["_notification_key"] = release_notification_key(item)
+            if item["_notification_key"]:
+                matched.append(item)
+        return matched
+
+    sent_count = 0
+    for uid, group in grouped.items():
+        batches = await asyncio.gather(*(lookup(item) for item in group["follows"]))
+        candidates, seen = [], set()
+        for batch in batches:
+            for album in batch:
+                key = album["_notification_key"]
+                if key not in seen:
+                    seen.add(key)
+                    candidates.append(album)
+        if not candidates:
+            continue
+
+        keys = [item["_notification_key"] for item in candidates]
+        fresh = set(await asyncio.to_thread(db.release_radar_unnotified, uid, keys))
+        selected = [item for item in candidates if item["_notification_key"] in fresh][:5]
+        if not selected:
+            continue
+
+        lang = str(group.get("lang") or "uk").split("-")[0].lower()
+        heading, footer = _RELEASE_RADAR_TEXT.get(lang, _RELEASE_RADAR_TEXT["uk"])
+        lines = [heading]
+        for album in selected:
+            title = str(album.get("title") or "Без назви").strip()[:100]
+            artist = str(album.get("artist") or album.get("artist_name")
+                         or album.get("followed_artist") or "").strip()[:80]
+            released = str(album.get("release_date") or "")[:10]
+            lines.append(f"• {title} — {artist}" + (f" ({released})" if released else ""))
+        lines.append("")
+        lines.append(footer)
+        if await notify(uid, "\n".join(lines)):
+            await asyncio.to_thread(
+                db.release_radar_mark_notified,
+                uid, [item["_notification_key"] for item in selected],
+            )
+            sent_count += 1
+
+    if sent_count:
+        log.info("Release Radar: надіслано дайджестів %s", sent_count)
+    return sent_count
 
 
 def normalize_expiry_timestamp(value):
@@ -129,13 +245,23 @@ def warm_audius():
     return bool(host)
 
 
+_last_release_radar_scan = 0
+
+
 async def cycle():
+    global _last_release_radar_scan
     started = time.time()
     try:
         await expire_premium()
         await remind_renewals()
         trim_history()
         clean_promos()
+        if time.time() - _last_release_radar_scan >= max(300, RELEASE_RADAR_INTERVAL):
+            _last_release_radar_scan = time.time()
+            try:
+                await notify_release_radar()
+            except Exception as exc:
+                log.error("Release Radar notifications failed: %s", exc, exc_info=True)
         warm_audius()
     except Exception as e:
         log.error("Цикл завершився помилкою: %s", e, exc_info=True)
