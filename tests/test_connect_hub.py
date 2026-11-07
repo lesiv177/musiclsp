@@ -217,7 +217,6 @@ class HubTests(unittest.IsolatedAsyncioTestCase):
         old_send = self.phone.send
         new_phone = FakeDevice()
         await self.hub.connect(1, "phone", "iPhone", "ios", new_phone.send)
-        new_phone.clear()
 
         await self.hub.handle(1, "phone", {"type": "claim", "state": state(9)}, send=old_send)
         await self.hub.handle(1, "phone", {"type": "cmd", "id": "old", "action": "pause"}, send=old_send)
