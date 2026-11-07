@@ -224,7 +224,7 @@ const { spawn } = require("node:child_process");
     const mobileDock = await page.evaluate(() => {
       const nav=document.querySelector("#mlsp-v3 .v3-mobile-nav"), bar=document.querySelector("#bar");
       const n=nav.getBoundingClientRect(), b=bar.getBoundingClientRect();
-      return {navDisplay:getComputedStyle(nav).display,navPosition:getComputedStyle(nav).position,barVisible:getComputedStyle(bar).display!=="none",navRect:{top:n.top,bottom:n.bottom,height:n.height},barRect:{top:b.top,bottom:b.bottom,height:b.height},navTransform:getComputedStyle(nav).transform,barBottom:getComputedStyle(bar).bottom,overlap:Math.min(n.bottom,b.bottom)-Math.max(n.top,b.top)>0};
+      return {navDisplay:getComputedStyle(nav).display,navPosition:getComputedStyle(nav).position,barVisible:getComputedStyle(bar).display!=="none",navRect:{top:n.top,bottom:n.bottom,height:n.height},barRect:{top:b.top,bottom:b.bottom,height:b.height},navTransform:getComputedStyle(nav).transform,barBottom:getComputedStyle(bar).bottom,barInline:bar.getAttribute("style"),barPriority:bar.style.getPropertyPriority("bottom"),matches:matchMedia("(max-width:900px)").matches,themeLoaded:[...document.styleSheets].map(x=>x.href).filter(x=>x&&x.includes("theme.css")),overlap:Math.min(n.bottom,b.bottom)-Math.max(n.top,b.top)>0};
     });
     if(!(mobileDock.navDisplay==="grid"||mobileDock.navDisplay==="flex")||mobileDock.navPosition!=="fixed"||!mobileDock.barVisible||mobileDock.overlap)
       throw new Error("Mobile dock/player layout is broken or overlapping: "+JSON.stringify(mobileDock));
