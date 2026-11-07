@@ -8,6 +8,7 @@ HTTP API для Mini App.
 """
 
 import io
+import csv
 import hmac
 import json
 import math
@@ -295,6 +296,7 @@ async def h_search(request, u):
     if not allowed:
         return fail(f"Ліміт пошуку на сьогодні вичерпано ({cap}). Premium знімає ліміт.", 429)
 
+    await to_thread(db.search_history_add, uid, query, kind)
     qual = quality_for(uid)
     if kind == "all":
         data = await to_thread(P.search_everything, query, min(limit, 20))
@@ -594,6 +596,133 @@ async def h_library_post(request, u):
 
 
 @require_auth
+async def h_queue_get(request, u):
+    return ok({"ok": True, **(await to_thread(db.queue_get, int(u["uid"])))})
+
+
+@require_auth
+async def h_queue_post(request, u):
+    body = await json_object(request)
+    if body is None or not isinstance(body.get("tracks"), list):
+        return fail("Очікується список треків")
+    count = await to_thread(db.queue_save, int(u["uid"]), body["tracks"], body.get("current_index", 0))
+    return ok({"ok": True, "count": count})
+
+
+@require_auth
+async def h_release_radar_get(request, u):
+    uid = int(u["uid"])
+    follows = await to_thread(db.artist_following, uid)
+    feed = []
+    for followed in follows[:30]:
+        artist = followed.get("artist") or {}
+        name = followed.get("artist_name") or artist.get("name") or ""
+        if not name:
+            continue
+        albums = await to_thread(P.search_albums_smart, name, 8, "newest")
+        for album in albums or []:
+            album_artist = str(album.get("artist") or album.get("artist_name") or "").casefold()
+            if album_artist and name.casefold() not in album_artist and album_artist not in name.casefold():
+                continue
+            album["followed_artist"] = name
+            feed.append(album)
+    seen, unique = set(), []
+    for album in feed:
+        key = str(album.get("id") or (album.get("title"), album.get("artist")))
+        if key not in seen:
+            seen.add(key)
+            unique.append(album)
+    return ok({"ok": True, "artists": follows, "releases": unique[:60]})
+
+
+@require_auth
+async def h_artist_follow_post(request, u):
+    uid = int(u["uid"])
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
+    artist_id = body.get("id", "")
+    if body.get("action") == "unfollow":
+        done = await to_thread(db.artist_unfollow, uid, artist_id)
+        return ok({"ok": True, "following": False, "removed": bool(done)})
+    artist = body.get("artist") or {}
+    done = await to_thread(db.artist_follow, uid, artist_id, artist)
+    return ok({"ok": True, "following": bool(done)}) if done else fail("Не вдалося підписатися на артиста")
+
+
+@require_auth
+async def h_collection_get(request, u):
+    kind = request.query.get("kind", "")
+    if kind not in ("", "album", "artist"):
+        return fail("Невідомий тип колекції")
+    items = await to_thread(db.collection_list, int(u["uid"]), kind)
+    return ok({"ok": True, "items": items})
+
+
+@require_auth
+async def h_collection_post(request, u):
+    uid = int(u["uid"])
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
+    kind, item_id = body.get("kind", ""), body.get("id", "")
+    if body.get("action") == "remove":
+        done = await to_thread(db.collection_remove, uid, kind, item_id)
+        return ok({"ok": True, "removed": bool(done)})
+    data = body.get("item") or {}
+    if not isinstance(data, dict) or not item_id:
+        return fail("Немає елемента колекції")
+    done = await to_thread(db.collection_add, uid, kind, item_id, data)
+    return ok({"ok": bool(done), "saved": bool(done)}) if done else fail("Невірний тип елемента")
+
+
+@require_auth
+async def h_import_playlist(request, u):
+    uid = int(u["uid"])
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
+    rows = body.get("tracks")
+    if rows is None and isinstance(body.get("csv"), str):
+        try:
+            rows = list(csv.DictReader(io.StringIO(body["csv"])))
+        except csv.Error:
+            return fail("Не вдалося прочитати CSV")
+    if not isinstance(rows, list) or not rows:
+        return fail("Немає треків для імпорту")
+    if len(rows) > 100:
+        return fail("За один раз можна імпортувати до 100 треків", 413)
+    name = str(body.get("name") or "Імпортована музика").strip()[:80]
+    playlist, err = await to_thread(db.pl_create, uid, name, "Імпортована музична бібліотека")
+    if not playlist:
+        return fail(err or "Не вдалося створити плейлист")
+    imported, missed = [], []
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            missed.append(index)
+            continue
+        title = str(row.get("trackName") or row.get("title") or row.get("Track Name") or "").strip()[:160]
+        artist = str(row.get("artistName") or row.get("artist") or row.get("Artist Name") or row.get("Artist Name(s)") or "").strip()[:160]
+        if not title:
+            missed.append(index)
+            continue
+        query = (title + " " + artist).strip()
+        matches = await to_thread(P.search_tracks_smart, query, 5, quality_for(uid))
+        if not matches:
+            missed.append(index)
+            continue
+        candidate = matches[0]
+        done, _ = await to_thread(db.pl_add_track, uid, int(playlist["id"]), candidate)
+        if done:
+            imported.append(candidate.get("id"))
+        else:
+            missed.append(index)
+    result = await to_thread(db.pl_get, int(playlist["id"]))
+    return ok({"ok": True, "playlist": result, "imported": len(imported),
+               "unmatched_rows": missed, "total": len(rows)})
+
+
+@require_auth
 async def h_playlists_get(request, u):
     return ok({"ok": True, "playlists": await to_thread(db.pl_list, int(u["uid"]))})
 
@@ -657,6 +786,28 @@ async def h_history_post(request, u):
     if track.get("id"):
         await to_thread(db.history_add, int(u["uid"]), track, int(body.get("seconds") or 0))
     return ok({"ok": True})
+
+
+@require_auth
+async def h_search_history_get(request, u):
+    items = await to_thread(db.search_history_list, int(u["uid"]), 30)
+    return ok({"ok": True, "items": items})
+
+
+@require_auth
+async def h_search_history_post(request, u):
+    uid = int(u["uid"])
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
+    action = body.get("action", "")
+    if action == "remove":
+        done = await to_thread(db.search_history_remove, uid, body.get("id", 0))
+        return ok({"ok": True, "removed": bool(done)})
+    if action == "clear":
+        count = await to_thread(db.search_history_clear, uid)
+        return ok({"ok": True, "removed": count})
+    return fail("Невідома дія")
 
 
 @require_auth
@@ -1206,12 +1357,21 @@ def build_app():
     r.add_get("/api/stream", h_stream)
     r.add_get("/api/library", h_library_get)
     r.add_post("/api/library", h_library_post)
+    r.add_get("/api/queue", h_queue_get)
+    r.add_post("/api/queue", h_queue_post)
+    r.add_get("/api/release-radar", h_release_radar_get)
+    r.add_post("/api/release-radar/follow", h_artist_follow_post)
+    r.add_get("/api/collection", h_collection_get)
+    r.add_post("/api/collection", h_collection_post)
+    r.add_post("/api/library/import", h_import_playlist)
     r.add_get("/api/playlists", h_playlists_get)
     r.add_post("/api/playlists", h_playlists_post)
     r.add_get("/api/playlist/{pid}", h_playlist_get)
     r.add_get("/api/shared/{code}", h_shared)
     r.add_get("/api/history", h_history_get)
     r.add_post("/api/history", h_history_post)
+    r.add_get("/api/search-history", h_search_history_get)
+    r.add_post("/api/search-history", h_search_history_post)
     r.add_post("/api/report", h_report_post)
     r.add_get("/api/stats", h_stats)
     r.add_post("/api/promo", h_promo)

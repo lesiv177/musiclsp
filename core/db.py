@@ -208,6 +208,23 @@ SCHEMA_PG = [
         cover TEXT, duration INTEGER DEFAULT 0, source TEXT, license TEXT,
         source_url TEXT, position INTEGER DEFAULT 0
     )""",
+    """CREATE TABLE IF NOT EXISTS saved_queues (
+        uid BIGINT PRIMARY KEY, tracks_json TEXT DEFAULT '[]', current_index INTEGER DEFAULT 0, updated_at TIMESTAMP DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS followed_artists (
+        uid BIGINT, artist_id TEXT, artist_name TEXT, artist_json TEXT DEFAULT '{}',
+        followed_at TIMESTAMP DEFAULT NOW(), PRIMARY KEY(uid, artist_id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS collection_library (
+        id SERIAL PRIMARY KEY, uid BIGINT, kind TEXT, item_id TEXT, data_json TEXT DEFAULT '{}',
+        added_at TIMESTAMP DEFAULT NOW(), UNIQUE(uid, kind, item_id)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_collection_uid ON collection_library(uid, kind)",
+    """CREATE TABLE IF NOT EXISTS search_history (
+        id SERIAL PRIMARY KEY, uid BIGINT, query TEXT NOT NULL, kind TEXT DEFAULT 'tracks',
+        searched_at TIMESTAMP DEFAULT NOW()
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_search_history_uid ON search_history(uid)",
     """CREATE TABLE IF NOT EXISTS history (
         id SERIAL PRIMARY KEY, uid BIGINT, tid TEXT, title TEXT, artist TEXT,
         cover TEXT, source TEXT, seconds INTEGER DEFAULT 0,
@@ -814,6 +831,148 @@ def history_add(uid, t, seconds=0):
             (uid, t.get("id", ""), t.get("title", ""), t.get("artist", ""),
              t.get("cover", ""), t.get("source", ""), int(seconds or 0), now_str()))
 
+
+
+def search_history_add(uid, query, kind="tracks", limit=30):
+    """Зберігає унікальний недавній пошуковий запит користувача."""
+    query = str(query or "").strip()[:160]
+    kind = str(kind or "tracks")[:24]
+    if not query:
+        return False
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("DELETE FROM search_history WHERE uid=%s AND LOWER(query)=LOWER(%s) AND kind=%s"),
+                    (int(uid), query, kind))
+        cur.execute(q("""INSERT INTO search_history (uid, query, kind, searched_at)
+                         VALUES (%s,%s,%s,%s)"""),
+                    (int(uid), query, kind, now_str()))
+        cur.execute(q("""DELETE FROM search_history WHERE uid=%s AND id NOT IN
+                         (SELECT id FROM search_history WHERE uid=%s
+                          ORDER BY searched_at DESC, id DESC LIMIT %s)"""),
+                    (int(uid), int(uid), max(1, min(int(limit), 100))))
+    return True
+
+
+def search_history_list(uid, limit=20):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("""SELECT id, query, kind, searched_at FROM search_history
+                         WHERE uid=%s ORDER BY searched_at DESC, id DESC LIMIT %s"""),
+                    (int(uid), max(1, min(int(limit), 100))))
+        return rows(cur)
+
+
+def search_history_remove(uid, item_id):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("DELETE FROM search_history WHERE uid=%s AND id=%s"),
+                    (int(uid), int(item_id)))
+        return cur.rowcount > 0
+
+
+def search_history_clear(uid):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("DELETE FROM search_history WHERE uid=%s"), (int(uid),))
+        return cur.rowcount
+
+
+def queue_save(uid, tracks, current_index=0):
+    clean = []
+    for item in (tracks or [])[:500]:
+        if not isinstance(item, dict) or not item.get("id"):
+            continue
+        clean.append({k: item.get(k) for k in ("id", "title", "artist", "cover", "duration", "source", "license", "source_url") if item.get(k) is not None})
+    payload = json.dumps(clean, ensure_ascii=False)
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("""INSERT INTO saved_queues(uid, tracks_json, current_index, updated_at) VALUES (%s,%s,%s,%s)
+                         ON CONFLICT(uid) DO UPDATE SET tracks_json=excluded.tracks_json, current_index=excluded.current_index, updated_at=excluded.updated_at"""),
+                    (int(uid), payload, max(0, min(int(current_index or 0), max(0, len(clean) - 1))), now_str()))
+    return len(clean)
+
+
+def queue_get(uid):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT tracks_json, current_index, updated_at FROM saved_queues WHERE uid=%s"), (int(uid),))
+        row = one(cur)
+    if not row:
+        return {"tracks": [], "current_index": 0, "updated_at": None}
+    try:
+        tracks = json.loads(row.get("tracks_json") or "[]")
+    except (TypeError, ValueError):
+        tracks = []
+    return {"tracks": tracks if isinstance(tracks, list) else [], "current_index": int(row.get("current_index") or 0), "updated_at": row.get("updated_at")}
+
+
+def collection_list(uid, kind=""):
+    with conn_cursor() as (conn, cur):
+        if kind:
+            cur.execute(q("""SELECT id, kind, item_id, data_json, added_at FROM collection_library
+                             WHERE uid=%s AND kind=%s ORDER BY added_at DESC"""), (int(uid), kind))
+        else:
+            cur.execute(q("""SELECT id, kind, item_id, data_json, added_at FROM collection_library
+                             WHERE uid=%s ORDER BY added_at DESC"""), (int(uid),))
+        found = rows(cur)
+    for item in found:
+        try:
+            item["data"] = json.loads(item.pop("data_json") or "{}")
+        except (TypeError, ValueError):
+            item["data"] = {}
+    return found
+
+
+def collection_add(uid, kind, item_id, data):
+    kind = str(kind or "").lower()
+    item_id = str(item_id or "")[:200]
+    if kind not in ("album", "artist") or not item_id or not isinstance(data, dict):
+        return False
+    payload = json.dumps(data, ensure_ascii=False)[:12000]
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("""INSERT INTO collection_library(uid, kind, item_id, data_json, added_at)
+                         VALUES (%s,%s,%s,%s,%s)
+                         ON CONFLICT(uid, kind, item_id) DO UPDATE SET data_json=excluded.data_json"""),
+                    (int(uid), kind, item_id, payload, now_str()))
+    return True
+
+
+def collection_remove(uid, kind, item_id):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("DELETE FROM collection_library WHERE uid=%s AND kind=%s AND item_id=%s"),
+                    (int(uid), str(kind or ""), str(item_id or "")[:200]))
+        return cur.rowcount > 0
+
+
+def artist_follow(uid, artist_id, artist):
+    artist_id = str(artist_id or "")[:200]
+    if not artist_id or not isinstance(artist, dict):
+        return False
+    name = str(artist.get("name") or artist.get("title") or "")[:160]
+    if not name:
+        return False
+    payload = json.dumps(artist, ensure_ascii=False)[:12000]
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("""INSERT INTO followed_artists(uid, artist_id, artist_name, artist_json, followed_at)
+                         VALUES (%s,%s,%s,%s,%s)
+                         ON CONFLICT(uid, artist_id) DO UPDATE SET artist_name=excluded.artist_name,
+                         artist_json=excluded.artist_json"""),
+                    (int(uid), artist_id, name, payload, now_str()))
+    return True
+
+
+def artist_unfollow(uid, artist_id):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("DELETE FROM followed_artists WHERE uid=%s AND artist_id=%s"),
+                    (int(uid), str(artist_id or "")[:200]))
+        return cur.rowcount > 0
+
+
+def artist_following(uid):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT artist_id, artist_name, artist_json, followed_at FROM followed_artists WHERE uid=%s ORDER BY artist_name"),
+                    (int(uid),))
+        found = rows(cur)
+    for item in found:
+        try:
+            item["artist"] = json.loads(item.pop("artist_json") or "{}")
+        except (TypeError, ValueError):
+            item["artist"] = {"name": item.get("artist_name", "")}
+    return found
 
 
 # ─── Сесії пристроїв і віддалене керування відтворенням ────────────────────────

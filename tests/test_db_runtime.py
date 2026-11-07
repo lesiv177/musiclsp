@@ -91,6 +91,53 @@ class SQLiteDevicePersistenceTests(unittest.TestCase):
         self.database_patch.stop()
         self.tmp.cleanup()
 
+    def test_followed_artists_are_persisted_per_user(self):
+        self.assertTrue(db.artist_follow(987646, "jam:artist-1", {"name": "Artist One"}))
+        self.assertEqual(db.artist_following(987646)[0]["artist_name"], "Artist One")
+        self.assertEqual(db.artist_following(987645), [])
+        self.assertTrue(db.artist_unfollow(987646, "jam:artist-1"))
+        self.assertEqual(db.artist_following(987646), [])
+
+    def test_saved_queue_round_trip_is_account_scoped_and_bounded(self):
+        tracks = [{"id": "a", "title": "A", "artist": "Artist", "extra": "ignored"}]
+        self.assertEqual(db.queue_save(987650, tracks, 8), 1)
+        saved = db.queue_get(987650)
+        self.assertEqual(saved["tracks"][0]["id"], "a")
+        self.assertEqual(saved["current_index"], 0)
+        self.assertNotIn("extra", saved["tracks"][0])
+        self.assertEqual(db.queue_get(987649)["tracks"], [])
+
+    def test_album_artist_collection_add_remove_and_scope(self):
+        self.assertTrue(db.collection_add(987648, "album", "alb:1", {"title": "Album"}))
+        self.assertTrue(db.collection_add(987648, "artist", "art:1", {"name": "Artist"}))
+        self.assertFalse(db.collection_add(987648, "track", "t:1", {"title": "Track"}))
+        self.assertEqual(len(db.collection_list(987648)), 2)
+        self.assertEqual(db.collection_list(987648, "album")[0]["data"]["title"], "Album")
+        self.assertTrue(db.collection_remove(987648, "album", "alb:1"))
+        self.assertEqual(len(db.collection_list(987648)), 1)
+        self.assertEqual(db.collection_list(987647), [])
+
+    def test_search_history_add_deduplicates_and_keeps_latest_entries(self):
+        uid = 987651
+        db.search_history_add(uid, "  jazz  ", "tracks")
+        db.search_history_add(uid, "JAZZ", "tracks")
+        db.search_history_add(uid, "jazz", "albums")
+        items = db.search_history_list(uid)
+        self.assertEqual(len(items), 2)
+        self.assertEqual(items[0]["kind"], "albums")
+        self.assertEqual(items[1]["query"], "JAZZ")
+
+    def test_search_history_is_user_scoped_and_can_be_removed_or_cleared(self):
+        db.search_history_add(987652, "ambient")
+        db.search_history_add(987653, "rock")
+        item = db.search_history_list(987652)[0]
+        self.assertTrue(db.search_history_remove(987652, item["id"]))
+        self.assertEqual(db.search_history_list(987652), [])
+        self.assertEqual(len(db.search_history_list(987653)), 1)
+        db.search_history_add(987652, "jazz")
+        self.assertEqual(db.search_history_clear(987652), 1)
+        self.assertEqual(db.search_history_list(987652), [])
+
     def test_promo_codes_are_normalized_validated_and_unique(self):
         self.assertTrue(db.promo_create(" launch_2026 ", 14, 2))
         self.assertFalse(db.promo_create("LAUNCH_2026", 14, 2))
