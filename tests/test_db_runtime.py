@@ -151,7 +151,7 @@ class SQLiteDevicePersistenceTests(unittest.TestCase):
     def test_playlist_copy_cannot_read_or_copy_another_users_playlist(self):
         owner = 987661
         playlist, error = db.pl_create(owner, "Private playlist")
-        self.assertIsNone(error)
+        self.assertEqual(error, "")
         self.assertTrue(db.pl_add_track(owner, playlist["id"], {"id": "private-track", "title": "Private"})[0])
         copied, error = db.pl_copy(owner + 1, playlist["id"], "Stolen copy")
         self.assertIsNone(copied)
