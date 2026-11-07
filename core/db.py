@@ -211,6 +211,10 @@ SCHEMA_PG = [
     """CREATE TABLE IF NOT EXISTS saved_queues (
         uid BIGINT PRIMARY KEY, tracks_json TEXT DEFAULT '[]', updated_at TIMESTAMP DEFAULT NOW()
     )""",
+    """CREATE TABLE IF NOT EXISTS followed_artists (
+        uid BIGINT, artist_id TEXT, artist_name TEXT, artist_json TEXT DEFAULT '{}',
+        followed_at TIMESTAMP DEFAULT NOW(), PRIMARY KEY(uid, artist_id)
+    )""",
     """CREATE TABLE IF NOT EXISTS collection_library (
         id SERIAL PRIMARY KEY, uid BIGINT, kind TEXT, item_id TEXT, data_json TEXT DEFAULT '{}',
         added_at TIMESTAMP DEFAULT NOW(), UNIQUE(uid, kind, item_id)
@@ -932,6 +936,43 @@ def collection_remove(uid, kind, item_id):
         cur.execute(q("DELETE FROM collection_library WHERE uid=%s AND kind=%s AND item_id=%s"),
                     (int(uid), str(kind or ""), str(item_id or "")[:200]))
         return cur.rowcount > 0
+
+
+def artist_follow(uid, artist_id, artist):
+    artist_id = str(artist_id or "")[:200]
+    if not artist_id or not isinstance(artist, dict):
+        return False
+    name = str(artist.get("name") or artist.get("title") or "")[:160]
+    if not name:
+        return False
+    payload = json.dumps(artist, ensure_ascii=False)[:12000]
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("""INSERT INTO followed_artists(uid, artist_id, artist_name, artist_json, followed_at)
+                         VALUES (%s,%s,%s,%s,%s)
+                         ON CONFLICT(uid, artist_id) DO UPDATE SET artist_name=excluded.artist_name,
+                         artist_json=excluded.artist_json"""),
+                    (int(uid), artist_id, name, payload, now_str()))
+    return True
+
+
+def artist_unfollow(uid, artist_id):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("DELETE FROM followed_artists WHERE uid=%s AND artist_id=%s"),
+                    (int(uid), str(artist_id or "")[:200]))
+        return cur.rowcount > 0
+
+
+def artist_following(uid):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT artist_id, artist_name, artist_json, followed_at FROM followed_artists WHERE uid=%s ORDER BY artist_name"),
+                    (int(uid),))
+        found = rows(cur)
+    for item in found:
+        try:
+            item["artist"] = json.loads(item.pop("artist_json") or "{}")
+        except (TypeError, ValueError):
+            item["artist"] = {"name": item.get("artist_name", "")}
+    return found
 
 
 # ─── Сесії пристроїв і віддалене керування відтворенням ────────────────────────
