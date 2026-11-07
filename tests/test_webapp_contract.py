@@ -83,6 +83,12 @@ class MiniAppContractTests(unittest.TestCase):
                          "sendDeviceCommand", "handoffToDevice", "resumeOnThisDevice"):
             self.assertIn(function, self.functions, f"Missing device-sync function: {function}")
 
+    def test_connect_play_command_republishes_state_when_browser_blocks_play(self):
+        play_case = JS.split('case "play":', 1)[1].split('case "next":', 1)[0]
+        self.assertIn('catch(e)', play_case)
+        self.assertIn('S.playing=false; paintPlayState(); publishDeviceState(true);', play_case,
+                      "A rejected remote play must correct the controller's optimistic state")
+
     def test_track_menu_exposes_safe_creative_commons_license_link(self):
         self.assertIn("const licenseUrl = /^https:", JS)
         self.assertIn("creativecommons\\.org", JS)
