@@ -441,8 +441,11 @@ class PersistedOpenCataloguePlaybackTests(unittest.TestCase):
             "file_url": "https://ccmixter.example/saved.mp3",
             "license_url": "https://creativecommons.org/licenses/by/4.0/",
         }
-        with patch.object(P, "_ccm_cache_get", return_value=None), \\
-             patch.object(P, "_get", return_value=[entry]) as get, \\
+        with (
+            patch.object(P, "_ccm_cache_get", return_value=None),
+            patch.object(P, "_get", return_value=[entry]) as get,
+            patch.object(P, "_ccm_cache_put") as cache_put,
+        ):
              patch.object(P, "_ccm_cache_put") as cache_put:
             track = P.ccmixter_track("12345")
         self.assertEqual(track["id"], "ccm:12345")
@@ -462,8 +465,11 @@ class PersistedOpenCataloguePlaybackTests(unittest.TestCase):
             "title": "Saved Track", "license": "by",
             "license_url": "https://creativecommons.org/licenses/by/4.0/",
         }
-        with patch.object(P, "_ov_cache_get", return_value=None), \\
-             patch.object(P, "_get", return_value=item) as get, \\
+        with (
+            patch.object(P, "_ov_cache_get", return_value=None),
+            patch.object(P, "_get", return_value=item) as get,
+            patch.object(P, "_ov_cache_put") as cache_put,
+        ):
              patch.object(P, "_ov_cache_put") as cache_put:
             track = P.openverse_track(uid)
         self.assertEqual(track["id"], f"ov:{uid}")
@@ -478,9 +484,9 @@ class PersistedOpenCataloguePlaybackTests(unittest.TestCase):
             "license": "by-nc",
             "license_url": "https://creativecommons.org/licenses/by-nc/4.0/",
         }
-        with patch.object(P, "_ov_cache_get", return_value=None), \\
-             patch.object(P, "_get", return_value=item):
-            self.assertIsNone(P.openverse_track(uid))
+            patch.object(P, "_ov_cache_get", return_value=None),
+            patch.object(P, "_get", return_value=item),
+        ):
 
     def test_wikimedia_track_reloads_by_page_id_and_rechecks_license(self):
         page = {"title": "File:Saved.ogg", "pageid": 42, "imageinfo": [{
@@ -489,8 +495,11 @@ class PersistedOpenCataloguePlaybackTests(unittest.TestCase):
                 "value": "https://creativecommons.org/licenses/by/4.0/"
             }},
         }]}
-        with patch.object(P, "_wm_cache_get", return_value=None), \\
-             patch.object(P, "_get", return_value={"query": {"pages": {"42": page}}}) as get, \\
+        with (
+            patch.object(P, "_wm_cache_get", return_value=None),
+            patch.object(P, "_get", return_value={"query": {"pages": {"42": page}}}) as get,
+            patch.object(P, "_wm_cache_put") as cache_put,
+        ):
              patch.object(P, "_wm_cache_put") as cache_put:
             track = P.wikimedia_track("42")
         self.assertEqual(track["id"], "wm:42")
@@ -505,9 +514,9 @@ class PersistedOpenCataloguePlaybackTests(unittest.TestCase):
                 "value": "https://creativecommons.org/licenses/by-nc/4.0/"
             }},
         }]}
-        with patch.object(P, "_wm_cache_get", return_value=None), \\
-             patch.object(P, "_get", return_value={"query": {"pages": {"42": page}}}):
-            self.assertIsNone(P.wikimedia_track("42"))
+            patch.object(P, "_wm_cache_get", return_value=None),
+            patch.object(P, "_get", return_value={"query": {"pages": {"42": page}}}),
+        ):
 
 
 class ArchiveCuratedCatalogueTests(unittest.TestCase):
