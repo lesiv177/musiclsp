@@ -1,13 +1,5 @@
 
 :root{--v3-bg:#090b10;--v3-panel:#11151e;--v3-line:#252d3b;--v3-text:#f4f6fb;--v3-muted:#929bad;--v3-accent:#ff6a3d;--v3-accent2:#ff9b69}
-
-/* V3 panel surfaces must follow the selected account theme even when the
-   legacy theme layer is not present in an embed or browser test. */
-html[data-theme="midnight"]{--v3-panel:#101729}
-html[data-theme="ember"]{--v3-panel:#24150f}
-html[data-theme="aurora"]{--v3-panel:#0d2226}
-html[data-theme="neon"]{--v3-panel:#241025}
-html[data-theme="paper"]{--v3-panel:#fffdf8}
 html,body{background:var(--v3-bg)!important;color:var(--v3-text)!important;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 #appRoot{display:block!important;min-height:100dvh;padding:0!important;max-width:none!important;background:var(--v3-bg)!important}
 #appRoot>.app-top,#appRoot>.screen,.app-nav{display:none!important}
@@ -99,7 +91,7 @@ body{min-height:100dvh!important}
 .v3-home-moods{display:flex;gap:8px;overflow-x:auto;padding:0 0 5px;margin:0 0 22px;scrollbar-width:none}
 .v3-home-moods::-webkit-scrollbar,.v3-shelf::-webkit-scrollbar{display:none}
 .v3-shelf{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(132px,1fr);grid-auto-columns: minmax(132px, 1fr);grid-template-rows:1fr;gap:14px;overflow-x:auto;overscroll-behavior-x:contain;padding:2px 2px 10px;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
-.v3-album-card{display:flex;flex-direction:column;min-width:0;max-width:190px;padding:10px;border:1px solid var(--line);border-radius:17px;background:var(--v3-panel);color:var(--ink);text-align:left;cursor:pointer;transition:transform .18s,border-color .18s}
+.v3-album-card{display:flex;flex-direction:column;min-width:0;max-width:190px;padding:10px;border:1px solid var(--line);border-radius:17px;background:var(--panel);color:var(--ink);text-align:left;cursor:pointer;transition:transform .18s,border-color .18s}
 .v3-album-card:hover{transform:translateY(-3px);border-color:var(--accent)}
 .v3-album-cover{position:relative;display:block;width:100%;aspect-ratio:1/1;overflow:hidden;border-radius:12px;background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 28%,var(--panel)),var(--panel));}
 .v3-album-cover img{width:100%;height:100%;display:block;object-fit:cover;transition:transform .25s}
@@ -127,22 +119,3 @@ body{min-height:100dvh!important}
 }
 
 .v3-page-kicker{color:var(--muted);font-size:10px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;margin-bottom:6px}
-
-/* Theme-specific fallback must come after the legacy variable bridge. */
-html[data-theme="midnight"]{--v3-panel:#101729}
-html[data-theme="ember"]{--v3-panel:#24150f}
-html[data-theme="aurora"]{--v3-panel:#0d2226}
-html[data-theme="neon"]{--v3-panel:#241025}
-html[data-theme="paper"]{--v3-panel:#fffdf8}
-
-/* Apple Music catalogue results are external catalogue links, never MusicLSP streams. */
-.apple-catalog-list{display:grid;gap:7px;margin-top:10px}
-.apple-catalog-item{display:flex;align-items:center;gap:12px;min-width:0;padding:9px 11px;border-radius:13px;background:var(--v3-panel,rgba(255,255,255,.045));color:inherit;text-decoration:none;border:1px solid var(--line,rgba(255,255,255,.07))}
-.apple-catalog-item img,.apple-catalog-placeholder{width:46px;height:46px;flex:0 0 46px;border-radius:8px;object-fit:cover}
-.apple-catalog-placeholder{display:grid;place-items:center;background:var(--surface-2,rgba(255,255,255,.08));font-size:23px}
-.apple-catalog-meta{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}
-.apple-catalog-meta b,.apple-catalog-meta small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.apple-catalog-meta b{font-size:13px;font-weight:650}
-.apple-catalog-meta small,.apple-catalog-note{font-size:11px;color:var(--muted)}
-.apple-catalog-open{font-size:17px;color:var(--muted)}
-.apple-catalog-note{margin:9px 2px 0}
