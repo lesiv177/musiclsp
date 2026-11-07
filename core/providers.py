@@ -1517,12 +1517,13 @@ def search_artists_smart(query, limit=20):
     return []
 
 
-def search_everything(query, limit=12):
+def search_everything(query, limit=12, quality="mp32", sources=None, sort="relevance"):
     """Bounded global catalogue search across tracks, albums and artists."""
     # Each entity family uses one aggregator and the same bounded provider pool.
     futures = [
-        _CATALOGUE_EXECUTOR.submit(search_tracks_smart, query, limit=limit, sources=DEFAULT_TRACK_SEARCH_ORDER),
-        _CATALOGUE_EXECUTOR.submit(search_albums_smart, query, limit=limit),
+        _CATALOGUE_EXECUTOR.submit(search_tracks_smart, query, limit=limit, quality=quality,
+                                   sources=DEFAULT_TRACK_SEARCH_ORDER if sources is None else sources, sort=sort),
+        _CATALOGUE_EXECUTOR.submit(search_albums_smart, query, limit=limit, sort=sort),
         _CATALOGUE_EXECUTOR.submit(search_artists_smart, query, limit=limit),
     ]
     done, pending = wait(futures, timeout=7)
