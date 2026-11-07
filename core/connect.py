@@ -141,7 +141,6 @@ class Hub:
         self._persist = persist      # async (uid, state_dict|None) -> None
         self._now = clock
         self._locks = {}
-        self._transfer_seq = 0
 
     # ── допоміжне ────────────────────────────────────────────────────────────
 
@@ -195,10 +194,8 @@ class Hub:
             await dev.send(msg)
             return True
         except Exception:
-            # Keep the device registered until its WebSocket handler reaches
-            # finally: disconnect(). Removing it here makes disconnect() treat
-            # the socket as already replaced and can leave a stale owner/pending
-            # transfer behind.
+            if acc.devices.get(dev.id) is dev:
+                acc.devices.pop(dev.id, None)
             return False
 
     async def _broadcast(self, acc, msg, skip=None):
@@ -278,17 +275,14 @@ class Hub:
 
     # ── повідомлення від пристроїв ───────────────────────────────────────────
 
-    async def handle(self, uid, dev_id, msg, send=None):
-        """Єдина точка входу; за наявності перевіряє власника конкретного сокета."""
+    async def handle(self, uid, dev_id, msg):
+        """Єдина точка входу для повідомлень зі зʼєднання."""
         if not isinstance(msg, dict):
             return
         kind = msg.get("type")
         async with self._lock(uid):
             acc = self.accounts.get(uid)
-            dev = acc.devices.get(dev_id) if acc else None
-            # A reconnected device may reuse its stable device_id. Messages from
-            # the superseded WebSocket must not control the replacement session.
-            if not dev or (send is not None and dev.send != send):
+            if not acc or dev_id not in acc.devices:
                 return
             if kind == "state":
                 await self._on_state(acc, dev_id, msg.get("state"))
@@ -392,11 +386,7 @@ class Hub:
         # Грало — продовжуємо грати; було на паузі — відновлюємо з паузою? Spotify
         # завжди запускає відтворення на цільовому пристрої, робимо так само.
         payload["playing"] = True
-        # A per-hub monotonic sequence prevents same-millisecond transfer ID
-        # collisions, so a late ACK from a superseded attempt cannot complete
-        # a newer handoff to the same device.
-        self._transfer_seq += 1
-        tid = f"t{self._transfer_seq:x}"
+        tid = f"t{int(time.time() * 1000)}"
         deadline = self._now() + TRANSFER_TIMEOUT
         acc.pending = {"id": tid, "to": to, "requester": requester, "cid": cid,
                        "deadline": deadline}
