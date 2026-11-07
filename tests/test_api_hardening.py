@@ -100,6 +100,7 @@ class MusicCatalogueRouteTests(unittest.IsolatedAsyncioTestCase):
             patch.object(api, "auth_user", return_value={"uid": 7}),
             patch.object(api.db, "limits_for", return_value={"search_results_max": 30}),
             patch.object(api.db, "bump_counter", return_value=(True, 2, 20)),
+            patch.object(api, "quality_for", return_value="high"),
             patch.object(api, "to_thread", side_effect=inline_to_thread),
             patch.object(api.P, "search_albums_smart", return_value=albums) as search,
         ):
