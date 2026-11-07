@@ -291,6 +291,18 @@ class GlobalSearchCoverageTests(unittest.TestCase):
         self.assertIn("soundcloud", requested)
         self.assertIn("youtube", requested)
 
+    def test_global_search_forwards_quality_sources_and_sort(self):
+        with (
+            patch.object(P, "search_tracks_smart", return_value=[]) as tracks,
+            patch.object(P, "search_albums_smart", return_value=[]) as albums,
+            patch.object(P, "search_artists_smart", return_value=[]),
+        ):
+            P.search_everything("test", limit=8, quality="mp3", sources=["audius"], sort="newest")
+        self.assertEqual(tracks.call_args.kwargs["quality"], "mp3")
+        self.assertEqual(tracks.call_args.kwargs["sources"], ["audius"])
+        self.assertEqual(tracks.call_args.kwargs["sort"], "newest")
+        self.assertEqual(albums.call_args.kwargs["sort"], "newest")
+
     def test_artist_search_aggregates_both_catalogues_and_deduplicates_ids(self):
         jam = {"id": "jam:1", "name": "Artist", "source": "jamendo"}
         aud = {"id": "aud:2", "name": "Artist", "source": "audius"}
