@@ -64,6 +64,26 @@ class AudiusAlbumCatalogueTests(unittest.TestCase):
         self.assertIsNone(P._aud_track({"id": "x", "license": "Attribution-NonCommercial"}))
         self.assertIsNotNone(P._aud_track({"id": "x", "license": "CC BY-SA"}))
 
+    def test_audius_track_respects_creator_stream_and_visibility_restrictions(self):
+        base = {"id": "track-1", "title": "Track", "license": "CC BY"}
+        for restriction in (
+            {"is_available": False},
+            {"is_streamable": False},
+            {"is_delete": True},
+            {"is_unlisted": True},
+            {"is_stream_gated": True},
+            {"is_private": True},
+        ):
+            with self.subTest(restriction=restriction):
+                self.assertIsNone(P._aud_track({**base, **restriction}))
+        self.assertIsNotNone(P._aud_track(base))
+
+    def test_audius_album_respects_private_and_unlisted_flags(self):
+        base = {"id": "album-1", "is_album": True, "playlist_name": "Album"}
+        self.assertIsNotNone(P._aud_album(base))
+        self.assertIsNone(P._aud_album({**base, "is_private": True}))
+        self.assertIsNone(P._aud_album({**base, "is_unlisted": True}))
+
 
 class SoundCloudPriorityTests(unittest.TestCase):
     def _empty_provider_patches(self):
