@@ -101,7 +101,10 @@ def _jam_params(**extra):
 
 
 def _jam_track(t, audioformat="mp32"):
-    """Нормалізує трек Jamendo у внутрішній формат."""
+    """Нормалізує лише треки з явно дозволеною для комерційного використання CC-ліцензією."""
+    license_url = (t.get("license_ccurl") or "").strip()
+    if not _cc_commercially_usable(license_url):
+        return None
     tid = str(t.get("id") or "")
     audio = t.get("audio") or ""
     # Jamendo дозволяє перевизначити формат через параметр у стрім-URL
@@ -122,8 +125,8 @@ def _jam_track(t, audioformat="mp32"):
         "source": "jamendo",
         "source_label": "Jamendo",
         "source_url": t.get("shareurl") or f"https://www.jamendo.com/track/{tid}",
-        "license": t.get("license_ccurl") or "https://creativecommons.org/licenses/",
-        "license_short": _cc_short(t.get("license_ccurl")),
+        "license": license_url,
+        "license_short": _cc_short(license_url),
         "stream": audio,
         "downloadable": bool(int(t.get("audiodownload_allowed") or 0)) if str(
             t.get("audiodownload_allowed", "")
@@ -156,7 +159,7 @@ SORT_TO_JAMENDO_ORDER = {
 
 
 def jamendo_search_tracks(query, limit=25, offset=0, audioformat="mp32", sort="relevance"):
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return []
     params = dict(
         search=query, limit=limit, offset=offset,
@@ -168,11 +171,11 @@ def jamendo_search_tracks(query, limit=25, offset=0, audioformat="mp32", sort="r
     data = _get(f"{JAMENDO_API}/tracks/", _jam_params(**params))
     if not data:
         return []
-    return [_jam_track(t, audioformat) for t in data.get("results", [])]
+    return [track for t in data.get("results", []) if (track := _jam_track(t, audioformat))]
 
 
 def jamendo_tag_tracks(tag, limit=25, offset=0, audioformat="mp32", order="popularity_month"):
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return []
     data = _get(f"{JAMENDO_API}/tracks/", _jam_params(
         tags=tag, limit=limit, offset=offset, include="licenses",
@@ -184,7 +187,7 @@ def jamendo_tag_tracks(tag, limit=25, offset=0, audioformat="mp32", order="popul
 
 
 def jamendo_search_albums(query, limit=20, offset=0, sort="relevance"):
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return []
     params = dict(namesearch=query, limit=limit, offset=offset, imagesize=400)
     order = SORT_TO_JAMENDO_ORDER.get(sort)
@@ -209,7 +212,7 @@ def jamendo_search_albums(query, limit=20, offset=0, sort="relevance"):
 
 
 def jamendo_album_tracks(album_id, audioformat="mp32"):
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return []
     data = _get(f"{JAMENDO_API}/albums/tracks/", _jam_params(
         id=album_id, audioformat=audioformat, imagesize=400, include="licenses",
@@ -223,12 +226,14 @@ def jamendo_album_tracks(album_id, audioformat="mp32"):
         t.setdefault("album_name", album.get("name"))
         t.setdefault("album_image", album.get("image"))
         t.setdefault("album_id", album.get("id"))
-        tracks.append(_jam_track(t, audioformat))
+        track = _jam_track(t, audioformat)
+        if track:
+            tracks.append(track)
     return tracks
 
 
 def jamendo_playlists(limit=15):
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return []
     data = _get(f"{JAMENDO_API}/playlists/", _jam_params(
         limit=limit, imagesize=400, order="creationdate_desc",
@@ -249,7 +254,7 @@ def jamendo_playlists(limit=15):
 
 
 def jamendo_playlist_tracks(playlist_id, audioformat="mp32"):
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return []
     data = _get(f"{JAMENDO_API}/playlists/tracks/", _jam_params(
         id=playlist_id, audioformat=audioformat, imagesize=400, include="licenses",
@@ -264,7 +269,7 @@ def jamendo_playlist_tracks(playlist_id, audioformat="mp32"):
 
 
 def jamendo_search_artists(query, limit=20):
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return []
     data = _get(f"{JAMENDO_API}/artists/", _jam_params(
         namesearch=query, limit=limit, imagesize=400,
@@ -282,7 +287,7 @@ def jamendo_search_artists(query, limit=20):
 
 
 def jamendo_artist_tracks(artist_id, limit=40, audioformat="mp32"):
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return []
     data = _get(f"{JAMENDO_API}/artists/tracks/", _jam_params(
         id=artist_id, limit=1, track_limit=limit,
@@ -295,12 +300,14 @@ def jamendo_artist_tracks(artist_id, limit=40, audioformat="mp32"):
     for t in artist.get("tracks", []):
         t.setdefault("artist_name", artist.get("name"))
         t.setdefault("artist_id", artist.get("id"))
-        out.append(_jam_track(t, audioformat))
+        track = _jam_track(t, audioformat)
+        if track:
+            out.append(track)
     return out
 
 
 def jamendo_track(track_id, audioformat="mp32"):
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return None
     data = _get(f"{JAMENDO_API}/tracks/", _jam_params(
         id=track_id, audioformat=audioformat, imagesize=400, include="licenses musicinfo",
@@ -312,7 +319,7 @@ def jamendo_track(track_id, audioformat="mp32"):
 
 def jamendo_similar(track_id, limit=20, audioformat="mp32"):
     """Треки, схожі на заданий — основа Smart Radio."""
-    if not JAMENDO_CLIENT_ID:
+    if not jamendo_enabled():
         return []
     data = _get(f"{JAMENDO_API}/tracks/similar/", _jam_params(
         id=track_id, limit=limit, audioformat=audioformat,
@@ -1076,7 +1083,10 @@ _SC_CACHE = {}
 
 
 def soundcloud_enabled():
-    return bool(SOUNDCLOUD_CLIENT_ID and SOUNDCLOUD_CLIENT_SECRET)
+    # SoundCloud restricts third-party aggregated on-demand streaming unless
+    # the app has explicit approval for that use case.
+    return bool(SOUNDCLOUD_CLIENT_ID and SOUNDCLOUD_CLIENT_SECRET
+                and _approval_enabled("SOUNDCLOUD_AGGREGATION_APPROVED"))
 
 
 def _sc_token():
