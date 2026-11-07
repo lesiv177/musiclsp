@@ -220,7 +220,7 @@ const { spawn } = require("node:child_process");
       if(searchStyle.fieldDisplay==="none"||searchStyle.fieldHeight<40||searchStyle.fieldWidth<300||searchStyle.fieldRadius==="0px")throw new Error("Desktop search field styling is broken: "+JSON.stringify(searchStyle));
     }
     await page.setViewportSize({width:390,height:844});
-    await page.evaluate(()=>document.querySelector("#bar").classList.add("on"));
+    await page.evaluate(()=>{document.documentElement.classList.remove("nav-hidden");document.querySelector("#bar").classList.add("on")});
     const mobileDock = await page.evaluate(() => {
       const nav=document.querySelector("#mlsp-v3 .v3-mobile-nav"), bar=document.querySelector("#bar");
       const n=nav.getBoundingClientRect(), b=bar.getBoundingClientRect();
