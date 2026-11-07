@@ -5,6 +5,34 @@ const $=id=>document.getElementById(id), E=s=>String(s??"").replace(/[&<>"']/g,c
 const tr=(key,fallback)=>{try{const value=typeof window.t==="function"?window.t(key):key;return value&&value!==key?value:(fallback??key)}catch(_){return fallback??key}};
 const st={page:"home",home:null,genres:[],moods:[],playlists:[],tab:"liked",kind:"all",seq:0,timer:null};
 function section(t,b){return '<section class="v3-section"><div class="v3-section-head"><h2>'+t+'</h2></div>'+b+'</section>'}
+
+async function renderSearchHistory(){
+ const box=$("v3SearchHistory");if(!box)return;
+ try{
+  const d=await get("/api/search-history"),items=d.items||[];
+  box.innerHTML=items.length?section("Недавні пошуки",'<div class="v3-pills">'+items.slice(0,12).map(x=>'<button class="v3-pill" data-search-replay="'+E(x.query)+'">'+E(x.query)+'</button>').join("")+'</div><button class="v3-pill" id="v3ClearSearchHistory">Очистити історію</button>'):"";
+  box.querySelectorAll("[data-search-replay]").forEach(b=>b.onclick=()=>{$("v3SearchInput").value=b.dataset.searchReplay;search();});
+  $("v3ClearSearchHistory")?.addEventListener("click",async()=>{await post("/api/search-history",{action:"clear"});renderSearchHistory();});
+ }catch(_){box.innerHTML="";}
+}
+async function renderReleaseRadar(root){
+ const host=$("v3ReleaseRadar");if(!host)return;
+ try{
+  const d=await get("/api/release-radar"),artists=d.artists||[],releases=d.releases||[];
+  host.innerHTML=section("Release Radar · Нові релізи",artists.length?'<p class="v3-subtitle">Відстежуєш '+artists.length+' артистів</p>':'<p class="v3-subtitle">Підписуйся на артистів, щоб бачити їхні нові альбоми тут.</p>')+
+   (releases.length?'<div class="v3-shelf">'+releases.slice(0,12).map((x,i)=>shelfCard(x,i,"radar")).join("")+'</div>':'<div class="v3-empty">Поки немає нових релізів. Відкрий сторінку артиста й натисни «Стежити».</div>')+
+   (artists.length?'<div class="v3-pills">'+artists.map(x=>'<button class="v3-pill" data-unfollow="'+E(x.artist_id)+'">'+E(x.artist_name||x.artist?.name||"Артист")+' ×</button>').join("")+'</div>':"");
+  host.querySelectorAll("[data-shelf]").forEach(b=>b.onclick=()=>openCollection("albums",releases[+b.dataset.index]));
+  host.querySelectorAll("[data-unfollow]").forEach(b=>b.onclick=async()=>{await post("/api/release-radar/follow",{action:"unfollow",id:b.dataset.unfollow});renderReleaseRadar(root);});
+ }catch(e){host.innerHTML='<div class="v3-empty">Release Radar: '+E(e.message)+'</div>';}
+}
+async function renderSavedCollection(box,kind){
+ try{
+  const d=await get("/api/collection?kind="+kind),items=d.items||[];
+  box.innerHTML=items.length?'<div class="v3-track-list">'+items.map((x,i)=>'<button class="v3-track" data-saved-index="'+i+'"><img src="'+E(x.data?.cover||"")+'" alt=""><span class="v3-track-meta"><b>'+E(x.data?.title||x.data?.name||x.item_id)+'</b><small>'+E(kind==="artist"?"Артист":"Альбом")+'</small></span>↗</button>').join("")+'</div>':'<div class="v3-empty">Тут поки порожньо.</div>';
+  box.querySelectorAll("[data-saved-index]").forEach(b=>b.onclick=()=>{const x=items[+b.dataset.savedIndex];openCollection(kind==="artist"?"artists":"albums",{...x.data,id:x.item_id});});
+ }catch(e){box.innerHTML='<div class="v3-empty">'+E(e.message)+'</div>';}
+}
 function row(t,i,ctx="default"){return '<div class="v3-track" data-i="'+i+'" data-context="'+ctx+'"><img src="'+E(t.cover||"")+'" alt="" loading="lazy" onerror="this.style.opacity=.15"><span class="v3-track-meta"><b>'+E(t.title||"Без назви")+'</b><small>'+E(t.artist||"Невідомий артист")+(t.duration_str?' · '+E(t.duration_str):'')+'</small></span><button class="v3-track-action" data-menu="'+i+'">···</button></div>'}
 function bindRows(root,list,ctx="default"){root.querySelectorAll(".v3-track[data-i][data-context='"+ctx+"']").forEach(el=>el.onclick=e=>{const i=+el.dataset.i;if(e.target.closest("[data-menu]"))openTrackMenu(list[i]);else setQueue(list,i);});}
 function nav(page,options={}){if(page==="upgrade"){openPlan();return;}st.page=page;document.querySelectorAll(".v3-page").forEach(x=>x.classList.toggle("active",x.id==="v3-"+page));document.querySelectorAll("#mlsp-v3 [data-page]").forEach(x=>x.classList.toggle("active",x.dataset.page===page));if(page==="home"&&!$("v3-home")?.querySelector(".v3-hero"))home();if(page==="explore"&&!st.genres.length)explore();if(page==="library"&&!options.skipLibraryReload)library(st.tab);if(page==="profile")profile();window.scrollTo(0,0);}
@@ -75,14 +103,17 @@ async function explore(){
   root.innerHTML='<div class="v3-eyebrow">EXPLORE / FIND YOUR NEXT SOUND</div><h1 class="v3-page-title">'+tr("hero_cta","Відкривай більше.")+'</h1><p class="v3-subtitle">'+tr("onboard_body","Жанри, настрої та артисти за межами звичного.")+'</p>'+
   section(tr("h_mood","Настрій"),'<div class="v3-pills">'+st.moods.map((m,i)=>'<button class="v3-pill" data-mood="'+i+'">'+E(m.label)+'</button>').join("")+'</div>')+
   section(tr("search_genres","Жанри"),'<div class="v3-genre-grid">'+st.genres.map((g,i)=>'<button class="v3-genre" data-genre="'+i+'"><b>'+E(g.label)+'</b><small>ДОСЛІДИТИ ↗</small></button>').join("")+'</div>');
+  root.insertAdjacentHTML("beforeend",'<div id="v3ReleaseRadar"></div>');
+  renderReleaseRadar(root);
   root.querySelectorAll("[data-mood]").forEach(b=>b.onclick=()=>{const m=st.moods[+b.dataset.mood];if(m.locked)toast(tr("ui_mood_premium","Цей настрій доступний у Premium"));else moodV3(m.key,m.label);});
   root.querySelectorAll("[data-genre]").forEach(b=>b.onclick=()=>{const g=st.genres[+b.dataset.genre];genreV3(g.tag,g.label);});
  }catch(e){root.innerHTML='<div class="v3-empty">Не вдалося завантажити каталог: '+E(e.message)+'</div>';}
 }
 function searchPage(){
- $("v3-search").innerHTML='<div class="v3-eyebrow">SEARCH / MUSIC DATABASE</div><h1 class="v3-page-title">'+tr("search_empty_title","Find your sound.")+'</h1><p class="v3-subtitle">'+tr("search_empty_body","Search tracks, artists and albums.")+'</p><label class="v3-searchbox">⌕ <input id="v3SearchInput" placeholder="'+tr("search_ph","Track, artist or album...")+'"></label><div class="v3-pills" id="v3Kinds">'+["all","tracks","artists","albums"].map((x,i)=>'<button class="v3-pill '+(i===0?"active":"")+'" data-kind="'+x+'">'+({all:tr("search_all","All"),tracks:tr("search_tracks","Tracks"),artists:tr("search_artists","Artists"),albums:tr("search_albums","Albums")}[x])+'</button>').join("")+'</div><div id="v3Results"><div class="v3-empty">'+tr("onboard_body","Введи назву або ім’я виконавця, щоб почати.")+'</div></div>';
+ $("v3-search").innerHTML='<div class="v3-eyebrow">SEARCH / MUSIC DATABASE</div><h1 class="v3-page-title">'+tr("search_empty_title","Find your sound.")+'</h1><p class="v3-subtitle">'+tr("search_empty_body","Search tracks, artists and albums.")+'</p><label class="v3-searchbox">⌕ <input id="v3SearchInput" placeholder="'+tr("search_ph","Track, artist or album...")+'"></label><div class="v3-pills" id="v3Kinds">'+["all","tracks","artists","albums"].map((x,i)=>'<button class="v3-pill '+(i===0?"active":"")+'" data-kind="'+x+'">'+({all:tr("search_all","All"),tracks:tr("search_tracks","Tracks"),artists:tr("search_artists","Artists"),albums:tr("search_albums","Albums")}[x])+'</button>').join("")+'</div><div id="v3SearchHistory"></div><div id="v3Results"><div class="v3-empty">'+tr("onboard_body","Введи назву або ім’я виконавця, щоб почати.")+'</div></div>';
  $("v3SearchInput").oninput=()=>{clearTimeout(st.timer);st.timer=setTimeout(search,350);};$("v3SearchInput").onkeydown=e=>{if(e.key==="Enter")search();};
  $("v3Kinds").querySelectorAll("button").forEach(b=>b.onclick=()=>{st.kind=b.dataset.kind;$("v3Kinds").querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===b));search();});
+ renderSearchHistory();
 }
 function collectionRows(list,kind){
  return '<div class="v3-track-list">'+list.map((x,i)=>'<button class="v3-track" data-collection="'+i+'" data-collection-kind="'+kind+'"><img src="'+E(x.cover||"")+'" alt="" loading="lazy"><span class="v3-track-meta"><b>'+E(x.name||x.title||"")+'</b><small>'+E(kind==="artists"?(tr("artist_label","Artist")):(tr("search_albums","Albums")))+(x.source_label?" · "+E(x.source_label):"")+'</small></span>↗</button>').join("")+'</div>';
@@ -99,7 +130,7 @@ async function openCollection(kind,item){
   const root=$("v3-collection");
   root.innerHTML='<button class="v3-pill v3-back" id="v3CollBack">‹ Назад</button>'+
    '<div class="v3-coll-hero"><img src="'+E(cover)+'" alt="" onerror="this.style.opacity=.15"><div><div class="v3-eyebrow">'+(isAlb?"АЛЬБОМ":"АРТИСТ")+'</div><h1 class="v3-page-title">'+E(title)+'</h1><p class="v3-coll-by">'+E(by)+'</p><p class="v3-coll-meta">'+E(meta)+'</p></div></div>'+
-   '<div class="v3-coll-actions"><button class="v3-coll-play" id="v3CollPlay">▶ Слухати</button><button class="v3-pill" id="v3CollShuffle">Перемішати</button></div>'+
+   '<div class="v3-coll-actions"><button class="v3-coll-play" id="v3CollPlay">▶ Слухати</button><button class="v3-pill" id="v3CollShuffle">Перемішати</button><button class="v3-pill" id="v3SaveCollection">＋ Зберегти</button>'+(isAlb?"":'<button class="v3-pill" id="v3FollowArtist">＋ Стежити</button>')+'</div>'+
    '<div class="v3-track-list v3-coll-list">'+list.map((t,i)=>row(t,i,"coll")).join("")+'</div>';
   nav("collection");
   document.querySelectorAll("#mlsp-v3 [data-page]").forEach(x=>x.classList.toggle("active",x.dataset.page===st.prev));
@@ -107,6 +138,9 @@ async function openCollection(kind,item){
   $("v3CollBack").onclick=()=>nav(st.prev||"home");
   $("v3CollPlay").onclick=()=>setQueue(list,0);
   $("v3CollShuffle").onclick=()=>setQueue(list.slice().sort(()=>Math.random()-.5),0);
+  $("v3SaveCollection").onclick=async()=>{const kind=isAlb?"album":"artist",id=String(item.id||"");if(!id)return toast("Немає ID елемента");const r=await post("/api/collection",{kind,id,item:{id,title,name:title,artist:by,cover}});if(r.ok){$("v3SaveCollection").textContent="✓ Збережено";toast("Додано до колекції");}};
+  if(!isAlb)$("v3FollowArtist").onclick=async()=>{const r=await post("/api/release-radar/follow",{id:String(item.id||""),artist:{id:item.id,name:title,title,cover}});if(r.ok){$("v3FollowArtist").textContent="✓ Стежиш";toast("Артиста додано до Release Radar");}};
+
  }catch(e){toast(e.message);}
 }
 async function search(){
@@ -118,6 +152,7 @@ async function search(){
  try{
   const d=await get("/api/search?q="+encodeURIComponent(q)+"&type="+encodeURIComponent(st.kind)+"&limit=30&sort=relevance");
   if(seq!==st.seq)return;
+  renderSearchHistory();
   const results=d.results||{};
   if(st.kind==="all"&&results&&!Array.isArray(results)){
    const tracks=(typeof noBlocked==="function"?noBlocked:(l=>l))(Array.isArray(results.tracks)?results.tracks:[]);
@@ -146,10 +181,12 @@ async function search(){
 }
 async function library(tab){
  st.tab=tab;const root=$("v3-library");
- root.innerHTML='<div class="v3-eyebrow">YOUR MUSIC / COLLECTION</div><h1 class="v3-page-title">'+tr("nav_lib","Твоя колекція.")+'</h1><p class="v3-subtitle">'+tr("lib_liked_empty_body","Усе, що ти зберіг, слухав і створив.")+'</p><div class="v3-library-tabs">'+[["liked",tr("lib_liked","Saved")],["playlists",tr("lib_playlists","Playlists")],["history",tr("lib_history","History")],["moments",tr("lib_moments","Moments")]].map(x=>'<button class="'+(tab===x[0]?"active":"")+'" data-tab="'+x[0]+'">'+x[1]+'</button>').join("")+'</div><div id="v3LibraryBody"><div class="v3-empty">'+tr("ui_loading","Завантаження…")+'</div></div>';
+ root.innerHTML='<div class="v3-eyebrow">YOUR MUSIC / COLLECTION</div><h1 class="v3-page-title">'+tr("nav_lib","Твоя колекція.")+'</h1><p class="v3-subtitle">'+tr("lib_liked_empty_body","Усе, що ти зберіг, слухав і створив.")+'</p><div class="v3-library-tabs">'+[["liked",tr("lib_liked","Saved")],["playlists",tr("lib_playlists","Playlists")],["history",tr("lib_history","History")],["albums","Альбоми"],["artists","Артисти"],["searches","Пошуки"],["moments",tr("lib_moments","Moments")]].map(x=>'<button class="'+(tab===x[0]?"active":"")+'" data-tab="'+x[0]+'">'+x[1]+'</button>').join("")+'</div><div id="v3LibraryBody"><div class="v3-empty">'+tr("ui_loading","Завантаження…")+'</div></div>';
  root.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>library(b.dataset.tab));const box=$("v3LibraryBody");
  try{
   if(tab==="playlists"){const d=await get("/api/playlists"),ps=d.playlists||[];box.innerHTML='<button class="v3-pill active" id="v3Create">＋ '+tr("lib_create_playlist","Створити плейлист")+'</button><div style="height:12px"></div><div class="v3-track-list">'+ps.map(p=>'<button class="v3-track" data-pl="'+E(p.id)+'"><span class="v3-avatar" style="width:42px;height:42px">♫</span><span class="v3-track-meta"><b>'+E(p.name)+'</b><small>'+(Number(p.count)||0)+' треків</small></span>›</button>').join("")+'</div>'+(ps.length?"":'<div class="v3-empty">'+tr("lib_create_playlist","Створи першу музичну добірку.")+'</div>');$("v3Create").onclick=()=>openCreatePlaylist();box.querySelectorAll("[data-pl]").forEach(b=>b.onclick=()=>playlist(b.dataset.pl));return;}
+  if(tab==="albums"||tab==="artists"){renderSavedCollection(box,tab==="albums"?"album":"artist");return;}
+  if(tab==="searches"){box.innerHTML='<div id="v3LibrarySearchHistory"></div>';const d=await get("/api/search-history"),items=d.items||[];const h=$("v3LibrarySearchHistory");h.innerHTML=items.length?'<div class="v3-track-list">'+items.map((x,i)=>'<button class="v3-track" data-query-index="'+i+'"><span class="v3-track-meta"><b>'+E(x.query)+'</b><small>'+E(x.kind)+'</small></span><span>↗</span></button>').join("")+'</div><button class="v3-pill" id="v3ClearSearches">Очистити історію</button>':'<div class="v3-empty">Історія пошуку порожня.</div>';h.querySelectorAll("[data-query-index]").forEach(b=>b.onclick=()=>{nav("search");$("v3SearchInput").value=items[+b.dataset.queryIndex].query;search();});$("v3ClearSearches")?.addEventListener("click",async()=>{await post("/api/search-history",{action:"clear"});library("searches");});return;}
   if(tab==="moments"){box.innerHTML='<div class="v3-empty">'+tr("moments_empty_body","Збережені моменти можна відкривати з плеєра під час прослуховування.")+'</div>';return;}
   const d=await get(tab==="liked"?"/api/library":"/api/history"),list=d.tracks||[];box.innerHTML=list.length?'<div class="v3-track-list">'+list.map((t,i)=>row(t,i)).join("")+'</div>':'<div class="v3-empty">'+tr("ui_empty_body","Тут поки порожньо. Знайди музику й додай її до своєї колекції.")+'</div>';bindRows(box,list);
  }catch(e){box.innerHTML='<div class="v3-empty">Не вдалося завантажити: '+E(e.message)+'</div>';}
