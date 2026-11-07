@@ -31,7 +31,7 @@ from core.connect import Hub, valid_device_id
 from core.auth import verify_init_data
 from core.config import (
     ADMIN_IDS, PREMIUM_FEATURES, FREE_LIMITS, PREMIUM_LIMITS,
-    APP_VERSION, JAMENDO_CLIENT_ID, BOT_USERNAME, REFERRAL_REWARD_DAYS,
+    APP_VERSION, BOT_USERNAME, REFERRAL_REWARD_DAYS,
     ADMIN_CMD_PASSWORD,
 )
 
@@ -1078,7 +1078,7 @@ async def h_admin_system(request, u):
     return ok({
         "ok": True,
         "providers": {
-            "jamendo": bool(JAMENDO_CLIENT_ID), "audius": True,
+            "jamendo": P.jamendo_enabled(), "audius": True,
             "archive": bool(getattr(CFG, "ARCHIVE_ENABLED", True)),
             "soundcloud": bool(P.soundcloud_enabled()),
             "youtube": bool(getattr(P, "youtube_enabled", lambda: False)()),
