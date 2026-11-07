@@ -136,6 +136,9 @@ const { spawn } = require("node:child_process");
     await page.locator('#v3-profile [data-prof="plan"]').first().click();
     await page.waitForSelector("#modal.on .plan-choice");
     await page.locator("#modal").evaluate(el=>el.classList.remove("on"));
+    await page.locator('.v3-mobile-nav [data-page="upgrade"]').click();
+    await page.waitForSelector("#modal.on .plan-choice",{timeout:5000});
+    await page.locator("#modal").evaluate(el=>el.classList.remove("on"));
 
     // The original device-control element and Connect runtime remain mounted.
     // Changing the account locale refreshes V3 copy without reloading the app.
