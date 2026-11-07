@@ -20,6 +20,7 @@ import hashlib
 
 from core import db
 from core import providers as P
+from core.release_radar import is_recent_release
 from core.config import (
     WORKER_INTERVAL, BOT_TOKEN, APP_NAME, APP_VERSION, FREE_LIMITS,
     RENEWAL_REMINDER_HOURS, RELEASE_RADAR_INTERVAL,
