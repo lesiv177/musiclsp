@@ -247,7 +247,11 @@ def _resolve_checked(track_id, quality, force=False):
             return hit
     if is_dead(track_id) and not force:
         return ""
-    url = P.resolve_stream(track_id, quality)
+    try:
+        url = P.resolve_stream(track_id, quality)
+    except Exception as exc:
+        logger.warning("Stream resolver failed for %s: %s", track_id, type(exc).__name__)
+        return ""
     if url:
         verdict = check_url(url)
         if verdict is True:
