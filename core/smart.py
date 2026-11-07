@@ -116,7 +116,10 @@ def _preflight_track(track, quality="mp32"):
             url = P.resolve_stream(tid, quality) or ""
         except Exception:
             return False
-    if not url or not check_url(url, timeout=5):
+    if not url:
+        # Resolver failure may be a provider timeout; retry on the next request.
+        return False
+    if not check_url(url, timeout=5):
         mark_dead(tid)
         return False
     track["stream"] = url
