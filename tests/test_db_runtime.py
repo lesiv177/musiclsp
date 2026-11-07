@@ -91,6 +91,13 @@ class SQLiteDevicePersistenceTests(unittest.TestCase):
         self.database_patch.stop()
         self.tmp.cleanup()
 
+    def test_followed_artists_are_persisted_per_user(self):
+        self.assertTrue(db.artist_follow(987646, "jam:artist-1", {"name": "Artist One"}))
+        self.assertEqual(db.artist_following(987646)[0]["artist_name"], "Artist One")
+        self.assertEqual(db.artist_following(987645), [])
+        self.assertTrue(db.artist_unfollow(987646, "jam:artist-1"))
+        self.assertEqual(db.artist_following(987646), [])
+
     def test_saved_queue_round_trip_is_account_scoped_and_bounded(self):
         tracks = [{"id": "a", "title": "A", "artist": "Artist", "extra": "ignored"}]
         self.assertEqual(db.queue_save(987650, tracks), 1)
