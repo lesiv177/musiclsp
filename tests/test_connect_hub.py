@@ -212,6 +212,22 @@ class HubTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.snap(self.mac)["owner"], "phone")    # власник не втрачений
         self.assertIn("phone", [d["id"] for d in self.snap(self.mac)["devices"]])
 
+    async def test_replaced_socket_cannot_send_commands_or_claim_owner(self):
+        await self.hub.handle(1, "phone", {"type": "claim", "state": state()})
+        old_send = self.phone.send
+        new_phone = FakeDevice()
+        await self.hub.connect(1, "phone", "iPhone", "ios", new_phone.send)
+        new_phone.clear()
+
+        await self.hub.handle(1, "phone", {"type": "claim", "state": state(9)}, send=old_send)
+        await self.hub.handle(1, "phone", {"type": "cmd", "id": "old", "action": "pause"}, send=old_send)
+
+        snapshot = self.snap(new_phone)
+        self.assertEqual(snapshot["owner"], "phone")
+        self.assertEqual(snapshot["state"]["track"]["id"], "jam:1")
+        self.assertFalse(new_phone.of("exec", action="pause"))
+        self.assertFalse(new_phone.of("state"))
+
     async def test_playqueue_goes_to_owner_with_clean_state(self):
         await self.hub.handle(1, "phone", {"type": "claim", "state": state()})
         self.phone.clear()
