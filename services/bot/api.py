@@ -759,8 +759,8 @@ async def h_playlists_post(request, u):
         return ok({"ok": True}) if done else fail(err)
 
     if action == "remove_track":
-        await to_thread(db.pl_remove_track, uid, int(body["pid"]), body["id"])
-        return ok({"ok": True})
+        removed = await to_thread(db.pl_remove_track, uid, int(body["pid"]), body["id"])
+        return ok({"ok": True}) if removed else fail("Плейлист не знайдено", 404)
 
     if action == "copy":
         p, err = await to_thread(db.pl_copy, uid, int(body["pid"]), body.get("name"))

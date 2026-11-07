@@ -138,6 +138,26 @@ class SQLiteDevicePersistenceTests(unittest.TestCase):
         self.assertEqual(db.search_history_clear(987652), 1)
         self.assertEqual(db.search_history_list(987652), [])
 
+    def test_playlist_track_removal_is_owner_scoped(self):
+        owner = 987660
+        playlist, error = db.pl_create(owner, "My playlist")
+        self.assertEqual(error, "")
+        self.assertTrue(db.pl_add_track(owner, playlist["id"], {"id": "track-1", "title": "Track"})[0])
+        self.assertFalse(db.pl_remove_track(owner + 1, playlist["id"], "track-1"))
+        self.assertEqual(len(db.pl_get(playlist["id"])["tracks"]), 1)
+        self.assertTrue(db.pl_remove_track(owner, playlist["id"], "track-1"))
+        self.assertEqual(db.pl_get(playlist["id"])["tracks"], [])
+
+    def test_playlist_copy_cannot_read_or_copy_another_users_playlist(self):
+        owner = 987661
+        playlist, error = db.pl_create(owner, "Private playlist")
+        self.assertEqual(error, "")
+        self.assertTrue(db.pl_add_track(owner, playlist["id"], {"id": "private-track", "title": "Private"})[0])
+        copied, error = db.pl_copy(owner + 1, playlist["id"], "Stolen copy")
+        self.assertIsNone(copied)
+        self.assertEqual(error, "Плейлист не знайдено")
+        self.assertEqual(db.pl_list(owner + 1), [])
+
     def test_promo_codes_are_normalized_validated_and_unique(self):
         self.assertTrue(db.promo_create(" launch_2026 ", 14, 2))
         self.assertFalse(db.promo_create("LAUNCH_2026", 14, 2))

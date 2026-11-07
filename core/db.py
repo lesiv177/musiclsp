@@ -811,6 +811,11 @@ def pl_delete(uid, pid):
 
 
 def pl_copy(uid, source_pid, new_name=None):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT uid FROM playlists WHERE id=%s"), (source_pid,))
+        owner = one(cur)
+    if not owner or int(owner["uid"]) != int(uid):
+        return None, "Плейлист не знайдено"
     src = pl_get(source_pid)
     if not src:
         return None, "Плейлист не знайдено"
