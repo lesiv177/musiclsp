@@ -100,9 +100,10 @@ class SQLiteDevicePersistenceTests(unittest.TestCase):
 
     def test_saved_queue_round_trip_is_account_scoped_and_bounded(self):
         tracks = [{"id": "a", "title": "A", "artist": "Artist", "extra": "ignored"}]
-        self.assertEqual(db.queue_save(987650, tracks), 1)
+        self.assertEqual(db.queue_save(987650, tracks, 8), 1)
         saved = db.queue_get(987650)
         self.assertEqual(saved["tracks"][0]["id"], "a")
+        self.assertEqual(saved["current_index"], 0)
         self.assertNotIn("extra", saved["tracks"][0])
         self.assertEqual(db.queue_get(987649)["tracks"], [])
 
