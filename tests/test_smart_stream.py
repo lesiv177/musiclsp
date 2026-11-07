@@ -35,6 +35,12 @@ class StreamValidationTests(unittest.TestCase):
             self.assertTrue(smart._preflight_track({"id": track_id}))
         self.assertFalse(smart.is_dead(track_id))
 
+    def test_preflight_does_not_mark_track_dead_when_resolver_returns_no_url(self):
+        track_id = "aud:temporary-resolver-failure"
+        with patch.object(smart.P, "resolve_stream", return_value=""):
+            self.assertFalse(smart._preflight_track({"id": track_id}))
+        self.assertFalse(smart.is_dead(track_id))
+
     def test_check_url_treats_provider_rate_limit_and_server_error_as_transient(self):
         class Response:
             def __init__(self, status): self.status_code = status
