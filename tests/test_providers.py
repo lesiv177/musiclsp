@@ -128,6 +128,47 @@ class SoundCloudPriorityTests(unittest.TestCase):
             session.return_value.head.assert_called_once()
 
 
+class CommercialProviderApprovalTests(unittest.TestCase):
+    def test_jamendo_requires_credentials_and_commercial_approval(self):
+        with (
+            patch.object(P, "JAMENDO_CLIENT_ID", "client"),
+            patch.dict(P._os.environ, {"JAMENDO_COMMERCIAL_APPROVED": "false"}),
+        ):
+            self.assertFalse(P.jamendo_enabled())
+            with patch.object(P, "_get") as get:
+                self.assertEqual(P.jamendo_search_tracks("music"), [])
+                get.assert_not_called()
+        with (
+            patch.object(P, "JAMENDO_CLIENT_ID", "client"),
+            patch.dict(P._os.environ, {"JAMENDO_COMMERCIAL_APPROVED": "true"}),
+        ):
+            self.assertTrue(P.jamendo_enabled())
+
+    def test_soundcloud_requires_explicit_aggregation_approval(self):
+        with (
+            patch.object(P, "SOUNDCLOUD_CLIENT_ID", "client"),
+            patch.object(P, "SOUNDCLOUD_CLIENT_SECRET", "secret"),
+            patch.dict(P._os.environ, {"SOUNDCLOUD_AGGREGATION_APPROVED": "false"}),
+        ):
+            self.assertFalse(P.soundcloud_enabled())
+        with (
+            patch.object(P, "SOUNDCLOUD_CLIENT_ID", "client"),
+            patch.object(P, "SOUNDCLOUD_CLIENT_SECRET", "secret"),
+            patch.dict(P._os.environ, {"SOUNDCLOUD_AGGREGATION_APPROVED": "true"}),
+        ):
+            self.assertTrue(P.soundcloud_enabled())
+
+    def test_jamendo_tracks_require_explicit_commercially_usable_license(self):
+        base = {"id": "7", "name": "Track", "audio": "https://audio.example/7.mp3"}
+        self.assertIsNone(P._jam_track({**base, "license_ccurl": ""}))
+        self.assertIsNone(P._jam_track({**base, "license_ccurl":
+            "http://creativecommons.org/licenses/by-nc-sa/3.0/"}))
+        allowed = P._jam_track({**base, "license_ccurl":
+            "http://creativecommons.org/licenses/by/4.0/"})
+        self.assertIsNotNone(allowed)
+        self.assertEqual(allowed["license_short"], "CC BY")
+
+
 class GlobalSearchCoverageTests(unittest.TestCase):
     def test_global_search_requests_optional_catalogues(self):
         with (
