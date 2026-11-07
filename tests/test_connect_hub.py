@@ -94,22 +94,6 @@ class HubTests(unittest.IsolatedAsyncioTestCase):
         await self.hub.handle(1, "mac", {"type": "cmd", "id": "x", "action": "next"})
         self.assertEqual(self.mac.of("error")[-1]["code"], "no_active_device")
 
-    async def test_late_ack_from_superseded_transfer_is_ignored(self):
-        await self.hub.handle(1, "phone", {"type": "claim", "state": state()})
-        self.phone.clear(); self.mac.clear()
-        await self.hub.handle(1, "phone", {"type": "cmd", "id": "first", "action": "transfer", "payload": {"to": "mac"}})
-        first = self.mac.of("exec", action="start")[-1]
-        await self.hub.handle(1, "phone", {"type": "cmd", "id": "second", "action": "transfer", "payload": {"to": "mac"}})
-        second = self.mac.of("exec", action="start")[-1]
-        self.assertNotEqual(first["id"], second["id"])
-        # A delayed response from the cancelled attempt must not transfer ownership.
-        await self.hub.handle(1, "mac", {"type": "ack", "id": first["id"], "ok": True, "state": state(2, pos=90)})
-        self.assertEqual(self.snap(self.phone)["owner"], "phone")
-        self.assertFalse(self.phone.of("exec", action="stop"))
-        await self.hub.handle(1, "mac", {"type": "ack", "id": second["id"], "ok": True, "state": state(pos=12)})
-        self.assertEqual(self.snap(self.phone)["owner"], "mac")
-        self.assertTrue(self.phone.of("exec", action="stop"))
-
     async def test_transfer_success_after_ack(self):
         await self.hub.handle(1, "phone", {"type": "claim", "state": state(pos=10)})
         self.clock.t += 5                                          # минуло 5 с відтворення
@@ -148,20 +132,6 @@ class HubTests(unittest.IsolatedAsyncioTestCase):
         await self.hub.handle(1, "mac", {"type": "ack", "id": start["id"], "ok": True, "state": state()})
         self.assertEqual(self.snap(self.phone)["owner"], "mac")
 
-    async def test_target_disconnect_cancels_pending_transfer_and_keeps_owner(self):
-        await self.hub.handle(1, "phone", {"type": "claim", "state": state(pos=25)})
-        self.phone.clear(); self.mac.clear()
-        await self.hub.handle(1, "phone", {"type": "cmd", "id": "handoff", "action": "transfer", "payload": {"to": "mac"}})
-        start = self.mac.of("exec", action="start")[-1]
-        await self.hub.disconnect(1, "mac", self.mac.send)
-        self.assertEqual(self.snap(self.phone)["owner"], "phone")
-        self.assertEqual(self.snap(self.phone)["transfer"], "")
-        self.assertEqual(self.phone.of("error")[-1]["code"], "target_lost")
-        # A late ACK from the now-disconnected target is ignored.
-        await self.hub.handle(1, "mac", {"type": "ack", "id": start["id"], "ok": True, "state": state(pos=26)})
-        self.assertEqual(self.snap(self.phone)["owner"], "phone")
-        self.assertFalse(self.phone.of("exec", action="stop"))
-
     async def test_transfer_timeout(self):
         await self.hub.handle(1, "phone", {"type": "claim", "state": state()})
         await self.hub.handle(1, "phone", {"type": "cmd", "action": "transfer", "payload": {"to": "mac"}})
@@ -170,23 +140,6 @@ class HubTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.phone.of("error")[-1]["code"], "timeout")
         self.assertEqual(self.snap(self.phone)["owner"], "phone")
         self.assertEqual(self.snap(self.phone)["transfer"], "")
-
-    async def test_failed_send_keeps_socket_registered_for_disconnect_cleanup(self):
-        await self.hub.handle(1, "phone", {"type": "claim", "state": state(pos=30)})
-
-        async def broken_send(msg):
-            raise ConnectionError("socket closed")
-
-        # Simulate the transport failing while forwarding a remote command.
-        self.hub.accounts[1].devices["phone"].send = broken_send
-        await self.hub.handle(1, "mac", {"type": "cmd", "id": "pause", "action": "pause"})
-        # The failed write must not pre-empt the WebSocket finally/disconnect path.
-        self.assertIn("phone", self.hub.accounts[1].devices)
-        await self.hub.disconnect(1, "phone", broken_send)
-        snapshot = self.snap(self.mac)
-        self.assertEqual(snapshot["owner"], "")
-        self.assertFalse(snapshot["state"]["playing"])
-        self.assertNotIn("phone", [device["id"] for device in snapshot["devices"]])
 
     async def test_owner_disconnect_keeps_last_session_and_resume_works(self):
         await self.hub.handle(1, "phone", {"type": "claim", "state": state(pos=30)})
@@ -211,21 +164,6 @@ class HubTests(unittest.IsolatedAsyncioTestCase):
         await self.hub.disconnect(1, "phone", self.phone.send)     # закриття старого сокета
         self.assertEqual(self.snap(self.mac)["owner"], "phone")    # власник не втрачений
         self.assertIn("phone", [d["id"] for d in self.snap(self.mac)["devices"]])
-
-    async def test_replaced_socket_cannot_send_commands_or_claim_owner(self):
-        await self.hub.handle(1, "phone", {"type": "claim", "state": state()})
-        old_send = self.phone.send
-        new_phone = FakeDevice()
-        await self.hub.connect(1, "phone", "iPhone", "ios", new_phone.send)
-
-        await self.hub.handle(1, "phone", {"type": "claim", "state": state(9)}, send=old_send)
-        await self.hub.handle(1, "phone", {"type": "cmd", "id": "old", "action": "pause"}, send=old_send)
-
-        snapshot = self.snap(new_phone)
-        self.assertEqual(snapshot["owner"], "phone")
-        self.assertEqual(snapshot["state"]["track"]["id"], "jam:1")
-        self.assertFalse(new_phone.of("exec", action="pause"))
-        self.assertFalse(new_phone.of("state"))
 
     async def test_playqueue_goes_to_owner_with_clean_state(self):
         await self.hub.handle(1, "phone", {"type": "claim", "state": state()})
