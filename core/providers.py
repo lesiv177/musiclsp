@@ -94,6 +94,15 @@ JAMENDO_TAGS = [
 ]
 
 
+def _approval_enabled(name):
+    return _os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def jamendo_enabled():
+    # Jamendo's API terms require a separate commercial-use agreement.
+    return bool(JAMENDO_CLIENT_ID) and _approval_enabled("JAMENDO_COMMERCIAL_APPROVED")
+
+
 def _jam_params(**extra):
     p = {"client_id": JAMENDO_CLIENT_ID, "format": "json"}
     p.update(extra)
