@@ -98,6 +98,24 @@ class SQLiteDevicePersistenceTests(unittest.TestCase):
         self.assertTrue(db.artist_unfollow(987646, "jam:artist-1"))
         self.assertEqual(db.artist_following(987646), [])
 
+    def test_release_radar_notifications_are_unique_and_user_scoped(self):
+        uid = 987654
+        other_uid = 987655
+        db.get_user(uid)
+        db.get_user(other_uid)
+        db.artist_follow(uid, "jam:artist-2", {"name": "Artist Two"})
+        db.artist_follow(other_uid, "jam:artist-2", {"name": "Artist Two"})
+
+        followed = [item for item in db.artist_following_all() if item["uid"] == uid]
+        self.assertEqual(len(followed), 1)
+        self.assertEqual(followed[0]["lang"], "uk")
+        self.assertEqual(db.release_radar_unnotified(uid, ["release-1"]), ["release-1"])
+
+        db.release_radar_mark_notified(uid, ["release-1", "release-1"])
+        self.assertEqual(db.release_radar_unnotified(uid, ["release-1"]), [])
+        self.assertEqual(db.release_radar_unnotified(other_uid, ["release-1"]), ["release-1"])
+
+
     def test_saved_queue_round_trip_is_account_scoped_and_bounded(self):
         tracks = [{"id": "a", "title": "A", "artist": "Artist", "extra": "ignored"}]
         self.assertEqual(db.queue_save(987650, tracks, 8), 1)
