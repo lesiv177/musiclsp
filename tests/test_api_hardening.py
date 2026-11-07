@@ -87,6 +87,45 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class MusicCatalogueRouteTests(unittest.IsolatedAsyncioTestCase):
+    async def test_album_search_uses_merged_provider_catalogue(self):
+        request = SimpleNamespace(
+            query={"q": "Example Album", "type": "albums", "limit": "10", "sort": "relevance", "sources": ""},
+            headers={},
+        )
+        albums = [{"id": "aud:album-1", "title": "Example Album", "source": "audius"}]
+        async def inline_to_thread(fn, *args, **kwargs):
+            return fn(*args, **kwargs)
+        with (
+            patch.object(api, "auth_user", return_value={"uid": 7}),
+            patch.object(api.db, "limits_for", return_value={"search_results_max": 30}),
+            patch.object(api.db, "bump_counter", return_value=(True, 2, 20)),
+            patch.object(api, "to_thread", side_effect=inline_to_thread),
+            patch.object(api.P, "search_albums_smart", return_value=albums) as search,
+        ):
+            response = await api.h_search(request)
+        payload = json.loads(response.text)
+        self.assertEqual(payload["results"], albums)
+        search.assert_called_once_with("Example Album", 10, "relevance")
+
+    async def test_audius_album_route_returns_album_tracks(self):
+        request = SimpleNamespace(match_info={"aid": "aud:album-1"}, headers={})
+        tracks = [{"id": "aud:track-1", "title": "Track", "album": "Album"}]
+        async def inline_to_thread(fn, *args, **kwargs):
+            return fn(*args, **kwargs)
+        with (
+            patch.object(api, "auth_user", return_value={"uid": 7}),
+            patch.object(api, "quality_for", return_value="high"),
+            patch.object(api, "to_thread", side_effect=inline_to_thread),
+            patch.object(api.P, "audius_album_tracks", return_value=tracks) as album_tracks,
+        ):
+            response = await api.h_album(request)
+        payload = json.loads(response.text)
+        self.assertEqual(payload["tracks"], tracks)
+        self.assertEqual(payload["album"]["id"], "aud:album-1")
+        album_tracks.assert_called_once_with("album-1")
+
+
 class SearchRouteTests(unittest.TestCase):
     def test_search_handler_requires_auth(self):
         """Регресія: h_search лишився без @require_auth, і пошук падав з TypeError."""
