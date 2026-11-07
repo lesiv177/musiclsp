@@ -158,6 +158,15 @@ class CommercialProviderApprovalTests(unittest.TestCase):
         ):
             self.assertTrue(P.soundcloud_enabled())
 
+    def test_soundcloud_approval_gate_also_blocks_direct_stream_resolution(self):
+        with (
+            patch.object(P, "soundcloud_enabled", return_value=False),
+            patch.object(P, "_sc_headers") as headers,
+        ):
+            self.assertEqual(P.soundcloud_stream_url("123"), "")
+            self.assertIsNone(P.soundcloud_track("123"))
+            headers.assert_not_called()
+
     def test_jamendo_tracks_require_explicit_commercially_usable_license(self):
         base = {"id": "7", "name": "Track", "audio": "https://audio.example/7.mp3"}
         self.assertIsNone(P._jam_track({**base, "license_ccurl": ""}))
