@@ -433,6 +433,83 @@ class CcMixterApiContractTests(unittest.TestCase):
         self.assertEqual(call.kwargs["params"]["f"], "rss")
 
 
+
+class PersistedOpenCataloguePlaybackTests(unittest.TestCase):
+    def test_ccmixter_track_reloads_by_numeric_upload_id(self):
+        entry = {
+            "upload_id": "12345", "upload_name": "Saved Track", "user_name": "Artist",
+            "file_url": "https://ccmixter.example/saved.mp3",
+            "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        }
+        with patch.object(P, "_ccm_cache_get", return_value=None), \\
+             patch.object(P, "_get", return_value=[entry]) as get, \\
+             patch.object(P, "_ccm_cache_put") as cache_put:
+            track = P.ccmixter_track("12345")
+        self.assertEqual(track["id"], "ccm:12345")
+        self.assertEqual(track["stream"], entry["file_url"])
+        self.assertEqual(get.call_args.args[1], {"ids": "12345", "f": "json"})
+        cache_put.assert_called_once_with(track)
+
+    def test_ccmixter_rejects_non_numeric_ids_without_network(self):
+        with patch.object(P, "_get") as get:
+            self.assertIsNone(P.ccmixter_track("not-an-id"))
+        get.assert_not_called()
+
+    def test_openverse_track_reloads_detail_and_rechecks_license(self):
+        uid = "12345678-1234-4abc-8def-1234567890ab"
+        item = {
+            "id": uid, "url": "https://audio.example/saved.mp3",
+            "title": "Saved Track", "license": "by",
+            "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        }
+        with patch.object(P, "_ov_cache_get", return_value=None), \\
+             patch.object(P, "_get", return_value=item) as get, \\
+             patch.object(P, "_ov_cache_put") as cache_put:
+            track = P.openverse_track(uid)
+        self.assertEqual(track["id"], f"ov:{uid}")
+        self.assertEqual(track["stream"], item["url"])
+        self.assertEqual(get.call_args.args[0], f"{P.OPENVERSE_API}{uid}/")
+        cache_put.assert_called_once_with(track)
+
+    def test_openverse_rejects_noncommercial_license_on_reload(self):
+        uid = "12345678-1234-4abc-8def-1234567890ab"
+        item = {
+            "id": uid, "url": "https://audio.example/saved.mp3",
+            "license": "by-nc",
+            "license_url": "https://creativecommons.org/licenses/by-nc/4.0/",
+        }
+        with patch.object(P, "_ov_cache_get", return_value=None), \\
+             patch.object(P, "_get", return_value=item):
+            self.assertIsNone(P.openverse_track(uid))
+
+    def test_wikimedia_track_reloads_by_page_id_and_rechecks_license(self):
+        page = {"title": "File:Saved.ogg", "pageid": 42, "imageinfo": [{
+            "mime": "audio/ogg", "url": "https://upload.wikimedia.org/saved.ogg",
+            "extmetadata": {"LicenseUrl": {
+                "value": "https://creativecommons.org/licenses/by/4.0/"
+            }},
+        }]}
+        with patch.object(P, "_wm_cache_get", return_value=None), \\
+             patch.object(P, "_get", return_value={"query": {"pages": {"42": page}}}) as get, \\
+             patch.object(P, "_wm_cache_put") as cache_put:
+            track = P.wikimedia_track("42")
+        self.assertEqual(track["id"], "wm:42")
+        self.assertEqual(track["stream"], page["imageinfo"][0]["url"])
+        self.assertEqual(get.call_args.args[1]["pageids"], "42")
+        cache_put.assert_called_once_with(track)
+
+    def test_wikimedia_rejects_noncommercial_license_on_reload(self):
+        page = {"title": "File:Saved.ogg", "pageid": 42, "imageinfo": [{
+            "mime": "audio/ogg", "url": "https://upload.wikimedia.org/saved.ogg",
+            "extmetadata": {"LicenseUrl": {
+                "value": "https://creativecommons.org/licenses/by-nc/4.0/"
+            }},
+        }]}
+        with patch.object(P, "_wm_cache_get", return_value=None), \\
+             patch.object(P, "_get", return_value={"query": {"pages": {"42": page}}}):
+            self.assertIsNone(P.wikimedia_track("42"))
+
+
 class ArchiveCuratedCatalogueTests(unittest.TestCase):
     def test_archive_collection_tracks_exclude_missing_and_noncommercial_licenses(self):
         docs = [
