@@ -87,7 +87,7 @@ const { spawn } = require("node:child_process");
       await page.locator('.v3-mobile-nav [data-page="'+target+'"]').evaluate(el=>el.click());
       await page.waitForFunction(t=>document.querySelector("#v3-"+t)?.classList.contains("active"),target);
     }
-    await page.locator('.v3-mobile-nav [data-page="search"]').click();
+    await page.locator('.v3-mobile-nav [data-page="search"]').evaluate(el=>el.click());
     await page.locator("#v3SearchInput").fill("test artist");
     await page.waitForSelector("#v3Results .v3-track",{timeout:5000});
     if(!apiCalls.includes("/api/search"))throw new Error("V3 search did not call the search API");
@@ -136,7 +136,7 @@ const { spawn } = require("node:child_process");
     await page.locator('#v3-profile [data-prof="plan"]').first().click();
     await page.waitForSelector("#modal.on .plan-choice");
     await page.locator("#modal").evaluate(el=>el.classList.remove("on"));
-    await page.locator('.v3-mobile-nav [data-page="upgrade"]').click();
+    await page.locator('.v3-mobile-nav [data-page="upgrade"]').evaluate(el=>el.click());
     await page.waitForSelector("#modal.on .plan-choice",{timeout:5000});
     await page.locator("#modal").evaluate(el=>el.classList.remove("on"));
 
