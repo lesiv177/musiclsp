@@ -389,6 +389,42 @@ class OpenCatalogueRightsTests(unittest.TestCase):
         self.assertEqual(len(P._ccm_from_xml(allowed_xml, 10)), 1)
 
 
+
+class CcMixterApiContractTests(unittest.TestCase):
+    def test_json_search_uses_documented_search_parameter_over_https(self):
+        entry = {
+            "upload_id": "cc-1", "upload_name": "Track", "user_name": "Artist",
+            "file_url": "https://ccmixter.example/track.mp3",
+            "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        }
+        with patch.object(P, "_get", return_value=[entry]) as get:
+            results = P.ccmixter_search("ambient", limit=5)
+        self.assertEqual([item["id"] for item in results], ["ccm:cc-1"])
+        self.assertEqual(get.call_args.args[0], "https://ccmixter.org/api/query")
+        self.assertEqual(get.call_args.args[1]["search"], "ambient")
+        self.assertEqual(get.call_args.args[1]["search_type"], "any")
+        self.assertEqual(get.call_args.args[1]["f"], "json")
+        self.assertNotIn("query", get.call_args.args[1])
+
+    def test_xml_fallback_requests_rss_with_documented_search_parameter(self):
+        class Response:
+            status_code = 200
+            text = ('<rss><channel><item><title>Track</title>'
+                    '<enclosure url="https://ccmixter.example/a.mp3"/>'
+                    '<license href="https://creativecommons.org/licenses/by/4.0/"/>'
+                    '</item></channel></rss>')
+        with patch.object(P, "_get", return_value=None), \\
+             patch.object(P, "_http_session") as session:
+            session.return_value.get.return_value = Response()
+            results = P.ccmixter_search("ambient", limit=5)
+        self.assertEqual(len(results), 1)
+        call = session.return_value.get.call_args
+        self.assertEqual(call.args[0], "https://ccmixter.org/api/query")
+        self.assertEqual(call.kwargs["params"]["search"], "ambient")
+        self.assertEqual(call.kwargs["params"]["search_type"], "any")
+        self.assertEqual(call.kwargs["params"]["f"], "rss")
+
+
 class ArchiveCuratedCatalogueTests(unittest.TestCase):
     def test_archive_collection_tracks_exclude_missing_and_noncommercial_licenses(self):
         docs = [
