@@ -35,6 +35,7 @@ from core import db
 from core import runtime as RT
 from core import providers as P
 from services.bot import api
+from services.worker import main as worker
 from core.config import (
     BOT_TOKEN, ADMIN_IDS, WEB_APP_URL, API_URL, PORT,
     JAMENDO_CLIENT_ID, PREMIUM_FEATURES, APP_NAME, APP_VERSION,
@@ -1479,15 +1480,27 @@ async def run():
     else:
         logger.warning("PostgreSQL недоступний: міжконтейнерний polling lock не активний")
 
+    worker_task = None
     try:
         await application.start()
         # Не відкидаємо повідомлення користувачів під час кожного деплою.
         await application.updater.start_polling(drop_pending_updates=False)
+        # Worker стартує лише після отримання polling lock, щоб під час rollout
+        # старий і новий контейнери не виконували фонові задачі паралельно.
+        worker_task = asyncio.create_task(
+            worker.run(initialize=False), name="musiclsp-background-worker"
+        )
         logger.info("%s %s запущено", APP_NAME, APP_VERSION)
         while True:
             await asyncio.sleep(3600)
     finally:
         try:
+            if worker_task:
+                worker_task.cancel()
+                try:
+                    await worker_task
+                except asyncio.CancelledError:
+                    pass
             if application.updater.running:
                 await application.updater.stop()
             if application.running:
