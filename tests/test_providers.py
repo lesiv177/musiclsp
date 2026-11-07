@@ -21,7 +21,7 @@ class AudiusAlbumCatalogueTests(unittest.TestCase):
              "permalink": "/artist/example-album"},
             {"id": "playlist-1", "is_album": False, "playlist_name": "Mix"},
         ]}
-        with patch.object(P, "audius_host", return_value="https://audius.test"), \\
+        with patch.object(P, "audius_host", return_value="https://audius.test"), \
              patch.object(P, "_get", return_value=payload) as get:
             albums = P.audius_search_albums("Example", 10)
         self.assertEqual(len(albums), 1)
@@ -43,7 +43,7 @@ class AudiusAlbumCatalogueTests(unittest.TestCase):
             {"id": "track-2", "title": "Noncommercial", "license": "cc-by-nc-sa",
              "user": {"name": "Original Artist"}, "duration": 120},
         ]}
-        with patch.object(P, "audius_host", return_value="https://audius.test"), \\
+        with patch.object(P, "audius_host", return_value="https://audius.test"), \
              patch.object(P, "_get", side_effect=[metadata, tracks]):
             result = P.audius_album_tracks("album-1")
         self.assertEqual(len(result), 1)
