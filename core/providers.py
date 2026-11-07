@@ -1622,13 +1622,9 @@ _ARCHIVE_CURATED_COLLECTIONS = [
 
 
 def _synthetic_collections(limit):
-    """Jamendo-tag collections are shown only when Jamendo is enabled."""
+    """Build Jamendo-tag collections only when its approved catalogue is enabled."""
     if not jamendo_enabled():
         return []
-    """Запасний варіант, коли офіційні плейлисти Jamendo/Audius порожні
-    (лімітований ключ, нема куратора цього тижня, тимчасовий збій тощо).
-    Пакуємо вже наявний каталог у добірки за жанром — це той самий легальний
-    контент, просто інше групування, тому нічого юридично не змінюється."""
     out = []
     for tag, label in _CURATED_FALLBACK_TAGS[:limit]:
         cover = ""
