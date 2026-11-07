@@ -29,7 +29,8 @@ const { spawn } = require("node:child_process");
     else if (path === "/api/genres") data = {ok:true,genres:[{tag:"jazz",label:"Jazz"}]};
     else if (path === "/api/stats") data = {ok:true,stats:{plays:12,hours:3,library:1,top_artists:[]}};
     else if (path === "/api/library") data = {ok:true,tracks:[{id:"qa-liked",title:"Saved track",artist:"QA Artist",cover:"",duration:180,duration_str:"3:00"}]};
-    else if (path === "/api/playlists") data = {ok:true,playlists:[]};
+    else if (path === "/api/playlists" && route.request().method()==="GET") data = {ok:true,playlists:[{id:42,name:"QA playlist",count:1}]};
+    else if (path === "/api/playlist/42") data = {ok:true,playlist:{id:42,name:"QA playlist",tracks:[{id:"qa-playlist-track",title:"Playlist track",artist:"QA Artist",cover:"",duration:180,duration_str:"3:00"}]}};
     else if (path === "/api/history") data = {ok:true,tracks:[]};
     else if (path === "/api/search") {
       const q=url.searchParams.get("q"),type=url.searchParams.get("type");
@@ -69,8 +70,21 @@ const { spawn } = require("node:child_process");
     const visibleLegacy=await page.locator("#scHome").evaluate(el=>getComputedStyle(el).display!=="none");
     if(visibleLegacy)throw new Error("Legacy app screen is still visible");
 
+    // Opening a playlist from the home shelf must switch to the library page and render its tracks.
+    const homePlaylistRequest=page.waitForRequest(req=>new URL(req.url()).pathname==="/api/playlist/42");
+    await page.locator("#v3-home [data-pl=\"42\"]").click();
+    await homePlaylistRequest;
+    await page.waitForSelector("#v3-library #v3PlayAll");
+    if(!(await page.locator("#v3-library").isVisible()) || !(await page.locator("#v3-library").textContent()).includes("QA playlist"))
+      throw new Error("Home playlist selection did not navigate to and render the playlist");
+    await page.locator("#v3Back").click();
+    await page.waitForSelector("#v3LibraryBody [data-pl=\"42\"]");
+
+    const dockMetrics=await page.evaluate(()=>{const n=document.querySelector("#mlsp-v3 .v3-mobile-nav"),r=n.getBoundingClientRect();return {display:getComputedStyle(n).display,position:getComputedStyle(n).position,top:r.top,bottom:r.bottom,width:r.width,height:r.height,viewport:window.innerHeight};});
+    if(dockMetrics.display!=="grid"||dockMetrics.position!=="fixed"||dockMetrics.bottom>dockMetrics.viewport||dockMetrics.top<0||dockMetrics.width<300)
+      throw new Error("Mobile navigation dock is outside the visible viewport: "+JSON.stringify(dockMetrics));
     for(const target of ["explore","search","library","profile","home"]){
-      await page.locator('.v3-mobile-nav [data-page="'+target+'"]').first().click();
+      await page.locator('.v3-mobile-nav [data-page="'+target+'"]').evaluate(el=>el.click());
       await page.waitForFunction(t=>document.querySelector("#v3-"+t)?.classList.contains("active"),target);
     }
     await page.locator('.v3-mobile-nav [data-page="search"]').click();
@@ -103,6 +117,12 @@ const { spawn } = require("node:child_process");
     await page.locator('#v3-library [data-tab="history"]').click();
     await page.waitForSelector("#v3LibraryBody .v3-empty");
     await page.locator('#v3-library [data-tab="playlists"]').click();
+    const libraryPlaylistRequest=page.waitForRequest(req=>new URL(req.url()).pathname==="/api/playlist/42");
+    await page.locator("#v3LibraryBody [data-pl=\"42\"]").click();
+    await libraryPlaylistRequest;
+    await page.waitForSelector("#v3-library #v3PlayAll");
+    await page.locator("#v3Back").click();
+    await page.waitForSelector("#v3Create");
     await page.locator("#v3Create").click();
     await page.locator("#plName").fill("QA playlist");
     await page.locator("#plDesc").fill("Created by browser smoke test");
@@ -168,6 +188,43 @@ const { spawn } = require("node:child_process");
     await page.locator("#modal").evaluate(el=>el.classList.remove("on"));
     for(const id of ["barRemote","devicesList","barOutput"])if(!(await page.locator("#"+id).count()))throw new Error("Connect control missing: "+id);
 
+    // Desktop V3 must not render the legacy navigation beside its own sidebar.
+    await page.setViewportSize({width:1366,height:900});
+    await page.waitForTimeout(100);
+    const desktopShell = await page.evaluate(() => ({
+      legacyNav: getComputedStyle(document.querySelector(".nav.app-nav")).display,
+      v3Sidebar: getComputedStyle(document.querySelector("#mlsp-v3 .v3-sidebar")).display,
+      appMargin: getComputedStyle(document.querySelector("#appRoot")).marginLeft,
+      barZ: getComputedStyle(document.querySelector("#bar")).zIndex
+    }));
+    if (desktopShell.legacyNav !== "none" || desktopShell.v3Sidebar === "none" || desktopShell.appMargin !== "0px")
+      throw new Error("Desktop V3 shell has duplicate/offset legacy navigation: "+JSON.stringify(desktopShell));
+    await page.evaluate(() => { window.__barPlayClicks=0; window.barTogglePlay=()=>{window.__barPlayClicks++}; });
+    await page.locator("#barPlay").click();
+    if (await page.evaluate(()=>window.__barPlayClicks) !== 1)
+      throw new Error("Desktop mini-player play/pause button did not receive click");
+
+    for (const width of [1024,1366,1600]) {
+      await page.setViewportSize({width,height:900});
+      const layout = await page.evaluate(() => {
+        const root=document.querySelector("#mlsp-v3"), sidebar=root.querySelector(".v3-sidebar"), main=root.querySelector(".v3-main");
+        const grid=getComputedStyle(root).gridTemplateColumns.split(" ").filter(Boolean);
+        return {gridColumns:grid.length,sidebar:getComputedStyle(sidebar).display,mainWidth:main.getBoundingClientRect().width,rootWidth:root.getBoundingClientRect().width};
+      });
+      if(layout.gridColumns!==2||layout.sidebar==="none"||layout.mainWidth<500)
+        throw new Error("Desktop layout is not balanced at "+width+"px: "+JSON.stringify(layout));
+    }
+    await page.setViewportSize({width:390,height:844});
+    await page.evaluate(()=>document.querySelector("#bar").classList.add("on"));
+    const mobileDock = await page.evaluate(() => {
+      const nav=document.querySelector("#mlsp-v3 .v3-mobile-nav"), bar=document.querySelector("#bar");
+      const n=nav.getBoundingClientRect(), b=bar.getBoundingClientRect();
+      return {navDisplay:getComputedStyle(nav).display,navPosition:getComputedStyle(nav).position,barVisible:getComputedStyle(bar).display!=="none",overlap:Math.min(n.bottom,b.bottom)-Math.max(n.top,b.top)>0};
+    });
+    if(mobileDock.navDisplay!=="grid"||mobileDock.navPosition!=="fixed"||!mobileDock.barVisible||mobileDock.overlap)
+      throw new Error("Mobile dock/player layout is broken or overlapping: "+JSON.stringify(mobileDock));
+    await page.evaluate(()=>document.querySelector("#bar").classList.remove("on"));
+    await page.setViewportSize({width:1366,height:900});
     // Queue management is part of the retained player runtime.
     await page.evaluate(()=>{window.eval('S.queue=[{id:"qa-1",title:"One",artist:"QA"},{id:"qa-2",title:"Two",artist:"QA"},{id:"qa-3",title:"Three",artist:"QA"}];S.index=0;');openQueue();});
     await page.locator('#qModal [data-down="0"]').click();
