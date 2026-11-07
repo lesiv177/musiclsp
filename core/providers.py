@@ -397,15 +397,30 @@ def audius_host(force_new=False):
         return _audius_host
 
 
+def _aud_content_accessible(item):
+    """Reject Audius items whose creator settings disallow public API playback."""
+    if not isinstance(item, dict):
+        return False
+    if item.get("is_available") is False or item.get("is_streamable") is False:
+        return False
+    if item.get("is_delete") is True or item.get("is_unlisted") is True:
+        return False
+    if item.get("is_stream_gated") is True or item.get("is_private") is True:
+        return False
+    return True
+
+
 def _aud_track(t):
-    # Audius grants API access under its platform terms, but explicit
-    # Creative Commons NonCommercial uploads are not suitable for a
-    # monetised third-party catalogue.
+    # Respect creator API/stream restrictions as well as explicit CC-NC terms.
+    if not _aud_content_accessible(t):
+        return None
     license = str(t.get("license") or "").strip().lower()
     compact_license = re.sub(r"[^a-z]", "", license)
     if "noncommercial" in compact_license or re.search(r"(^|[-_])nc($|[-_])", license):
         return None
-    tid = str(t.get("id") or "")
+    tid = str(t.get("id") or "").strip()
+    if not tid:
+        return None
     art = t.get("artwork") or {}
     cover = art.get("480x480") or art.get("150x150") or art.get("1000x1000") or ""
     user = t.get("user") or {}
@@ -434,7 +449,7 @@ def _aud_track(t):
 
 def _aud_album(item):
     """Normalise Audius albums; Audius represents album releases as playlists."""
-    if not isinstance(item, dict):
+    if not _aud_content_accessible(item):
         return None
     is_album = item.get("is_album") is True or str(item.get("type") or "").lower() == "album"
     if not is_album:
@@ -1607,6 +1622,9 @@ _ARCHIVE_CURATED_COLLECTIONS = [
 
 
 def _synthetic_collections(limit):
+    """Jamendo-tag collections are shown only when Jamendo is enabled."""
+    if not jamendo_enabled():
+        return []
     """Запасний варіант, коли офіційні плейлисти Jamendo/Audius порожні
     (лімітований ключ, нема куратора цього тижня, тимчасовий збій тощо).
     Пакуємо вже наявний каталог у добірки за жанром — це той самий легальний
