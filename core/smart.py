@@ -85,17 +85,23 @@ def check_url(url, timeout=4):
     if hit is not None:
         return hit
     ok = True
+    ttl = 300
     try:
         r = P._http_session().head(url, timeout=timeout, allow_redirects=True)
         if r.status_code in (403, 405, 501):          # HEAD не підтримується — пробуємо шматок
             r = P._http_session().get(url, timeout=timeout, headers={"Range": "bytes=0-1"},
                                stream=True, allow_redirects=True)
             r.close()
-        ok = r.status_code < 400
+        status = r.status_code
+        if status in (408, 429) or status >= 500:
+            # Тимчасова помилка/ліміт провайдера — не оголошуємо трек мертвим.
+            ok, ttl = True, 30
+        else:
+            ok = status not in (404, 410) and status < 400
     except Exception:
-        # Не можемо підтвердити доступність — трек не показуємо.
-        ok = False
-    cache_put(key, ok, 300 if ok else 120)
+        # Timeout/network error не доводить, що сам URL мертвий.
+        ok, ttl = True, 30
+    cache_put(key, ok, ttl)
     return ok
 
 
