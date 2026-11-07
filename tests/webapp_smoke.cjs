@@ -216,6 +216,9 @@ const { spawn } = require("node:child_process");
       });
       if(layout.gridColumns!==2||layout.sidebar==="none"||layout.mainWidth<500)
         throw new Error("Desktop layout is not balanced at "+width+"px: "+JSON.stringify(layout));
+      const desktopFrame=await page.evaluate(()=>{const r=document.querySelector("#mlsp-v3"),s=getComputedStyle(r),b=r.getBoundingClientRect();return {width:b.width,marginLeft:b.left,border:s.borderTopWidth,radius:s.borderTopLeftRadius,background:s.backgroundColor};});
+      if(desktopFrame.width<900||desktopFrame.marginLeft<8||desktopFrame.border==="0px"||parseFloat(desktopFrame.radius)<18)
+        throw new Error("Desktop platform frame is missing or too narrow at "+width+"px: "+JSON.stringify(desktopFrame));
       const searchStyle=await page.evaluate(()=>{const top=document.querySelector("#mlsp-v3 .v3-topbar"),field=document.querySelector("#mlsp-v3 .v3-top-search"),a=getComputedStyle(top),b=getComputedStyle(field),r=field.getBoundingClientRect();return {topBackground:a.backgroundColor,topBorder:a.borderTopWidth,fieldHeight:r.height,fieldRadius:b.borderRadius,fieldWidth:r.width,fieldDisplay:b.display};});
       if(searchStyle.fieldDisplay==="none"||searchStyle.fieldHeight<40||searchStyle.fieldWidth<300||searchStyle.fieldRadius==="0px")throw new Error("Desktop search field styling is broken: "+JSON.stringify(searchStyle));
     }
@@ -228,6 +231,9 @@ const { spawn } = require("node:child_process");
     });
     if(mobileDock.navDisplay!=="grid"||mobileDock.navPosition!=="fixed"||!mobileDock.barVisible||mobileDock.overlap)
       throw new Error("Mobile dock/player layout is broken or overlapping: "+JSON.stringify(mobileDock));
+    const phoneFrame=await page.evaluate(()=>{const r=document.querySelector("#mlsp-v3"),s=getComputedStyle(r),b=r.getBoundingClientRect();return {width:b.width,left:b.left,border:s.borderTopWidth,radius:s.borderTopLeftRadius,maxWidth:s.maxWidth};});
+    if(phoneFrame.width>560||phoneFrame.width<300||phoneFrame.left<0||phoneFrame.border==="0px"||parseFloat(phoneFrame.radius)<18)
+      throw new Error("Dedicated phone frame is missing or outside viewport: "+JSON.stringify(phoneFrame));
     await page.evaluate(()=>document.querySelector("#bar").classList.remove("on"));
     await page.setViewportSize({width:1366,height:900});
     // Queue management is part of the retained player runtime.
