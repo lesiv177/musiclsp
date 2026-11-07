@@ -1,4 +1,5 @@
 import datetime
+import asyncio
 import unittest
 from unittest.mock import AsyncMock, patch
 
@@ -30,6 +31,21 @@ class PremiumExpiryTimestampTests(unittest.TestCase):
     def test_invalid_expiry_value_is_rejected(self):
         with self.assertRaises((TypeError, ValueError)):
             normalize_expiry_timestamp("not-a-date")
+
+
+class WorkerLifecycleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_worker_can_reuse_the_bot_database_pool(self):
+        with (
+            patch.object(worker.db, "init_engine") as init_engine,
+            patch.object(worker, "cycle", new_callable=AsyncMock) as cycle,
+            patch.object(worker.asyncio, "sleep", new_callable=AsyncMock,
+                         side_effect=asyncio.CancelledError),
+        ):
+            with self.assertRaises(asyncio.CancelledError):
+                await worker.run(initialize=False)
+
+        init_engine.assert_not_called()
+        cycle.assert_awaited_once()
 
 
 class ReleaseRadarNotificationTests(unittest.IsolatedAsyncioTestCase):
