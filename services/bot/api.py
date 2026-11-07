@@ -605,7 +605,7 @@ async def h_queue_post(request, u):
     body = await json_object(request)
     if body is None or not isinstance(body.get("tracks"), list):
         return fail("Очікується список треків")
-    count = await to_thread(db.queue_save, int(u["uid"]), body["tracks"])
+    count = await to_thread(db.queue_save, int(u["uid"]), body["tracks"], body.get("current_index", 0))
     return ok({"ok": True, "count": count})
 
 
