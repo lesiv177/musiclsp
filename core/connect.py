@@ -278,14 +278,17 @@ class Hub:
 
     # ── повідомлення від пристроїв ───────────────────────────────────────────
 
-    async def handle(self, uid, dev_id, msg):
-        """Єдина точка входу для повідомлень зі зʼєднання."""
+    async def handle(self, uid, dev_id, msg, send=None):
+        """Єдина точка входу; за наявності перевіряє власника конкретного сокета."""
         if not isinstance(msg, dict):
             return
         kind = msg.get("type")
         async with self._lock(uid):
             acc = self.accounts.get(uid)
-            if not acc or dev_id not in acc.devices:
+            dev = acc.devices.get(dev_id) if acc else None
+            # A reconnected device may reuse its stable device_id. Messages from
+            # the superseded WebSocket must not control the replacement session.
+            if not dev or (send is not None and dev.send != send):
                 return
             if kind == "state":
                 await self._on_state(acc, dev_id, msg.get("state"))
