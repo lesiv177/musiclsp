@@ -826,7 +826,9 @@ def archive_collection_tracks(collection, limit=40, subject=None):
 
 
 def archive_stream_url(identifier):
-    """Шукає перший придатний аудіофайл у записі архіву."""
+    """Шукає перший придатний аудіофайл у записі активного архівного джерела."""
+    if not ARCHIVE_ENABLED:
+        return ""
     meta = _get(f"https://archive.org/metadata/{identifier}")
     if not meta:
         return ""
