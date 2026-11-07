@@ -610,6 +610,47 @@ async def h_queue_post(request, u):
 
 
 @require_auth
+async def h_release_radar_get(request, u):
+    uid = int(u["uid"])
+    follows = await to_thread(db.artist_following, uid)
+    feed = []
+    for followed in follows[:30]:
+        artist = followed.get("artist") or {}
+        name = followed.get("artist_name") or artist.get("name") or ""
+        if not name:
+            continue
+        albums = await to_thread(P.search_albums_smart, name, 8)
+        for album in albums or []:
+            album_artist = str(album.get("artist") or album.get("artist_name") or "").casefold()
+            if album_artist and name.casefold() not in album_artist and album_artist not in name.casefold():
+                continue
+            album["followed_artist"] = name
+            feed.append(album)
+    seen, unique = set(), []
+    for album in feed:
+        key = str(album.get("id") or (album.get("title"), album.get("artist")))
+        if key not in seen:
+            seen.add(key)
+            unique.append(album)
+    return ok({"ok": True, "artists": follows, "releases": unique[:60]})
+
+
+@require_auth
+async def h_artist_follow_post(request, u):
+    uid = int(u["uid"])
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
+    artist_id = body.get("id", "")
+    if body.get("action") == "unfollow":
+        done = await to_thread(db.artist_unfollow, uid, artist_id)
+        return ok({"ok": True, "following": False, "removed": bool(done)})
+    artist = body.get("artist") or {}
+    done = await to_thread(db.artist_follow, uid, artist_id, artist)
+    return ok({"ok": True, "following": bool(done)}) if done else fail("Не вдалося підписатися на артиста")
+
+
+@require_auth
 async def h_collection_get(request, u):
     kind = request.query.get("kind", "")
     if kind not in ("", "album", "artist"):
@@ -1318,6 +1359,8 @@ def build_app():
     r.add_post("/api/library", h_library_post)
     r.add_get("/api/queue", h_queue_get)
     r.add_post("/api/queue", h_queue_post)
+    r.add_get("/api/release-radar", h_release_radar_get)
+    r.add_post("/api/release-radar/follow", h_artist_follow_post)
     r.add_get("/api/collection", h_collection_get)
     r.add_post("/api/collection", h_collection_post)
     r.add_post("/api/library/import", h_import_playlist)
