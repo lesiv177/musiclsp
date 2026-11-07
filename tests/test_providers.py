@@ -13,6 +13,52 @@ def run_jobs_inline(jobs, timeout=4):
     return results
 
 
+class AudiusAlbumCatalogueTests(unittest.TestCase):
+    def test_album_search_returns_only_album_collections(self):
+        payload = {"data": [
+            {"id": "album-1", "is_album": True, "playlist_name": "Example Album",
+             "user": {"name": "Example Artist"}, "artwork": {"480x480": "https://img.test/a.jpg"},
+             "permalink": "/artist/example-album"},
+            {"id": "playlist-1", "is_album": False, "playlist_name": "Mix"},
+        ]}
+        with patch.object(P, "audius_host", return_value="https://audius.test"), \\
+             patch.object(P, "_get", return_value=payload) as get:
+            albums = P.audius_search_albums("Example", 10)
+        self.assertEqual(len(albums), 1)
+        self.assertEqual(albums[0]["id"], "aud:album-1")
+        self.assertEqual(albums[0]["title"], "Example Album")
+        self.assertEqual(albums[0]["artist"], "Example Artist")
+        self.assertEqual(albums[0]["source_url"], "https://audius.co/artist/example-album")
+        self.assertEqual(get.call_args.args[0], "https://audius.test/v1/playlists/search")
+
+    def test_album_tracks_include_collection_metadata_and_filter_noncommercial_tracks(self):
+        metadata = {"data": {
+            "playlist_name": "Example Album",
+            "user": {"name": "Example Artist"},
+            "artwork": {"480x480": "https://img.test/album.jpg"},
+        }}
+        tracks = {"data": [
+            {"id": "track-1", "title": "Allowed", "license": "cc-by",
+             "user": {"name": "Original Artist"}, "duration": 120},
+            {"id": "track-2", "title": "Noncommercial", "license": "cc-by-nc-sa",
+             "user": {"name": "Original Artist"}, "duration": 120},
+        ]}
+        with patch.object(P, "audius_host", return_value="https://audius.test"), \\
+             patch.object(P, "_get", side_effect=[metadata, tracks]):
+            result = P.audius_album_tracks("album-1")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["id"], "aud:track-1")
+        self.assertEqual(result[0]["album"], "Example Album")
+        self.assertEqual(result[0]["album_id"], "aud:album-1")
+        self.assertEqual(result[0]["artist"], "Example Artist")
+        self.assertEqual(result[0]["cover"], "https://img.test/album.jpg")
+
+    def test_explicit_noncommercial_audius_track_is_rejected(self):
+        self.assertIsNone(P._aud_track({"id": "x", "license": "CC BY-NC-ND"}))
+        self.assertIsNone(P._aud_track({"id": "x", "license": "Attribution-NonCommercial"}))
+        self.assertIsNotNone(P._aud_track({"id": "x", "license": "CC BY-SA"}))
+
+
 class SoundCloudPriorityTests(unittest.TestCase):
     def _empty_provider_patches(self):
         return [
@@ -29,6 +75,7 @@ class SoundCloudPriorityTests(unittest.TestCase):
         with ExitStack() as stack:
             stack.enter_context(patch.object(P, "_run_parallel", side_effect=run_jobs_inline))
             stack.enter_context(patch.object(P, "soundcloud_enabled", return_value=sc_on))
+            stack.enter_context(patch.object(P, "jamendo_enabled", return_value=True))
             ss = stack.enter_context(patch.object(P, "soundcloud_search", return_value=[sc]))
             stack.enter_context(patch.object(P, "jamendo_search_tracks", return_value=[jamendo]))
             for provider in ("audius_search_tracks", "archive_search", "ccmixter_search",
@@ -54,6 +101,7 @@ class SoundCloudPriorityTests(unittest.TestCase):
             stack.enter_context(patch.object(P, "_run_parallel", side_effect=run_jobs_inline))
             stack.enter_context(patch.object(P, "soundcloud_enabled", return_value=False))
             stack.enter_context(patch.object(P, "youtube_enabled", return_value=True))
+            stack.enter_context(patch.object(P, "jamendo_enabled", return_value=True))
             stack.enter_context(patch.object(P, "youtube_search", return_value=[yt]))
             stack.enter_context(patch.object(P, "jamendo_search_tracks", return_value=[jamendo]))
             for provider in ("audius_search_tracks", "archive_search", "ccmixter_search",
@@ -67,6 +115,7 @@ class SoundCloudPriorityTests(unittest.TestCase):
         with (
             patch.object(P, "_run_parallel", side_effect=run_jobs_inline),
             patch.object(P, "soundcloud_enabled", return_value=True),
+            patch.object(P, "jamendo_enabled", return_value=True),
             patch.object(P, "soundcloud_search") as soundcloud_search,
             patch.object(P, "jamendo_search_tracks", return_value=[jamendo]),
         ):
