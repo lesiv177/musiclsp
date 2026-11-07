@@ -91,6 +91,27 @@ class SQLiteDevicePersistenceTests(unittest.TestCase):
         self.database_patch.stop()
         self.tmp.cleanup()
 
+    def test_search_history_add_deduplicates_and_keeps_latest_entries(self):
+        uid = 987651
+        db.search_history_add(uid, "  jazz  ", "tracks")
+        db.search_history_add(uid, "JAZZ", "tracks")
+        db.search_history_add(uid, "jazz", "albums")
+        items = db.search_history_list(uid)
+        self.assertEqual(len(items), 2)
+        self.assertEqual(items[0]["kind"], "albums")
+        self.assertEqual(items[1]["query"], "JAZZ")
+
+    def test_search_history_is_user_scoped_and_can_be_removed_or_cleared(self):
+        db.search_history_add(987652, "ambient")
+        db.search_history_add(987653, "rock")
+        item = db.search_history_list(987652)[0]
+        self.assertTrue(db.search_history_remove(987652, item["id"]))
+        self.assertEqual(db.search_history_list(987652), [])
+        self.assertEqual(len(db.search_history_list(987653)), 1)
+        db.search_history_add(987652, "jazz")
+        self.assertEqual(db.search_history_clear(987652), 1)
+        self.assertEqual(db.search_history_list(987652), [])
+
     def test_promo_codes_are_normalized_validated_and_unique(self):
         self.assertTrue(db.promo_create(" launch_2026 ", 14, 2))
         self.assertFalse(db.promo_create("LAUNCH_2026", 14, 2))
