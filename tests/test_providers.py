@@ -413,8 +413,10 @@ class CcMixterApiContractTests(unittest.TestCase):
                     '<enclosure url="https://ccmixter.example/a.mp3"/>'
                     '<license href="https://creativecommons.org/licenses/by/4.0/"/>'
                     '</item></channel></rss>')
-        with patch.object(P, "_get", return_value=None), \\
-             patch.object(P, "_http_session") as session:
+        with (
+            patch.object(P, "_get", return_value=None),
+            patch.object(P, "_http_session") as session,
+        ):
             session.return_value.get.return_value = Response()
             results = P.ccmixter_search("ambient", limit=5)
         self.assertEqual(len(results), 1)
