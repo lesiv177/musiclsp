@@ -54,8 +54,10 @@ class StreamValidationTests(unittest.TestCase):
     def test_transient_stream_check_does_not_mark_track_dead(self):
         track_id = "aud:transient-resolve-regression"
         url = "https://audio.example.test/transient-resolve-regression"
-        with patch.object(smart.P, "resolve_stream", return_value=url), \
-             patch.object(smart, "check_url", return_value=None):
+        with (
+            patch.object(smart.P, "resolve_stream", return_value=url),
+            patch.object(smart, "check_url", return_value=None),
+        ):
             self.assertEqual(smart._resolve_checked(track_id, "mp32"), "")
         self.assertFalse(smart.is_dead(track_id))
 
