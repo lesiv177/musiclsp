@@ -17,6 +17,7 @@ import zipfile
 import hashlib
 import logging
 import asyncio
+from core.release_radar import is_recent_release
 import urllib.parse
 
 import requests
@@ -628,7 +629,7 @@ async def h_release_radar_get(request, u):
                 return []
         matched = []
         for album in albums or []:
-            if not isinstance(album, dict):
+            if not isinstance(album, dict) or not is_recent_release(album, days=90):
                 continue
             album_artist = str(album.get("artist") or album.get("artist_name") or "").strip().casefold()
             if album_artist and name.casefold() not in album_artist and album_artist not in name.casefold():
