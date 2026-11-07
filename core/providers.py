@@ -41,6 +41,7 @@ YOUTUBE_API_KEY = _os.environ.get("YOUTUBE_API_KEY", "").strip()   # опцій�
 
 _thread_http = threading.local()
 _PROVIDER_EXECUTOR = ThreadPoolExecutor(max_workers=12, thread_name_prefix="music-provider")
+_CATALOGUE_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="music-catalogue")
 
 
 def _http_session():
