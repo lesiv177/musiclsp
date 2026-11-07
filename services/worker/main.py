@@ -26,7 +26,6 @@ from core.config import (
     RENEWAL_REMINDER_HOURS, RELEASE_RADAR_INTERVAL,
 )
 
-logging.basicConfig(format="%(asctime)s | %(levelname)s | %(message)s", level=logging.INFO)
 log = logging.getLogger("worker")
 
 
@@ -288,6 +287,7 @@ async def run(initialize=True):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(format="%(asctime)s | %(levelname)s | %(message)s", level=logging.INFO)
     try:
         asyncio.run(run())
     except (KeyboardInterrupt, SystemExit):
