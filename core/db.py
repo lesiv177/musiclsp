@@ -208,6 +208,14 @@ SCHEMA_PG = [
         cover TEXT, duration INTEGER DEFAULT 0, source TEXT, license TEXT,
         source_url TEXT, position INTEGER DEFAULT 0
     )""",
+    """CREATE TABLE IF NOT EXISTS saved_queues (
+        uid BIGINT PRIMARY KEY, tracks_json TEXT DEFAULT '[]', updated_at TIMESTAMP DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS collection_library (
+        id SERIAL PRIMARY KEY, uid BIGINT, kind TEXT, item_id TEXT, data_json TEXT DEFAULT '{}',
+        added_at TIMESTAMP DEFAULT NOW(), UNIQUE(uid, kind, item_id)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_collection_uid ON collection_library(uid, kind)",
     """CREATE TABLE IF NOT EXISTS search_history (
         id SERIAL PRIMARY KEY, uid BIGINT, query TEXT NOT NULL, kind TEXT DEFAULT 'tracks',
         searched_at TIMESTAMP DEFAULT NOW()
@@ -859,6 +867,71 @@ def search_history_clear(uid):
     with conn_cursor() as (conn, cur):
         cur.execute(q("DELETE FROM search_history WHERE uid=%s"), (int(uid),))
         return cur.rowcount
+
+
+def queue_save(uid, tracks):
+    clean = []
+    for item in (tracks or [])[:500]:
+        if not isinstance(item, dict) or not item.get("id"):
+            continue
+        clean.append({k: item.get(k) for k in ("id", "title", "artist", "cover", "duration", "source", "license", "source_url") if item.get(k) is not None})
+    payload = json.dumps(clean, ensure_ascii=False)
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("""INSERT INTO saved_queues(uid, tracks_json, updated_at) VALUES (%s,%s,%s)
+                         ON CONFLICT(uid) DO UPDATE SET tracks_json=excluded.tracks_json, updated_at=excluded.updated_at"""),
+                    (int(uid), payload, now_str()))
+    return len(clean)
+
+
+def queue_get(uid):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("SELECT tracks_json, updated_at FROM saved_queues WHERE uid=%s"), (int(uid),))
+        row = one(cur)
+    if not row:
+        return {"tracks": [], "updated_at": None}
+    try:
+        tracks = json.loads(row.get("tracks_json") or "[]")
+    except (TypeError, ValueError):
+        tracks = []
+    return {"tracks": tracks if isinstance(tracks, list) else [], "updated_at": row.get("updated_at")}
+
+
+def collection_list(uid, kind=""):
+    with conn_cursor() as (conn, cur):
+        if kind:
+            cur.execute(q("""SELECT id, kind, item_id, data_json, added_at FROM collection_library
+                             WHERE uid=%s AND kind=%s ORDER BY added_at DESC"""), (int(uid), kind))
+        else:
+            cur.execute(q("""SELECT id, kind, item_id, data_json, added_at FROM collection_library
+                             WHERE uid=%s ORDER BY added_at DESC"""), (int(uid),))
+        found = rows(cur)
+    for item in found:
+        try:
+            item["data"] = json.loads(item.pop("data_json") or "{}")
+        except (TypeError, ValueError):
+            item["data"] = {}
+    return found
+
+
+def collection_add(uid, kind, item_id, data):
+    kind = str(kind or "").lower()
+    item_id = str(item_id or "")[:200]
+    if kind not in ("album", "artist") or not item_id or not isinstance(data, dict):
+        return False
+    payload = json.dumps(data, ensure_ascii=False)[:12000]
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("""INSERT INTO collection_library(uid, kind, item_id, data_json, added_at)
+                         VALUES (%s,%s,%s,%s,%s)
+                         ON CONFLICT(uid, kind, item_id) DO UPDATE SET data_json=excluded.data_json"""),
+                    (int(uid), kind, item_id, payload, now_str()))
+    return True
+
+
+def collection_remove(uid, kind, item_id):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("DELETE FROM collection_library WHERE uid=%s AND kind=%s AND item_id=%s"),
+                    (int(uid), str(kind or ""), str(item_id or "")[:200]))
+        return cur.rowcount > 0
 
 
 # ─── Сесії пристроїв і віддалене керування відтворенням ────────────────────────
