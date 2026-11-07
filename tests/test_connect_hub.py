@@ -171,6 +171,23 @@ class HubTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.snap(self.phone)["owner"], "phone")
         self.assertEqual(self.snap(self.phone)["transfer"], "")
 
+    async def test_failed_send_keeps_socket_registered_for_disconnect_cleanup(self):
+        await self.hub.handle(1, "phone", {"type": "claim", "state": state(pos=30)})
+
+        async def broken_send(msg):
+            raise ConnectionError("socket closed")
+
+        # Simulate the transport failing while forwarding a remote command.
+        self.hub.accounts[1].devices["phone"].send = broken_send
+        await self.hub.handle(1, "mac", {"type": "cmd", "id": "pause", "action": "pause"})
+        # The failed write must not pre-empt the WebSocket finally/disconnect path.
+        self.assertIn("phone", self.hub.accounts[1].devices)
+        await self.hub.disconnect(1, "phone", broken_send)
+        snapshot = self.snap(self.mac)
+        self.assertEqual(snapshot["owner"], "")
+        self.assertFalse(snapshot["state"]["playing"])
+        self.assertNotIn("phone", [device["id"] for device in snapshot["devices"]])
+
     async def test_owner_disconnect_keeps_last_session_and_resume_works(self):
         await self.hub.handle(1, "phone", {"type": "claim", "state": state(pos=30)})
         self.clock.t += 10
