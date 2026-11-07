@@ -24,6 +24,31 @@ class StreamValidationTests(unittest.TestCase):
             self.assertTrue(smart.check_url("https://audio.example.test/unique-range-check"))
             session.return_value.get.assert_called_once()
 
+    def test_check_url_does_not_treat_network_timeout_as_dead_track(self):
+        url = "https://audio.example.test/transient-timeout-regression"
+        with patch.object(smart.P, "_http_session") as session:
+            session.return_value.head.side_effect = TimeoutError("temporary timeout")
+            self.assertTrue(smart.check_url(url))
+        self.assertFalse(smart.is_dead("aud:transient-timeout-regression"))
+
+    def test_check_url_treats_provider_rate_limit_and_server_error_as_transient(self):
+        class Response:
+            def __init__(self, status): self.status_code = status
+            def close(self): pass
+        for status in (408, 429, 500, 502, 503):
+            url = f"https://audio.example.test/transient-status-{status}"
+            with self.subTest(status=status), patch.object(smart.P, "_http_session") as session:
+                session.return_value.head.return_value = Response(status)
+                self.assertTrue(smart.check_url(url))
+
+    def test_check_url_still_rejects_permanently_missing_track(self):
+        class Response:
+            status_code = 404
+        url = "https://audio.example.test/permanent-404-regression"
+        with patch.object(smart.P, "_http_session") as session:
+            session.return_value.head.return_value = Response()
+            self.assertFalse(smart.check_url(url))
+
     def test_unverified_soundcloud_stream_is_rejected(self):
         url = "https://cf-media.sndcdn.com/signed-stream-regression-test"
         with patch.object(smart.P, "resolve_stream", return_value=url), \
