@@ -89,6 +89,14 @@ class MiniAppContractTests(unittest.TestCase):
         self.assertIn('href="${esc(licenseUrl)}"', JS)
         self.assertIn("Умови ліцензії:", JS)
 
+    def test_youtube_tracks_use_official_embed_and_never_the_audio_resolver(self):
+        self.assertIn('function openYouTube(t)', JS)
+        self.assertIn('https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}', JS)
+        self.assertIn('https://music.youtube.com/watch?v=${encodeURIComponent(id)}', JS)
+        play = JS.split('function play(t, startAt)', 1)[1].split('\\n}', 1)[0]
+        self.assertLess(play.index('if(t.source==="youtube")'), play.index('streamUrl(t)'))
+        self.assertIn('openYouTube(t)', play)
+
     def test_player_controls_have_implementations(self):
         for function in ("barPrev", "barNext", "barTogglePlay", "toggleShuffle",
                          "toggleRepeat", "toggleLike", "openQueue", "addBookmark",
