@@ -493,3 +493,25 @@ html,body{overscroll-behavior-y:none}
 /* ══ v14: міні-плеєр опускається вниз разом зі сховом меню (через bottom, бо transform у старих стилях заблоковано !important) ══ */
 #bar.bar{transition:bottom .28s ease,opacity .2s ease}
 html.nav-hidden #bar.bar{bottom:calc(14px + env(safe-area-inset-bottom,0px))!important}
+
+/* V3 desktop shell: the legacy fixed navigation must not sit beside the V3 sidebar. */
+@media (min-width:900px){
+  #appRoot{
+    margin-left:0!important;
+    width:100%!important;
+    max-width:none!important;
+    padding:0!important;
+  }
+  .nav.app-nav{display:none!important}
+  #bar.bar{
+    left:calc(var(--mx-side) + 16px)!important;
+    right:16px!important;
+    bottom:14px!important;
+    width:auto!important;
+    max-width:none!important;
+    margin:0!important;
+    z-index:90!important;
+    pointer-events:auto!important;
+  }
+  #bar.bar button{position:relative;z-index:1;pointer-events:auto!important}
+}
