@@ -32,7 +32,7 @@ class StreamValidationTests(unittest.TestCase):
             patch.object(smart.P, "_http_session") as session,
         ):
             session.return_value.head.side_effect = TimeoutError("temporary timeout")
-            self.assertTrue(smart._preflight_track({"id": track_id}))
+            self.assertFalse(smart._preflight_track({"id": track_id}))
         self.assertFalse(smart.is_dead(track_id))
 
     def test_preflight_does_not_mark_track_dead_when_resolver_returns_no_url(self):
@@ -49,7 +49,21 @@ class StreamValidationTests(unittest.TestCase):
             url = f"https://audio.example.test/transient-status-{status}"
             with self.subTest(status=status), patch.object(smart.P, "_http_session") as session:
                 session.return_value.head.return_value = Response(status)
-                self.assertTrue(smart.check_url(url))
+                self.assertIsNone(smart.check_url(url))
+
+    def test_transient_stream_check_does_not_mark_track_dead(self):
+        track_id = "aud:transient-resolve-regression"
+        url = "https://audio.example.test/transient-resolve-regression"
+        with patch.object(smart.P, "resolve_stream", return_value=url), \\
+             patch.object(smart, "check_url", return_value=None):
+            self.assertEqual(smart._resolve_checked(track_id, "mp32"), "")
+        self.assertFalse(smart.is_dead(track_id))
+
+    def test_resolve_stream_robust_does_not_mark_unknown_track_dead(self):
+        track_id = "aud:unknown-resolve-regression"
+        with patch.object(smart, "_resolve_checked", return_value=""):
+            self.assertEqual(smart.resolve_stream_robust(track_id), ("", ""))
+        self.assertFalse(smart.is_dead(track_id))
 
     def test_check_url_still_rejects_permanently_missing_track(self):
         class Response:
