@@ -849,7 +849,7 @@ def archive_stream_url(identifier):
 #  на ліцензію й на оригінал сторінки автора.
 # ════════════════════════════════════════════════════════════════════════════
 
-CCMIXTER_API = "http://ccmixter.org/api/query"
+CCMIXTER_API = "https://ccmixter.org/api/query"
 
 _ccm_lock = threading.Lock()
 _CCM_CACHE = {}
@@ -970,7 +970,7 @@ def ccmixter_search(query, limit=15):
         return []
     out = []
     try:
-        data = _get(CCMIXTER_API, {"query": query, "type": "any", "f": "json", "limit": limit})
+        data = _get(CCMIXTER_API, {"search": query, "search_type": "any", "f": "json", "limit": limit})
         if isinstance(data, list):
             for entry in data[:limit]:
                 t = _ccm_from_json(entry)
@@ -980,7 +980,7 @@ def ccmixter_search(query, limit=15):
         logger.warning("ccMixter JSON запит не вдався: %s", e)
     if not out:
         try:
-            r = _http_session().get(CCMIXTER_API, params={"query": query, "type": "any"},
+            r = _http_session().get(CCMIXTER_API, params={"search": query, "search_type": "any", "f": "rss"},
                               timeout=HTTP_TIMEOUT)
             if r.status_code == 200 and r.text:
                 out = _ccm_from_xml(r.text, limit)
