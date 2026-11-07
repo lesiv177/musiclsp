@@ -388,5 +388,27 @@ class OpenCatalogueRightsTests(unittest.TestCase):
         allowed_xml = '<rss><channel><item><title>Track</title><enclosure url="https://ccmixter.example/a.mp3"/><license href="https://creativecommons.org/licenses/by/4.0/"/></item></channel></rss>'
         self.assertEqual(len(P._ccm_from_xml(allowed_xml, 10)), 1)
 
+
+class ArchiveCuratedCatalogueTests(unittest.TestCase):
+    def test_archive_collection_tracks_exclude_missing_and_noncommercial_licenses(self):
+        docs = [
+            {"identifier": "unknown", "title": "Unknown"},
+            {"identifier": "nc", "title": "Noncommercial",
+             "licenseurl": "https://creativecommons.org/licenses/by-nc/4.0/"},
+            {"identifier": "allowed", "title": "Allowed",
+             "licenseurl": "https://creativecommons.org/licenses/by/4.0/"},
+        ]
+        with patch.object(P, "ARCHIVE_ENABLED", True), \
+             patch.object(P, "_get", return_value={"response": {"docs": docs}}):
+            tracks = P.archive_collection_tracks("netlabels", limit=10)
+        self.assertEqual([track["id"] for track in tracks], ["arc:allowed"])
+        self.assertEqual(tracks[0]["license_short"], "CC BY")
+
+    def test_archive_curated_tiles_are_hidden_when_archive_is_disabled(self):
+        with patch.object(P, "ARCHIVE_ENABLED", False), \
+             patch.object(P, "archive_collection_tracks") as collection:
+            self.assertEqual(P._archive_curated_tiles(), [])
+        collection.assert_not_called()
+
 if __name__ == "__main__":
     unittest.main()
