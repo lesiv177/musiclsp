@@ -25,8 +25,6 @@ from core import db
 from core import runtime as RT
 from core import providers as P
 from core import smart as SM
-from core.apple_music import AppleMusicError, apple_catalog_search, apple_catalog_configured
-from core.music_sources import source_status as optional_music_source_status
 from core.connect import Hub, valid_device_id
 from core.auth import verify_init_data
 from core.config import (
@@ -123,7 +121,7 @@ async def h_health(request):
             "wikimedia": True,
             "soundcloud": P.soundcloud_enabled(),
         },
-        "optional_sources": optional_music_source_status(),
+        "source_registry": P.source_status(),
     })
 
 
@@ -306,23 +304,11 @@ async def h_search(request, u):
 
     qual = quality_for(uid)
     if kind == "all":
-        async def apple_catalog():
-            if not apple_catalog_configured():
-                return []
-            try:
-                return await to_thread(apple_catalog_search, query, "pl", 12)
-            except AppleMusicError:
-                logger.warning("Apple Music catalogue search failed", exc_info=True)
-                return []
-        data, apple_results = await asyncio.gather(
-            to_thread(P.search_everything, query, min(limit, 20)),
-            apple_catalog(),
-        )
+        data = await to_thread(P.search_everything, query, min(limit, 20))
         return ok({"ok": True, "type": kind, "query": query, "sort": sort,
-                   "results": data, "apple_results": apple_results,
-                   "searches_left": max(0, cap - used)})
+                   "results": data, "searches_left": max(0, cap - used)})
     elif kind == "albums":
-        data = await to_thread(P.jamendo_search_albums_smart, query, limit, sort)
+        data = await to_thread(P.search_albums_smart, query, limit, sort)
     elif kind == "artists":
         jam = await to_thread(P.jamendo_search_artists, query, limit)
         aud = await to_thread(P.audius_search_users, query, max(5, limit // 3))
@@ -333,34 +319,6 @@ async def h_search(request, u):
         data = await to_thread(SM.search, query, limit, qual, sources, sort)
     return ok({"ok": True, "type": kind, "query": query, "sort": sort,
                "results": data, "searches_left": max(0, cap - used)})
-
-
-@require_auth
-async def h_apple_search(request, u):
-    """Search Apple Music's public catalogue; playback remains MusicKit-client-only."""
-    if not apple_catalog_configured():
-        return fail("Apple Music каталог ще не налаштований", 503)
-    query = (request.query.get("q") or "").strip()
-    if len(query) < 2 or len(query) > 100:
-        return fail("Введіть запит від 2 до 100 символів")
-    limit = bounded_int(request.query.get("limit"), 20, 1, 25)
-    if limit is None:
-        return fail("Некоректний ліміт результатів")
-    storefront = (request.query.get("storefront") or "pl").strip().lower()
-    if len(storefront) != 2 or not storefront.isalpha():
-        return fail("Некоректний код регіону")
-    allowed, used, cap = await to_thread(
-        db.bump_counter, int(u["uid"]), "searches")
-    if not allowed:
-        return fail(f"Ліміт пошуку на сьогодні вичерпано ({cap}). Premium знімає ліміт.", 429)
-    try:
-        results = await to_thread(apple_catalog_search, query, storefront, limit)
-    except AppleMusicError:
-        logger.warning("Apple Music catalogue search failed", exc_info=True)
-        return fail("Apple Music тимчасово недоступний. Спробуйте пізніше.", 502)
-    return ok({"ok": True, "provider": "apple_music", "type": "catalogue",
-               "query": query, "results": results,
-               "searches_left": max(0, cap - used)})
 
 
 @require_auth
@@ -532,9 +490,12 @@ async def h_track(request, u):
 async def h_album(request, u):
     uid = int(u["uid"])
     prefix, raw = P.split_id(request.match_info["aid"])
-    if prefix != "jam":
-        return fail("Альбоми доступні для Jamendo", 400)
-    tracks = await to_thread(P.jamendo_album_tracks, raw, quality_for(uid))
+    if prefix == "jam":
+        tracks = await to_thread(P.jamendo_album_tracks, raw, quality_for(uid))
+    elif prefix == "aud":
+        tracks = await to_thread(P.audius_album_tracks, raw)
+    else:
+        return fail("Невідоме джерело альбому", 400)
     if not tracks:
         return fail("Альбом порожній або не знайдений", 404)
     return ok({"ok": True, "tracks": tracks, "album": {
@@ -1231,7 +1192,6 @@ def build_app():
     r.add_get("/api/connect/ws", h_connect_ws)
     r.add_get("/api/connect/devices", h_connect_devices)
     r.add_get("/api/search", h_search)
-    r.add_get("/api/apple/search", h_apple_search)
     r.add_get("/api/home", h_home)
     r.add_get("/api/collections", h_collections)
     r.add_get("/api/genres", h_genres)
