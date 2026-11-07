@@ -195,8 +195,10 @@ class Hub:
             await dev.send(msg)
             return True
         except Exception:
-            if acc.devices.get(dev.id) is dev:
-                acc.devices.pop(dev.id, None)
+            # Keep the device registered until its WebSocket handler reaches
+            # finally: disconnect(). Removing it here makes disconnect() treat
+            # the socket as already replaced and can leave a stale owner/pending
+            # transfer behind.
             return False
 
     async def _broadcast(self, acc, msg, skip=None):
