@@ -51,6 +51,12 @@ class StreamValidationTests(unittest.TestCase):
                 session.return_value.head.return_value = Response(status)
                 self.assertIsNone(smart.check_url(url))
 
+    def test_provider_resolver_exception_is_contained_and_not_cached_as_dead(self):
+        track_id = "aud:resolver-exception-regression"
+        with patch.object(smart.P, "resolve_stream", side_effect=RuntimeError("temporary provider failure")):
+            self.assertEqual(smart._resolve_checked(track_id, "mp32"), "")
+        self.assertFalse(smart.is_dead(track_id))
+
     def test_transient_stream_check_does_not_mark_track_dead(self):
         track_id = "aud:transient-resolve-regression"
         url = "https://audio.example.test/transient-resolve-regression"
