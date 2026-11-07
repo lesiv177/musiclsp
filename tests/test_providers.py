@@ -18,6 +18,7 @@ class AudiusAlbumCatalogueTests(unittest.TestCase):
         payload = {"data": [
             {"id": "album-1", "is_album": True, "playlist_name": "Example Album",
              "user": {"name": "Example Artist"}, "artwork": {"480x480": "https://img.test/a.jpg"},
+             "release_date": "2026-10-15T12:00:00Z",
              "permalink": "/artist/example-album"},
             {"id": "playlist-1", "is_album": False, "playlist_name": "Mix"},
         ]}
@@ -28,6 +29,7 @@ class AudiusAlbumCatalogueTests(unittest.TestCase):
         self.assertEqual(albums[0]["id"], "aud:album-1")
         self.assertEqual(albums[0]["title"], "Example Album")
         self.assertEqual(albums[0]["artist"], "Example Artist")
+        self.assertEqual(albums[0]["release_date"], "2026-10-15")
         self.assertEqual(albums[0]["source_url"], "https://audius.co/artist/example-album")
         self.assertEqual(get.call_args.args[0], "https://audius.test/v1/playlists/search")
 
