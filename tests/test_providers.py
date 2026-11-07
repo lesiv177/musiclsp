@@ -342,6 +342,12 @@ class InternetArchiveRightsTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in results], ["arc:cc-by"])
         self.assertTrue(results[0]["downloadable"])
 
+
+    def test_archive_stream_resolution_is_disabled_with_the_source(self):
+        with patch.object(P, "ARCHIVE_ENABLED", False), patch.object(P, "_get") as get:
+            self.assertEqual(P.archive_stream_url("licensed-item"), "")
+            get.assert_not_called()
+
     def test_archive_stream_requires_explicit_commercial_license(self):
         files = [{"name": "recording.mp3"}]
         unknown = {"metadata": {}, "files": files}
