@@ -295,6 +295,7 @@ async def h_search(request, u):
     if not allowed:
         return fail(f"Ліміт пошуку на сьогодні вичерпано ({cap}). Premium знімає ліміт.", 429)
 
+    await to_thread(db.search_history_add, uid, query, kind)
     qual = quality_for(uid)
     if kind == "all":
         data = await to_thread(P.search_everything, query, min(limit, 20))
@@ -657,6 +658,28 @@ async def h_history_post(request, u):
     if track.get("id"):
         await to_thread(db.history_add, int(u["uid"]), track, int(body.get("seconds") or 0))
     return ok({"ok": True})
+
+
+@require_auth
+async def h_search_history_get(request, u):
+    items = await to_thread(db.search_history_list, int(u["uid"]), 30)
+    return ok({"ok": True, "items": items})
+
+
+@require_auth
+async def h_search_history_post(request, u):
+    uid = int(u["uid"])
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
+    action = body.get("action", "")
+    if action == "remove":
+        done = await to_thread(db.search_history_remove, uid, body.get("id", 0))
+        return ok({"ok": True, "removed": bool(done)})
+    if action == "clear":
+        count = await to_thread(db.search_history_clear, uid)
+        return ok({"ok": True, "removed": count})
+    return fail("Невідома дія")
 
 
 @require_auth
@@ -1212,6 +1235,8 @@ def build_app():
     r.add_get("/api/shared/{code}", h_shared)
     r.add_get("/api/history", h_history_get)
     r.add_post("/api/history", h_history_post)
+    r.add_get("/api/search-history", h_search_history_get)
+    r.add_post("/api/search-history", h_search_history_post)
     r.add_post("/api/report", h_report_post)
     r.add_get("/api/stats", h_stats)
     r.add_post("/api/promo", h_promo)
