@@ -805,7 +805,10 @@ def archive_collection_tracks(collection, limit=40, subject=None):
         if isinstance(creator, list):
             creator = creator[0] if creator else ""
         ident = d.get("identifier") or ""
-        license_url, license_short = _archive_license(d.get("licenseurl"))
+        raw_license = d.get("licenseurl") or ""
+        if not ident or not _archive_commercially_usable(raw_license):
+            continue
+        license_url, license_short = _archive_license(raw_license)
         out.append({
             "id": f"arc:{ident}",
             "title": d.get("title") or ident,
@@ -1649,6 +1652,8 @@ def _synthetic_collections(limit):
 
 
 def _archive_curated_tiles(limit=2):
+    if not ARCHIVE_ENABLED:
+        return []
     out = []
     for coll, subject, label in _ARCHIVE_CURATED_COLLECTIONS[:limit]:
         cover = ""
