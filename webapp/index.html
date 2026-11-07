@@ -2101,7 +2101,12 @@ async function cnExec(m){
     case "pause": cur.pause(); S.playing=false; paintPlayState(); return publishDeviceState(true);
     case "play":
       if(RESUME.pending) return startPending();
-      try{ await cur.play(); S.playing=true; paintPlayState(); publishDeviceState(true); }catch(e){ toast("Торкніться ▶ на цьому пристрої"); }
+      try{ await cur.play(); S.playing=true; paintPlayState(); publishDeviceState(true); }catch(e){
+        // The controller optimistically marked the session as playing. Re-publish
+        // the owner's actual paused state so every remote device is corrected.
+        S.playing=false; paintPlayState(); publishDeviceState(true);
+        toast("Торкніться ▶ на цьому пристрої");
+      }
       return;
     case "next": return nextTrack(false);
     case "previous": return prevTrack();
