@@ -91,6 +91,24 @@ class SQLiteDevicePersistenceTests(unittest.TestCase):
         self.database_patch.stop()
         self.tmp.cleanup()
 
+    def test_saved_queue_round_trip_is_account_scoped_and_bounded(self):
+        tracks = [{"id": "a", "title": "A", "artist": "Artist", "extra": "ignored"}]
+        self.assertEqual(db.queue_save(987650, tracks), 1)
+        saved = db.queue_get(987650)
+        self.assertEqual(saved["tracks"][0]["id"], "a")
+        self.assertNotIn("extra", saved["tracks"][0])
+        self.assertEqual(db.queue_get(987649)["tracks"], [])
+
+    def test_album_artist_collection_add_remove_and_scope(self):
+        self.assertTrue(db.collection_add(987648, "album", "alb:1", {"title": "Album"}))
+        self.assertTrue(db.collection_add(987648, "artist", "art:1", {"name": "Artist"}))
+        self.assertFalse(db.collection_add(987648, "track", "t:1", {"title": "Track"}))
+        self.assertEqual(len(db.collection_list(987648)), 2)
+        self.assertEqual(db.collection_list(987648, "album")[0]["data"]["title"], "Album")
+        self.assertTrue(db.collection_remove(987648, "album", "alb:1"))
+        self.assertEqual(len(db.collection_list(987648)), 1)
+        self.assertEqual(db.collection_list(987647), [])
+
     def test_search_history_add_deduplicates_and_keeps_latest_entries(self):
         uid = 987651
         db.search_history_add(uid, "  jazz  ", "tracks")
