@@ -1,101 +1,103 @@
-"""Capability registry for optional, rights-aware music catalogue integrations.
+"""Registry of the music sources actually used by MusicLSP.
 
-A provider is never advertised as playable merely because its catalogue API works.
-Playback modes describe the authorised playback surface; they are not stream URLs.
+This module contains metadata only. Provider-specific HTTP and normalisation
+code stays in core.providers, which consumes DEFAULT_TRACK_SEARCH_ORDER.
 """
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 
-def _enabled(name: str) -> bool:
-    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+def _truthy(name: str, default: str = "") -> bool:
+    return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
 
 
 @dataclass(frozen=True)
 class SourceCapability:
     key: str
     label: str
-    category: str
+    id_prefix: str
     playback_mode: str
-    env_required: tuple[str, ...] = ()
-    approval_required: bool = False
-    implemented: bool = False  # authorised playback adapter
-    catalogue_implemented: bool = False
-    note: str = ""
+    catalogue_types: tuple[str, ...]
+    credential_env: tuple[str, ...] = ()
+    approval_env: str = ""
+    enabled_env: str = ""
+    implemented: bool = True
 
-    def configured(self) -> bool:
-        return all(bool(os.getenv(name, "").strip()) for name in self.env_required)
+    def status(self) -> dict:
+        configured = all(bool(os.getenv(name, "").strip()) for name in self.credential_env)
+        enabled = not self.enabled_env or _truthy(self.enabled_env, "1")
+        approved = not self.approval_env or _truthy(self.approval_env)
+        return {
+            "label": self.label,
+            "id_prefix": self.id_prefix,
+            "playback_mode": self.playback_mode,
+            "catalogue_types": list(self.catalogue_types),
+            "configured": configured,
+            "approved": approved,
+            "available": bool(self.implemented and configured and enabled and approved),
+            "implemented": self.implemented,
+        }
 
-    def available(self) -> bool:
-        if not self.implemented or not self.configured():
-            return False
-        if self.approval_required and not _enabled(f"{self.key.upper()}_APPROVED"):
-            return False
-        return True
 
+# This list contains only integrations with code in core.providers.
+# "official_embed" means catalogue discovery only; it is never a server stream.
+MUSIC_SOURCES = (
+    SourceCapability(
+        key="audius", label="Audius", id_prefix="aud",
+        playback_mode="provider_stream",
+        catalogue_types=("tracks", "albums", "artists", "playlists"),
+    ),
+    SourceCapability(
+        key="archive", label="Internet Archive", id_prefix="arc",
+        playback_mode="licensed_file",
+        catalogue_types=("tracks",), enabled_env="ARCHIVE_ENABLED",
+    ),
+    SourceCapability(
+        key="ccmixter", label="ccMixter", id_prefix="ccm",
+        playback_mode="licensed_file", catalogue_types=("tracks",),
+    ),
+    SourceCapability(
+        key="openverse", label="Openverse", id_prefix="ov",
+        playback_mode="licensed_file", catalogue_types=("tracks",),
+    ),
+    SourceCapability(
+        key="wikimedia", label="Wikimedia Commons", id_prefix="wm",
+        playback_mode="licensed_file", catalogue_types=("tracks",),
+    ),
+    SourceCapability(
+        key="jamendo", label="Jamendo", id_prefix="jam",
+        playback_mode="provider_stream",
+        catalogue_types=("tracks", "albums", "artists", "playlists"),
+        credential_env=("JAMENDO_CLIENT_ID",),
+        approval_env="JAMENDO_COMMERCIAL_APPROVED",
+    ),
+    SourceCapability(
+        key="soundcloud", label="SoundCloud", id_prefix="sc",
+        playback_mode="provider_stream", catalogue_types=("tracks",),
+        credential_env=("SOUNDCLOUD_CLIENT_ID", "SOUNDCLOUD_CLIENT_SECRET"),
+        approval_env="SOUNDCLOUD_AGGREGATION_APPROVED",
+    ),
+    SourceCapability(
+        key="youtube", label="YouTube", id_prefix="yt",
+        playback_mode="official_embed", catalogue_types=("tracks",),
+        credential_env=("YOUTUBE_API_KEY",),
+    ),
+)
 
-# Optional commercial services remain disabled until credentials AND the
-# provider's contractual/API approval are in place. No undocumented stream
-# extraction or proxying is attempted.
-OPTIONAL_SOURCES = (
-    SourceCapability(
-        key="apple_music", label="Apple Music", category="catalogue",
-        playback_mode="official_client",
-        env_required=("APPLE_MUSIC_DEVELOPER_TOKEN",),
-        catalogue_implemented=True,
-        note="Catalogue API plus MusicKit playback in an authorised client; no server-side audio stream.",
-    ),
-    SourceCapability(
-        key="tidal", label="TIDAL", category="catalogue",
-        playback_mode="provider_authorised",
-        env_required=("TIDAL_CLIENT_ID", "TIDAL_CLIENT_SECRET"),
-        approval_required=True,
-        note="Requires approved API access and playback rights for the intended product.",
-    ),
-    SourceCapability(
-        key="seven_digital", label="7digital", category="licensed_catalogue",
-        playback_mode="licensed_delivery",
-        env_required=("SEVENDIGITAL_API_KEY", "SEVENDIGITAL_PARTNER_ID"),
-        approval_required=True,
-        note="Commercial partner integration; availability and delivery depend on contract.",
-    ),
-    SourceCapability(
-        key="amazon_music", label="Amazon Music", category="catalogue",
-        playback_mode="provider_authorised",
-        env_required=("AMAZON_MUSIC_CLIENT_ID", "AMAZON_MUSIC_CLIENT_SECRET"),
-        approval_required=True,
-        note="Requires an approved developer programme and explicit playback permissions.",
-    ),
-    SourceCapability(
-        key="epidemic_sound", label="Epidemic Sound", category="licensed_catalogue",
-        playback_mode="licensed_delivery",
-        env_required=("EPIDEMIC_SOUND_API_TOKEN",),
-        approval_required=True,
-        note="Requires a commercial agreement covering the MusicLSP use case.",
-    ),
+SOURCE_BY_KEY = {source.key: source for source in MUSIC_SOURCES}
+DEFAULT_TRACK_SEARCH_ORDER = (
+    "soundcloud", "jamendo", "audius", "archive",
+    "ccmixter", "openverse", "wikimedia", "youtube",
 )
 
 
 def source_status() -> dict:
-    """Return safe, non-secret readiness information for diagnostics."""
-    result = {}
-    for source in OPTIONAL_SOURCES:
-        result[source.key] = {
-            "label": source.label,
-            "category": source.category,
-            "playback_mode": source.playback_mode,
-            "configured": source.configured(),
-            "available": source.available(),
-            "implemented": source.implemented,
-            "catalogue_implemented": source.catalogue_implemented,
-            "approval_required": source.approval_required,
-            "note": source.note,
-        }
-    return result
+    """Readiness metadata only; never exposes credentials or probes providers."""
+    return {source.key: source.status() for source in MUSIC_SOURCES}
 
 
 def available_sources() -> tuple[str, ...]:
-    return tuple(source.key for source in OPTIONAL_SOURCES if source.available())
+    status = source_status()
+    return tuple(key for key in DEFAULT_TRACK_SEARCH_ORDER if status[key]["available"])
