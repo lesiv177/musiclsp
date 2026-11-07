@@ -1492,10 +1492,10 @@ def search_artists_smart(query, limit=20):
 def search_everything(query, limit=12):
     """Bounded global catalogue search across tracks, albums and artists."""
     # Each entity family uses one aggregator and the same bounded provider pool.
-    tracks = search_tracks_smart(query, limit=limit, sources=DEFAULT_TRACK_SEARCH_ORDER)
     futures = [
-        _PROVIDER_EXECUTOR.submit(search_albums_smart, query, limit=limit),
-        _PROVIDER_EXECUTOR.submit(search_artists_smart, query, limit=limit),
+        _CATALOGUE_EXECUTOR.submit(search_tracks_smart, query, limit=limit, sources=DEFAULT_TRACK_SEARCH_ORDER),
+        _CATALOGUE_EXECUTOR.submit(search_albums_smart, query, limit=limit),
+        _CATALOGUE_EXECUTOR.submit(search_artists_smart, query, limit=limit),
     ]
     done, pending = wait(futures, timeout=7)
     for future in pending:
@@ -1510,7 +1510,7 @@ def search_everything(query, limit=12):
         except Exception as exc:
             logger.warning("Catalogue lookup failed: %s", type(exc).__name__)
             values.append([])
-    albums, artists = values
+    tracks, albums, artists = values
     return {"tracks": tracks, "albums": albums, "artists": artists}
 
 MOOD_MAP = {
