@@ -109,19 +109,12 @@ async def h_options(request):
 
 
 async def h_health(request):
+    registry = P.source_status()
     return ok({
         "ok": True,
         "version": APP_VERSION,
-        "sources": {
-            "jamendo": P.jamendo_enabled(),
-            "audius": bool(P.audius_host()),
-            "archive": True,
-            "ccmixter": True,
-            "openverse": True,
-            "wikimedia": True,
-            "soundcloud": P.soundcloud_enabled(),
-        },
-        "source_registry": P.source_status(),
+        "sources": {key: value["available"] for key, value in registry.items()},
+        "source_registry": registry,
     })
 
 
