@@ -215,6 +215,11 @@ SCHEMA_PG = [
         uid BIGINT, artist_id TEXT, artist_name TEXT, artist_json TEXT DEFAULT '{}',
         followed_at TIMESTAMP DEFAULT NOW(), PRIMARY KEY(uid, artist_id)
     )""",
+    """CREATE TABLE IF NOT EXISTS release_radar_notifications (
+        uid BIGINT, release_key TEXT, notified_at TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY(uid, release_key)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_release_radar_notifications_date ON release_radar_notifications(notified_at)",
     """CREATE TABLE IF NOT EXISTS collection_library (
         id SERIAL PRIMARY KEY, uid BIGINT, kind TEXT, item_id TEXT, data_json TEXT DEFAULT '{}',
         added_at TIMESTAMP DEFAULT NOW(), UNIQUE(uid, kind, item_id)
@@ -987,6 +992,52 @@ def artist_following(uid):
         except (TypeError, ValueError):
             item["artist"] = {"name": item.get("artist_name", "")}
     return found
+
+
+def artist_following_all():
+    """Повертає підписки всіх користувачів для фонового Release Radar."""
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("""SELECT f.uid, f.artist_id, f.artist_name, f.artist_json,
+                                COALESCE(u.lang, 'uk') AS lang
+                         FROM followed_artists f
+                         LEFT JOIN users u ON u.uid=f.uid
+                         ORDER BY f.uid, f.artist_name"""))
+        found = rows(cur)
+    for item in found:
+        item["uid"] = int(item["uid"])
+        try:
+            item["artist"] = json.loads(item.pop("artist_json") or "{}")
+        except (TypeError, ValueError):
+            item["artist"] = {"name": item.get("artist_name", "")}
+    return found
+
+
+def release_radar_unnotified(uid, release_keys):
+    """Повертає ключі релізів, для яких користувач ще не отримував сповіщення."""
+    keys = list(dict.fromkeys(str(key or "")[:200] for key in release_keys if key))
+    if not keys:
+        return []
+    placeholders = ",".join(["%s"] * len(keys))
+    with conn_cursor() as (conn, cur):
+        cur.execute(q(
+            "SELECT release_key FROM release_radar_notifications "
+            "WHERE uid=%s AND release_key IN (" + placeholders + ")"
+        ), [int(uid), *keys])
+        sent = {str(row["release_key"]) for row in rows(cur)}
+    return [key for key in keys if key not in sent]
+
+
+def release_radar_mark_notified(uid, release_keys):
+    """Фіксує доставлені релізи; унікальний ключ не допускає повторних записів."""
+    keys = list(dict.fromkeys(str(key or "")[:200] for key in release_keys if key))
+    if not keys:
+        return 0
+    with conn_cursor() as (conn, cur):
+        cur.executemany(q(
+            "INSERT INTO release_radar_notifications(uid, release_key, notified_at) "
+            "VALUES (%s,%s,%s) ON CONFLICT(uid, release_key) DO NOTHING"
+        ), [(int(uid), key, now_str()) for key in keys])
+    return len(keys)
 
 
 # ─── Сесії пристроїв і віддалене керування відтворенням ────────────────────────

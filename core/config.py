@@ -94,6 +94,7 @@ DONATE_TIERS = [int(x) for x in _list("DONATE_TIERS", "50,150,300")]
 
 # ─── Воркер ──────────────────────────────────────────────────────────────────
 WORKER_INTERVAL = _int("WORKER_INTERVAL", 600)   # секунд між циклами
+RELEASE_RADAR_INTERVAL = _int("RELEASE_RADAR_INTERVAL", 3600)  # перевірка нових релізів раз на годину
 
 # ─── Ліміти ──────────────────────────────────────────────────────────────────
 FREE_LIMITS = {
