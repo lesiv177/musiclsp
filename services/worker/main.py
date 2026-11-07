@@ -26,7 +26,6 @@ from core.config import (
     RENEWAL_REMINDER_HOURS, RELEASE_RADAR_INTERVAL,
 )
 
-logging.basicConfig(format="%(asctime)s | %(levelname)s | %(message)s", level=logging.INFO)
 log = logging.getLogger("worker")
 
 
@@ -277,15 +276,18 @@ async def cycle():
     log.info("Цикл за %.1fс, наступний через %sс", time.time() - started, WORKER_INTERVAL)
 
 
-async def run():
+async def run(initialize=True):
+    """Запускає фоновий цикл; бот може передати вже ініціалізоване спільне DB-з'єднання."""
     log.info("%s worker %s запущено, інтервал %sс", APP_NAME, APP_VERSION, WORKER_INTERVAL)
-    db.init_engine()
+    if initialize:
+        db.init_engine()
     while True:
         await cycle()
         await asyncio.sleep(WORKER_INTERVAL)
 
 
 if __name__ == "__main__":
+    logging.basicConfig(format="%(asctime)s | %(levelname)s | %(message)s", level=logging.INFO)
     try:
         asyncio.run(run())
     except (KeyboardInterrupt, SystemExit):
