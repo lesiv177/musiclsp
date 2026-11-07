@@ -706,26 +706,49 @@ async def h_import_playlist(request, u):
         return fail("Немає треків для імпорту")
     if len(rows) > 100:
         return fail("За один раз можна імпортувати до 100 треків", 413)
+    quality = quality_for(uid)
+    semaphore = asyncio.Semaphore(5)
+
+    async def resolve_row(index, row):
+        if not isinstance(row, dict):
+            return index, None
+        title = str(row.get("trackName") or row.get("title") or row.get("Track Name") or "").strip()[:160]
+        artist = str(row.get("artistName") or row.get("artist") or row.get("Artist Name") or row.get("Artist Name(s)") or "").strip()[:160]
+        if not title:
+            return index, None
+        query = (title + " " + artist).strip()
+        async with semaphore:
+            try:
+                matches = await to_thread(P.search_tracks_smart, query, 5, quality)
+            except Exception as exc:
+                logger.warning("Playlist import search failed for row %s: %s", index, type(exc).__name__)
+                return index, None
+        return index, (matches[0] if matches else None)
+
+    resolved = await asyncio.gather(*(resolve_row(i, row) for i, row in enumerate(rows)))
+    missed = [index for index, candidate in resolved if not candidate]
+    candidates = []
+    seen_ids = set()
+    for index, candidate in resolved:
+        if not candidate:
+            continue
+        track_id = str(candidate.get("id") or "")
+        if not track_id or track_id in seen_ids:
+            missed.append(index)
+            continue
+        seen_ids.add(track_id)
+        candidates.append((index, candidate))
+
+    if not candidates:
+        return fail("Не вдалося знайти відповідні треки; плейлист не створено")
+
     name = str(body.get("name") or "Імпортована музика").strip()[:80]
     playlist, err = await to_thread(db.pl_create, uid, name, "Імпортована музична бібліотека")
     if not playlist:
         return fail(err or "Не вдалося створити плейлист")
-    imported, missed = [], []
-    for index, row in enumerate(rows):
-        if not isinstance(row, dict):
-            missed.append(index)
-            continue
-        title = str(row.get("trackName") or row.get("title") or row.get("Track Name") or "").strip()[:160]
-        artist = str(row.get("artistName") or row.get("artist") or row.get("Artist Name") or row.get("Artist Name(s)") or "").strip()[:160]
-        if not title:
-            missed.append(index)
-            continue
-        query = (title + " " + artist).strip()
-        matches = await to_thread(P.search_tracks_smart, query, 5, quality_for(uid))
-        if not matches:
-            missed.append(index)
-            continue
-        candidate = matches[0]
+
+    imported = []
+    for index, candidate in candidates:
         done, _ = await to_thread(db.pl_add_track, uid, int(playlist["id"]), candidate)
         if done:
             imported.append(candidate.get("id"))
@@ -733,7 +756,7 @@ async def h_import_playlist(request, u):
             missed.append(index)
     result = await to_thread(db.pl_get, int(playlist["id"]))
     return ok({"ok": True, "playlist": result, "imported": len(imported),
-               "unmatched_rows": missed, "total": len(rows)})
+               "unmatched_rows": sorted(set(missed)), "total": len(rows)})
 
 
 @require_auth
