@@ -1418,20 +1418,28 @@ def search_tracks(query, limit=30, quality="mp32", sources=None, sort="relevance
         "wikimedia": lambda: True,
         "youtube": youtube_enabled,
     }
-    jobs = [searchers[key] for key in DEFAULT_TRACK_SEARCH_ORDER
-            if key in requested and key in searchers and enabled[key]()]
-    results = _run_parallel(jobs, timeout=6)
+    if int(limit) <= 0:
+        return []
+    provider_keys = [key for key in DEFAULT_TRACK_SEARCH_ORDER
+                     if key in requested and key in searchers and enabled[key]()]
+    groups = _run_parallel_grouped([searchers[key] for key in provider_keys], timeout=6)
 
+    # Keep configured source priority (SoundCloud first), but rotate through
+    # providers so a full first-page response cannot hide every other source.
     seen, out = set(), []
-    for track in results:
-        title = str(track.get("title") or "").strip().casefold()
-        artist = str(track.get("artist") or "").strip().casefold()
-        key = (title, artist)
-        if not title or key in seen:
+    for track in _interleave_catalogue_groups(groups):
+        if not isinstance(track, dict):
+            continue
+        title = str(track.get("title") or "").strip()
+        artist = str(track.get("artist") or "").strip()
+        key = (_normalize_query(title).casefold(), _normalize_query(artist).casefold())
+        if not key[0] or key in seen:
             continue
         seen.add(key)
         out.append(track)
-    return out[:limit]
+        if len(out) >= int(limit):
+            break
+    return out
 
 def _normalize_query(text):
     """Прибирає пунктуацію й зайві пробіли — щоб пошук був терпимим до одруків."""

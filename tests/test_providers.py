@@ -328,6 +328,37 @@ class GlobalSearchCoverageTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in results], ["aud:1"])
 
 
+class BalancedTrackSearchCoverageTests(unittest.TestCase):
+    def test_track_search_interleaves_enabled_sources_and_deduplicates(self):
+        soundcloud = [
+            {"id": "sc:1", "title": "Shared Track", "artist": "Shared Artist", "source": "soundcloud"},
+            {"id": "sc:2", "title": "SoundCloud Two", "artist": "Artist Two", "source": "soundcloud"},
+            {"id": "sc:3", "title": "SoundCloud Three", "artist": "Artist Three", "source": "soundcloud"},
+        ]
+        jamendo = [
+            {"id": "jam:1", "title": "Shared Track", "artist": "Shared Artist", "source": "jamendo"},
+            {"id": "jam:2", "title": "Jamendo Two", "artist": "Artist Four", "source": "jamendo"},
+        ]
+        audius = [
+            {"id": "aud:1", "title": "Audius One", "artist": "Artist Five", "source": "audius"},
+        ]
+        with (
+            patch.object(P, "soundcloud_enabled", return_value=True),
+            patch.object(P, "jamendo_enabled", return_value=True),
+            patch.object(P, "audius_host", return_value="https://discovery.example"),
+            patch.object(P, "_run_parallel_grouped", return_value=[soundcloud, jamendo, audius]),
+        ):
+            results = P.search_tracks("track", limit=10, sources=["soundcloud", "jamendo", "audius"])
+        self.assertEqual([item["id"] for item in results],
+                         ["sc:1", "aud:1", "sc:2", "jam:2", "sc:3"])
+
+    def test_track_search_zero_or_negative_limit_returns_empty(self):
+        with patch.object(P, "_run_parallel_grouped") as run:
+            self.assertEqual(P.search_tracks("track", limit=0), [])
+            self.assertEqual(P.search_tracks("track", limit=-1), [])
+        run.assert_not_called()
+
+
 class BalancedCatalogueCoverageTests(unittest.TestCase):
     def test_album_search_interleaves_providers_and_deduplicates_releases(self):
         jamendo = [
