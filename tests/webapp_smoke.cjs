@@ -80,7 +80,7 @@ const { spawn } = require("node:child_process");
     await page.locator("#v3Back").click();
     await page.waitForSelector("#v3LibraryBody [data-pl=\"42\"]");
 
-    const dockMetrics=await page.evaluate(()=>{const n=document.querySelector("#mlsp-v3 .v3-mobile-nav"),r=n.getBoundingClientRect();return {display:getComputedStyle(n).display,position:getComputedStyle(n).position,top:r.top,bottom:r.bottom,width:r.width,height:r.height,viewport:innerHeight};});
+    const dockMetrics=await page.evaluate(()=>{const n=document.querySelector("#mlsp-v3 .v3-mobile-nav"),r=n.getBoundingClientRect();return {display:getComputedStyle(n).display,position:getComputedStyle(n).position,top:r.top,bottom:r.bottom,width:r.width,height:r.height,viewport:window.innerHeight};});
     if(dockMetrics.display!=="grid"||dockMetrics.position!=="fixed"||dockMetrics.bottom>innerHeight||dockMetrics.top<0||dockMetrics.width<300)
       throw new Error("Mobile navigation dock is outside the visible viewport: "+JSON.stringify(dockMetrics));
     for(const target of ["explore","search","library","profile","home"]){
