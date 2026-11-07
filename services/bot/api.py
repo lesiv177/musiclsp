@@ -613,27 +613,40 @@ async def h_queue_post(request, u):
 async def h_release_radar_get(request, u):
     uid = int(u["uid"])
     follows = await to_thread(db.artist_following, uid)
-    feed = []
-    for followed in follows[:30]:
+    semaphore = asyncio.Semaphore(5)
+
+    async def releases_for_artist(followed):
         artist = followed.get("artist") or {}
-        name = followed.get("artist_name") or artist.get("name") or ""
+        name = str(followed.get("artist_name") or artist.get("name") or "").strip()
         if not name:
-            continue
-        albums = await to_thread(P.search_albums_smart, name, 8, "newest")
+            return []
+        async with semaphore:
+            try:
+                albums = await to_thread(P.search_albums_smart, name, 8, "newest")
+            except Exception as exc:
+                logger.warning("Release Radar lookup failed for %s: %s", name[:80], type(exc).__name__)
+                return []
+        matched = []
         for album in albums or []:
-            album_artist = str(album.get("artist") or album.get("artist_name") or "").casefold()
+            if not isinstance(album, dict):
+                continue
+            album_artist = str(album.get("artist") or album.get("artist_name") or "").strip().casefold()
             if album_artist and name.casefold() not in album_artist and album_artist not in name.casefold():
                 continue
-            album["followed_artist"] = name
-            feed.append(album)
-    seen, unique = set(), []
-    for album in feed:
-        key = str(album.get("id") or (album.get("title"), album.get("artist")))
-        if key not in seen:
-            seen.add(key)
-            unique.append(album)
-    return ok({"ok": True, "artists": follows, "releases": unique[:60]})
+            item = dict(album)
+            item["followed_artist"] = name
+            matched.append(item)
+        return matched
 
+    batches = await asyncio.gather(*(releases_for_artist(item) for item in follows[:30]))
+    seen, unique = set(), []
+    for batch in batches:
+        for album in batch:
+            key = str(album.get("id") or (album.get("title"), album.get("artist")))
+            if key not in seen:
+                seen.add(key)
+                unique.append(album)
+    return ok({"ok": True, "artists": follows, "releases": unique[:60]})
 
 @require_auth
 async def h_artist_follow_post(request, u):
