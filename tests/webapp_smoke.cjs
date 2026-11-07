@@ -29,7 +29,8 @@ const { spawn } = require("node:child_process");
     else if (path === "/api/genres") data = {ok:true,genres:[{tag:"jazz",label:"Jazz"}]};
     else if (path === "/api/stats") data = {ok:true,stats:{plays:12,hours:3,library:1,top_artists:[]}};
     else if (path === "/api/library") data = {ok:true,tracks:[{id:"qa-liked",title:"Saved track",artist:"QA Artist",cover:"",duration:180,duration_str:"3:00"}]};
-    else if (path === "/api/playlists") data = {ok:true,playlists:[]};
+    else if (path === "/api/playlists" && route.request().method()==="GET") data = {ok:true,playlists:[{id:42,name:"QA playlist",count:1}]};
+    else if (path === "/api/playlist/42") data = {ok:true,playlist:{id:42,name:"QA playlist",tracks:[{id:"qa-playlist-track",title:"Playlist track",artist:"QA Artist",cover:"",duration:180,duration_str:"3:00"}]}};
     else if (path === "/api/history") data = {ok:true,tracks:[]};
     else if (path === "/api/search") {
       const q=url.searchParams.get("q"),type=url.searchParams.get("type");
@@ -69,6 +70,16 @@ const { spawn } = require("node:child_process");
     const visibleLegacy=await page.locator("#scHome").evaluate(el=>getComputedStyle(el).display!=="none");
     if(visibleLegacy)throw new Error("Legacy app screen is still visible");
 
+    // Opening a playlist from the home shelf must switch to the library page and render its tracks.
+    const homePlaylistRequest=page.waitForRequest(req=>new URL(req.url()).pathname==="/api/playlist/42");
+    await page.locator("#v3-home [data-pl=\"42\"]").click();
+    await homePlaylistRequest;
+    await page.waitForSelector("#v3-library #v3PlayAll");
+    if(!(await page.locator("#v3-library").isVisible()) || !(await page.locator("#v3-library").textContent()).includes("QA playlist"))
+      throw new Error("Home playlist selection did not navigate to and render the playlist");
+    await page.locator("#v3Back").click();
+    await page.waitForSelector("#v3LibraryBody [data-pl=\"42\"]");
+
     for(const target of ["explore","search","library","profile","home"]){
       await page.locator('.v3-mobile-nav [data-page="'+target+'"]').first().click();
       await page.waitForFunction(t=>document.querySelector("#v3-"+t)?.classList.contains("active"),target);
@@ -103,6 +114,12 @@ const { spawn } = require("node:child_process");
     await page.locator('#v3-library [data-tab="history"]').click();
     await page.waitForSelector("#v3LibraryBody .v3-empty");
     await page.locator('#v3-library [data-tab="playlists"]').click();
+    const libraryPlaylistRequest=page.waitForRequest(req=>new URL(req.url()).pathname==="/api/playlist/42");
+    await page.locator("#v3LibraryBody [data-pl=\"42\"]").click();
+    await libraryPlaylistRequest;
+    await page.waitForSelector("#v3-library #v3PlayAll");
+    await page.locator("#v3Back").click();
+    await page.waitForSelector("#v3Create");
     await page.locator("#v3Create").click();
     await page.locator("#plName").fill("QA playlist");
     await page.locator("#plDesc").fill("Created by browser smoke test");
