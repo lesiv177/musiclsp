@@ -800,14 +800,17 @@ def pl_remove_track(uid, pid, tid):
         if not p or int(p["uid"]) != int(uid):
             return False
         cur.execute(q("DELETE FROM playlist_tracks WHERE pid=%s AND tid=%s"), (pid, tid))
-    return True
+        removed = cur.rowcount > 0
+    return removed
 
 
 def pl_delete(uid, pid):
     with conn_cursor() as (conn, cur):
         cur.execute(q("DELETE FROM playlists WHERE id=%s AND uid=%s"), (pid, uid))
-        cur.execute(q("DELETE FROM playlist_tracks WHERE pid=%s"), (pid,))
-    return True
+        deleted = cur.rowcount > 0
+        if deleted:
+            cur.execute(q("DELETE FROM playlist_tracks WHERE pid=%s"), (pid,))
+    return deleted
 
 
 def pl_copy(uid, source_pid, new_name=None):
@@ -820,7 +823,8 @@ def pl_copy(uid, source_pid, new_name=None):
     if not src:
         return None, "Плейлист не знайдено"
     new, err = pl_create(uid, new_name or src["name"], src.get("description") or "")
-    if not new:        return None, err
+    if not new:
+        return None, err
     for t in src["tracks"]:
         pl_add_track(uid, new["id"], t)
     return pl_get(new["id"]), ""
