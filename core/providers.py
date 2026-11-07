@@ -401,7 +401,8 @@ def _aud_track(t):
     # Creative Commons NonCommercial uploads are not suitable for a
     # monetised third-party catalogue.
     license = str(t.get("license") or "").strip().lower()
-    if "nc" in license.replace("_", "-").split("-"):
+    compact_license = re.sub(r"[^a-z]", "", license)
+    if "noncommercial" in compact_license or re.search(r"(^|[-_])nc($|[-_])", license):
         return None
     tid = str(t.get("id") or "")
     art = t.get("artwork") or {}
@@ -522,7 +523,7 @@ def audius_trending(genre=None, limit=25):
     data = _get(f"{host}/v1/tracks/trending", params)
     if not data:
         return []
-    return [_aud_track(t) for t in (data.get("data") or [])][:limit]
+    return [track for t in (data.get("data") or [])[:limit] if (track := _aud_track(t))]
 
 
 def audius_trending_playlists(limit=15):
@@ -558,7 +559,7 @@ def audius_playlist_tracks(playlist_id, limit=60):
     })
     if not data:
         return []
-    return [_aud_track(t) for t in (data.get("data") or [])][:limit]
+    return [track for t in (data.get("data") or []) if (track := _aud_track(t))][:limit]
 
 
 def audius_track(track_id):
@@ -1680,6 +1681,10 @@ def resolve_stream(full_id, quality="mp32"):
         t = jamendo_track(raw, audioformat=quality)
         return t["stream"] if t else ""
     if prefix == "aud":
+        # Re-fetch metadata at resolution so an explicitly NonCommercial
+        # track cannot bypass the catalogue filter via a stale/direct ID.
+        if not audius_track(raw):
+            return ""
         return audius_stream_url_verified(raw)
     if prefix == "arc":
         return archive_stream_url(raw)
