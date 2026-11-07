@@ -33,6 +33,7 @@ from core.config import (
     ARCHIVE_ENABLED, HTTP_TIMEOUT, USER_AGENT,
     SOUNDCLOUD_CLIENT_ID, SOUNDCLOUD_CLIENT_SECRET,
 )
+from core.music_sources import DEFAULT_TRACK_SEARCH_ORDER, source_status
 
 logger = logging.getLogger(__name__)
 import os as _os
@@ -396,6 +397,12 @@ def audius_host(force_new=False):
 
 
 def _aud_track(t):
+    # Audius grants API access under its platform terms, but explicit
+    # Creative Commons NonCommercial uploads are not suitable for a
+    # monetised third-party catalogue.
+    license = str(t.get("license") or "").strip().lower()
+    if "nc" in license.replace("_", "-").split("-"):
+        return None
     tid = str(t.get("id") or "")
     art = t.get("artwork") or {}
     cover = art.get("480x480") or art.get("150x150") or art.get("1000x1000") or ""
@@ -423,6 +430,76 @@ def _aud_track(t):
     }
 
 
+def _aud_album(item):
+    """Normalise Audius albums; Audius represents album releases as playlists."""
+    if not isinstance(item, dict):
+        return None
+    is_album = item.get("is_album") is True or str(item.get("type") or "").lower() == "album"
+    if not is_album:
+        return None
+    album_id = str(item.get("id") or "").strip()
+    title = str(item.get("playlist_name") or item.get("name") or "").strip()
+    if not album_id or not title:
+        return None
+    user = item.get("user") or {}
+    artwork = item.get("artwork") or {}
+    cover = artwork.get("480x480") or artwork.get("150x150") or artwork.get("1000x1000") or ""
+    permalink = str(item.get("permalink") or "")
+    return {
+        "id": f"aud:{album_id}",
+        "title": title,
+        "artist": user.get("name") or user.get("handle") or "",
+        "cover": cover,
+        "source": "audius",
+        "source_label": "Audius",
+        "source_url": f"https://audius.co{permalink}" if permalink.startswith("/") else "https://audius.co",
+        "year": str(item.get("release_date") or "")[:4],
+    }
+
+
+def audius_search_albums(query, limit=20):
+    host = audius_host()
+    if not host:
+        return []
+    data = _get(f"{host}/v1/playlists/search", {
+        "query": query, "app_name": AUDIUS_APP_NAME, "limit": limit,
+    })
+    if not data:
+        return []
+    return [album for item in (data.get("data") or [])[:limit]
+            if (album := _aud_album(item))]
+
+
+def audius_album_tracks(album_id, limit=60):
+    host = audius_host()
+    if not host:
+        return []
+    params = {"app_name": AUDIUS_APP_NAME}
+    meta_data = _get(f"{host}/v1/playlists/{album_id}", params)
+    meta = (meta_data or {}).get("data") or {}
+    data = _get(f"{host}/v1/playlists/{album_id}/tracks", {**params, "limit": limit})
+    if not data:
+        return []
+    album_name = meta.get("playlist_name") or ""
+    user = meta.get("user") or {}
+    artist_name = user.get("name") or user.get("handle") or ""
+    artwork = meta.get("artwork") or {}
+    cover = artwork.get("480x480") or artwork.get("150x150") or artwork.get("1000x1000") or ""
+    tracks = []
+    for raw in (data.get("data") or [])[:limit]:
+        track = _aud_track(raw)
+        if not track:
+            continue
+        track["album"] = album_name
+        track["album_id"] = f"aud:{album_id}"
+        if artist_name:
+            track["artist"] = artist_name
+        if cover:
+            track["cover"] = cover
+        tracks.append(track)
+    return tracks
+
+
 def audius_search_tracks(query, limit=25):
     host = audius_host()
     if not host:
@@ -432,7 +509,7 @@ def audius_search_tracks(query, limit=25):
     })
     if not data:
         return []
-    return [_aud_track(t) for t in (data.get("data") or [])][:limit]
+    return [track for t in (data.get("data") or [])[:limit] if (track := _aud_track(t))]
 
 
 def audius_trending(genre=None, limit=25):
@@ -1288,52 +1365,32 @@ def _run_parallel(jobs, timeout=4):
 
 
 def search_tracks(query, limit=30, quality="mp32", sources=None, sort="relevance", genre=None):
-    """Змішаний пошук по всіх легальних джерелах з дедуплікацією.
-
-    Раніше типовим значенням тут було лише ["jamendo", "audius"] — а Internet
-    Archive (нетлейбли, укр/рос добірки), ccMixter і Openverse хоч і були
-    повністю реалізовані, фактично ніколи не викликались зі звичайного
-    пошуку, бо жоден виклик не передавав `sources` явно. Через це вся
-    робота з розширення бібліотеки була "мертвим кодом" з погляду юзера.
-    Тепер типово шукаємо по всіх шести джерелах відразу (додано Wikimedia
-    Commons напряму — Openverse і так частково тягне звідти, але напряму
-    дістаємо більше й точніше фільтруємо)."""
-    yt_on = youtube_enabled() and (not sources or "youtube" in sources)
-    sc_on = soundcloud_enabled() and (not sources or "soundcloud" in sources)
-    sources = [s for s in (sources or ["jamendo", "audius", "archive", "ccmixter", "openverse", "wikimedia"]) if s not in ("soundcloud", "youtube")]
-    # Джерела опитуємо ПАРАЛЕЛЬНО (раніше — по черзі, і найповільніше гальмувало всіх).
-    # Порядок результатів лишається детермінованим: jamendo, audius, archive, …
-    jobs = []
-    if sc_on:                       # SoundCloud — основне джерело
-        jobs.append(lambda: soundcloud_search(query, limit=limit))
-    # SoundCloud вимкнено: пошук працює лише з джерелами, які підтримуємо.
-    if "jamendo" in sources:
-        jobs.append(lambda: jamendo_search_tracks(query, limit=limit, audioformat=quality, sort=sort))
-    if "audius" in sources:
-        jobs.append(lambda: audius_search_tracks(query, limit=max(10, limit // 2)))
-    if "archive" in sources:
-        jobs.append(lambda: archive_search(query, limit=12))
-    if "ccmixter" in sources:
-        jobs.append(lambda: ccmixter_search(query, limit=10))
-    if "openverse" in sources:
-        jobs.append(lambda: openverse_search(query, limit=10))
-    if "wikimedia" in sources:
-        jobs.append(lambda: wikimedia_search(query, limit=10))
-    if yt_on:                       # YouTube — лише каталог, в кінці списку
-        jobs.append(lambda: youtube_search(query, limit=8))
-    results = _run_parallel(jobs, timeout=5)
-    _rank = {"soundcloud": 0, "youtube": 2}
-    results = sorted(results, key=lambda t: _rank.get(t.get("source"), 1))   # SC першим, YouTube останнім
+    """Search the active source registry in a stable order and deduplicate results."""
+    requested = set(DEFAULT_TRACK_SEARCH_ORDER if sources is None else sources)
+    searchers = {
+        "soundcloud": lambda: soundcloud_search(query, limit=limit),
+        "jamendo": lambda: jamendo_search_tracks(query, limit=limit, audioformat=quality, sort=sort),
+        "audius": lambda: audius_search_tracks(query, limit=max(10, limit // 2)),
+        "archive": lambda: archive_search(query, limit=12),
+        "ccmixter": lambda: ccmixter_search(query, limit=10),
+        "openverse": lambda: openverse_search(query, limit=10),
+        "wikimedia": lambda: wikimedia_search(query, limit=10),
+        "youtube": lambda: youtube_search(query, limit=8),
+    }
+    jobs = [searchers[key] for key in DEFAULT_TRACK_SEARCH_ORDER
+            if key in requested and key in searchers]
+    results = _run_parallel(jobs, timeout=6)
 
     seen, out = set(), []
-    for t in results:
-        key = (t["title"].strip().lower(), t["artist"].strip().lower())
-        if key in seen:
+    for track in results:
+        title = str(track.get("title") or "").strip().casefold()
+        artist = str(track.get("artist") or "").strip().casefold()
+        key = (title, artist)
+        if not title or key in seen:
             continue
         seen.add(key)
-        out.append(t)
+        out.append(track)
     return out[:limit]
-
 
 def _normalize_query(text):
     """Прибирає пунктуацію й зайві пробіли — щоб пошук був терпимим до одруків."""
@@ -1359,43 +1416,54 @@ def search_tracks_smart(query, limit=30, quality="mp32", sources=None, sort="rel
     return []
 
 
-def jamendo_search_albums_smart(query, limit=20, sort="relevance"):
-    """Той самий пошук альбомів, з відкатом на очищений запит і окремі слова."""
-    out = jamendo_search_albums(query, limit=limit, sort=sort)
+def search_albums(query, limit=20, sort="relevance"):
+    """Merge album catalogue results from every active album-capable provider."""
+    return _run_parallel([
+        lambda: jamendo_search_albums(query, limit=limit, sort=sort),
+        lambda: audius_search_albums(query, limit=limit),
+    ], timeout=6)[:limit]
+
+
+def search_albums_smart(query, limit=20, sort="relevance"):
+    """Search albums with conservative query normalisation fallback."""
+    out = search_albums(query, limit=limit, sort=sort)
     if out:
         return out
     norm = _normalize_query(query)
-    if norm and norm.lower() != (query or "").strip().lower():
-        out = jamendo_search_albums(norm, limit=limit, sort=sort)
+    if norm and norm.casefold() != (query or "").strip().casefold():
+        out = search_albums(norm, limit=limit, sort=sort)
         if out:
             return out
-    for word in [w for w in norm.split() if len(w) > 2]:
-        out = jamendo_search_albums(word, limit=limit, sort=sort)
+    for word in [word for word in norm.split() if len(word) > 2]:
+        out = search_albums(word, limit=limit, sort=sort)
         if out:
             return out
     return []
 
 
 def search_everything(query, limit=12):
-    """Об'єднаний пошук: треки + альбоми + артисти одним запитом. Це саме
-    той пошук, який виконує вкладка "Усе" (типова при відкритті пошуку) —
-    тому треки тягнемо з усіх шести джерел, а не лише Jamendo/Audius."""
-    from concurrent.futures import ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=4) as ex:
-        # Include optional official catalogues in global search as well.
-        # Their own enablement checks keep them inactive without credentials.
-        f_tr = ex.submit(search_tracks_smart, query, limit=limit, sources=[
-            "soundcloud", "jamendo", "audius", "archive", "ccmixter",
-            "openverse", "wikimedia", "youtube"])
-        f_al = ex.submit(jamendo_search_albums_smart, query, limit=limit)
-        f_ja = ex.submit(jamendo_search_artists, query, limit=limit)
-        f_au = ex.submit(audius_search_users, query, limit=max(4, limit // 3))
-        def _r(f):
-            try:
-                return f.result(timeout=9) or []
-            except Exception:
-                return []
-        tracks, albums, jam_artists, aud_artists = _r(f_tr), _r(f_al), _r(f_ja), _r(f_au)
+    """Bounded global catalogue search across tracks, albums and artists."""
+    # Track search already fans out through the shared, bounded provider pool.
+    tracks = search_tracks_smart(query, limit=limit, sources=DEFAULT_TRACK_SEARCH_ORDER)
+    futures = [
+        _PROVIDER_EXECUTOR.submit(search_albums_smart, query, limit=limit),
+        _PROVIDER_EXECUTOR.submit(jamendo_search_artists, query, limit=limit),
+        _PROVIDER_EXECUTOR.submit(audius_search_users, query, limit=max(4, limit // 3)),
+    ]
+    done, pending = wait(futures, timeout=7)
+    for future in pending:
+        future.cancel()
+    values = []
+    for future in futures:
+        if future not in done:
+            values.append([])
+            continue
+        try:
+            values.append(future.result() or [])
+        except Exception as exc:
+            logger.warning("Catalogue lookup failed: %s", type(exc).__name__)
+            values.append([])
+    albums, jam_artists, aud_artists = values
     return {
         "tracks": tracks,
         "albums": albums,
