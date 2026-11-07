@@ -185,6 +185,22 @@ const { spawn } = require("node:child_process");
     await page.locator("#modal").evaluate(el=>el.classList.remove("on"));
     for(const id of ["barRemote","devicesList","barOutput"])if(!(await page.locator("#"+id).count()))throw new Error("Connect control missing: "+id);
 
+    // Desktop V3 must not render the legacy navigation beside its own sidebar.
+    await page.setViewportSize({width:1366,height:900});
+    await page.waitForTimeout(100);
+    const desktopShell = await page.evaluate(() => ({
+      legacyNav: getComputedStyle(document.querySelector(".nav.app-nav")).display,
+      v3Sidebar: getComputedStyle(document.querySelector("#mlsp-v3 .v3-sidebar")).display,
+      appMargin: getComputedStyle(document.querySelector("#appRoot")).marginLeft,
+      barZ: getComputedStyle(document.querySelector("#bar")).zIndex
+    }));
+    if (desktopShell.legacyNav !== "none" || desktopShell.v3Sidebar === "none" || desktopShell.appMargin !== "0px")
+      throw new Error("Desktop V3 shell has duplicate/offset legacy navigation: "+JSON.stringify(desktopShell));
+    await page.evaluate(() => { window.__barPlayClicks=0; window.barTogglePlay=()=>{window.__barPlayClicks++}; });
+    await page.locator("#barPlay").click();
+    if (await page.evaluate(()=>window.__barPlayClicks) !== 1)
+      throw new Error("Desktop mini-player play/pause button did not receive click");
+
     // Queue management is part of the retained player runtime.
     await page.evaluate(()=>{window.eval('S.queue=[{id:"qa-1",title:"One",artist:"QA"},{id:"qa-2",title:"Two",artist:"QA"},{id:"qa-3",title:"Three",artist:"QA"}];S.index=0;');openQueue();});
     await page.locator('#qModal [data-down="0"]').click();
