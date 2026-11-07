@@ -141,7 +141,7 @@ class SQLiteDevicePersistenceTests(unittest.TestCase):
     def test_playlist_track_removal_is_owner_scoped(self):
         owner = 987660
         playlist, error = db.pl_create(owner, "My playlist")
-        self.assertIsNone(error)
+        self.assertEqual(error, "")
         self.assertTrue(db.pl_add_track(owner, playlist["id"], {"id": "track-1", "title": "Track"})[0])
         self.assertFalse(db.pl_remove_track(owner + 1, playlist["id"], "track-1"))
         self.assertEqual(len(db.pl_get(playlist["id"])["tracks"]), 1)
