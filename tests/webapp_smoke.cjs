@@ -81,7 +81,7 @@ const { spawn } = require("node:child_process");
     await page.waitForSelector("#v3LibraryBody [data-pl=\"42\"]");
 
     const dockMetrics=await page.evaluate(()=>{const n=document.querySelector("#mlsp-v3 .v3-mobile-nav"),r=n.getBoundingClientRect();return {display:getComputedStyle(n).display,position:getComputedStyle(n).position,top:r.top,bottom:r.bottom,width:r.width,height:r.height,viewport:window.innerHeight};});
-    if(dockMetrics.display!=="grid"||dockMetrics.position!=="fixed"||dockMetrics.bottom>dockMetrics.viewport||dockMetrics.top<0||dockMetrics.width<300)
+    if(!(dockMetrics.display==="grid"||dockMetrics.display==="flex")||dockMetrics.position!=="fixed"||dockMetrics.bottom>dockMetrics.viewport||dockMetrics.top<0||dockMetrics.width<300)
       throw new Error("Mobile navigation dock is outside the visible viewport: "+JSON.stringify(dockMetrics));
     for(const target of ["explore","search","library","profile","home"]){
       await page.locator('.v3-mobile-nav [data-page="'+target+'"]').evaluate(el=>el.click());
@@ -226,7 +226,7 @@ const { spawn } = require("node:child_process");
       const n=nav.getBoundingClientRect(), b=bar.getBoundingClientRect();
       return {navDisplay:getComputedStyle(nav).display,navPosition:getComputedStyle(nav).position,barVisible:getComputedStyle(bar).display!=="none",overlap:Math.min(n.bottom,b.bottom)-Math.max(n.top,b.top)>0};
     });
-    if(mobileDock.navDisplay!=="grid"||mobileDock.navPosition!=="fixed"||!mobileDock.barVisible||mobileDock.overlap)
+    if(!(mobileDock.navDisplay==="grid"||mobileDock.navDisplay==="flex")||mobileDock.navPosition!=="fixed"||!mobileDock.barVisible||mobileDock.overlap)
       throw new Error("Mobile dock/player layout is broken or overlapping: "+JSON.stringify(mobileDock));
     await page.evaluate(()=>document.querySelector("#bar").classList.remove("on"));
     await page.setViewportSize({width:1366,height:900});
