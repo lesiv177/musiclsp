@@ -702,7 +702,7 @@ async def h_import_playlist(request, u):
             missed.append(index)
             continue
         title = str(row.get("trackName") or row.get("title") or row.get("Track Name") or "").strip()[:160]
-        artist = str(row.get("artistName") or row.get("artist") or row.get("Artist Name") or "").strip()[:160]
+        artist = str(row.get("artistName") or row.get("artist") or row.get("Artist Name") or row.get("Artist Name(s)") or "").strip()[:160]
         if not title:
             missed.append(index)
             continue
