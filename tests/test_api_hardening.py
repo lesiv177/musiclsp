@@ -42,13 +42,13 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(api.valid_device_id("bad device"))
         self.assertFalse(api.valid_device_id("x" * 81))
 
-    def test_health_reports_jamendo_disabled_without_commercial_approval(self):
+    async def test_health_reports_jamendo_disabled_without_commercial_approval(self):
         with (
             patch.object(api.P, "jamendo_enabled", return_value=False),
             patch.object(api.P, "audius_host", return_value="https://audius.example"),
             patch.object(api, "optional_music_source_status", return_value={}),
         ):
-            response = api.h_health(SimpleNamespace())
+            response = await api.h_health(SimpleNamespace())
         payload = json.loads(response.text)
         self.assertFalse(payload["sources"]["jamendo"])
         self.assertTrue(payload["sources"]["audius"])
