@@ -310,9 +310,7 @@ async def h_search(request, u):
     elif kind == "albums":
         data = await to_thread(P.search_albums_smart, query, limit, sort)
     elif kind == "artists":
-        jam = await to_thread(P.jamendo_search_artists, query, limit)
-        aud = await to_thread(P.audius_search_users, query, max(5, limit // 3))
-        data = jam + aud
+        data = await to_thread(P.search_artists_smart, query, limit)
     elif kind == "public_domain":
         data = await to_thread(P.archive_search, query, limit)
     else:
