@@ -1489,6 +1489,8 @@ def _interleave_catalogue_groups(groups):
 
 def search_albums(query, limit=20, sort="relevance"):
     """Merge album catalogues fairly and collapse duplicate releases across providers."""
+    if int(limit) <= 0:
+        return []
     groups = _run_parallel_grouped([
         lambda: jamendo_search_albums(query, limit=limit, sort=sort),
         lambda: audius_search_albums(query, limit=limit),
@@ -1528,6 +1530,8 @@ def search_albums_smart(query, limit=20, sort="relevance"):
 
 def search_artists(query, limit=20):
     """Merge artist catalogues fairly without allowing one provider to starve another."""
+    if int(limit) <= 0:
+        return []
     groups = _run_parallel_grouped([
         lambda: jamendo_search_artists(query, limit=limit),
         lambda: audius_search_users(query, limit=limit),
