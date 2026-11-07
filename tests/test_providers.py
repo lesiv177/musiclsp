@@ -53,6 +53,12 @@ class AudiusAlbumCatalogueTests(unittest.TestCase):
         self.assertEqual(result[0]["artist"], "Example Artist")
         self.assertEqual(result[0]["cover"], "https://img.test/album.jpg")
 
+    def test_audius_stream_resolver_rechecks_track_license(self):
+        with patch.object(P, "audius_track", return_value=None), \\
+             patch.object(P, "audius_stream_url_verified") as stream:
+            self.assertEqual(P.resolve_stream("aud:noncommercial-track"), "")
+            stream.assert_not_called()
+
     def test_explicit_noncommercial_audius_track_is_rejected(self):
         self.assertIsNone(P._aud_track({"id": "x", "license": "CC BY-NC-ND"}))
         self.assertIsNone(P._aud_track({"id": "x", "license": "Attribution-NonCommercial"}))
