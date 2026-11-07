@@ -27,7 +27,7 @@ class SourceCapability:
 
     def status(self) -> dict:
         configured = all(bool(os.getenv(name, "").strip()) for name in self.credential_env)
-        enabled = not self.enabled_env or _truthy(self.enabled_env, "1")
+        enabled = not self.enabled_env or os.getenv(self.enabled_env, "1").strip() == "1"
         approved = not self.approval_env or _truthy(self.approval_env)
         return {
             "label": self.label,
