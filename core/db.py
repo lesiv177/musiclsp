@@ -307,6 +307,8 @@ MIGRATIONS_PG = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_used BOOLEAN DEFAULT FALSE",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS renewal_notified BOOLEAN DEFAULT FALSE",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_refcode ON users(ref_code)",
+    "DELETE FROM library WHERE id NOT IN (SELECT MAX(id) FROM library GROUP BY uid, tid)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_library_uid_tid ON library(uid, tid)",
 ]
 MIGRATIONS_SQLITE = [
     "ALTER TABLE playback_commands ADD COLUMN acked_at TEXT",
@@ -321,6 +323,8 @@ MIGRATIONS_SQLITE = [
     "ALTER TABLE users ADD COLUMN trial_used INTEGER DEFAULT 0",
     "ALTER TABLE users ADD COLUMN renewal_notified INTEGER DEFAULT 0",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_refcode ON users(ref_code)",
+    "DELETE FROM library WHERE id NOT IN (SELECT MAX(id) FROM library GROUP BY uid, tid)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_library_uid_tid ON library(uid, tid)",
 ]
 
 
@@ -667,17 +671,18 @@ def bump_counter(uid, kind):
 # ─── Бібліотека ──────────────────────────────────────────────────────────────
 
 def lib_add(uid, t):
+    track_id = str((t or {}).get("id") or "").strip()
+    if not track_id:
+        return False
     with conn_cursor() as (conn, cur):
-        cur.execute(q("SELECT id FROM library WHERE uid=%s AND tid=%s"), (uid, t["id"]))
-        if one(cur):
-            return False
         cur.execute(q("""INSERT INTO library
             (uid,tid,title,artist,cover,duration,source,license,source_url,added_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""),
-            (uid, t["id"], t.get("title", ""), t.get("artist", ""), t.get("cover", ""),
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT DO NOTHING"""),
+            (uid, track_id, t.get("title", ""), t.get("artist", ""), t.get("cover", ""),
              int(t.get("duration") or 0), t.get("source", ""),
              t.get("license_short", ""), t.get("source_url", ""), now_str()))
-    return True
+        return cur.rowcount > 0
 
 
 def lib_remove(uid, tid):
