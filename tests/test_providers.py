@@ -182,15 +182,38 @@ class GlobalSearchCoverageTests(unittest.TestCase):
     def test_global_search_requests_optional_catalogues(self):
         with (
             patch.object(P, "search_tracks_smart", return_value=[]) as tracks,
-            patch.object(P, "jamendo_search_albums_smart", return_value=[]),
-            patch.object(P, "jamendo_search_artists", return_value=[]),
-            patch.object(P, "audius_search_users", return_value=[]),
+            patch.object(P, "search_albums_smart", return_value=[]),
+            patch.object(P, "search_artists_smart", return_value=[]),
         ):
             result = P.search_everything("test", limit=8)
         self.assertEqual(result, {"tracks": [], "albums": [], "artists": []})
         requested = tracks.call_args.kwargs["sources"]
         self.assertIn("soundcloud", requested)
         self.assertIn("youtube", requested)
+
+    def test_artist_search_aggregates_both_catalogues_and_deduplicates_ids(self):
+        jam = {"id": "jam:1", "name": "Artist", "source": "jamendo"}
+        aud = {"id": "aud:2", "name": "Artist", "source": "audius"}
+        duplicate = {"id": "jam:1", "name": "Artist duplicate", "source": "jamendo"}
+        with (
+            patch.object(P, "_run_parallel", side_effect=run_jobs_inline),
+            patch.object(P, "jamendo_search_artists", return_value=[jam, duplicate]),
+            patch.object(P, "audius_search_users", return_value=[aud]),
+        ):
+            results = P.search_artists("Artist", limit=10)
+        self.assertEqual([item["id"] for item in results], ["jam:1", "aud:2"])
+
+    def test_audius_artist_tracks_drop_noncommercial_or_invalid_records(self):
+        payload = [
+            {"id": "1", "title": "Allowed", "license": "CC-BY", "user": {"name": "A"}},
+            {"id": "2", "title": "Blocked", "license": "CC-BY-NC", "user": {"name": "A"}},
+        ]
+        with (
+            patch.object(P, "audius_host", return_value="https://discovery.example"),
+            patch.object(P, "_get", return_value={"data": payload}),
+        ):
+            results = P.audius_user_tracks("artist-id", limit=10)
+        self.assertEqual([item["id"] for item in results], ["aud:1"])
 
 
 class InternetArchiveRightsTests(unittest.TestCase):
