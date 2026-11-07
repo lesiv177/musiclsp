@@ -208,6 +208,11 @@ SCHEMA_PG = [
         cover TEXT, duration INTEGER DEFAULT 0, source TEXT, license TEXT,
         source_url TEXT, position INTEGER DEFAULT 0
     )""",
+    """CREATE TABLE IF NOT EXISTS search_history (
+        id SERIAL PRIMARY KEY, uid BIGINT, query TEXT NOT NULL, kind TEXT DEFAULT 'tracks',
+        searched_at TIMESTAMP DEFAULT NOW()
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_search_history_uid ON search_history(uid)",
     """CREATE TABLE IF NOT EXISTS history (
         id SERIAL PRIMARY KEY, uid BIGINT, tid TEXT, title TEXT, artist TEXT,
         cover TEXT, source TEXT, seconds INTEGER DEFAULT 0,
@@ -814,6 +819,46 @@ def history_add(uid, t, seconds=0):
             (uid, t.get("id", ""), t.get("title", ""), t.get("artist", ""),
              t.get("cover", ""), t.get("source", ""), int(seconds or 0), now_str()))
 
+
+
+def search_history_add(uid, query, kind="tracks", limit=30):
+    """Зберігає унікальний недавній пошуковий запит користувача."""
+    query = str(query or "").strip()[:160]
+    kind = str(kind or "tracks")[:24]
+    if not query:
+        return False
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("DELETE FROM search_history WHERE uid=%s AND LOWER(query)=LOWER(%s) AND kind=%s"),
+                    (int(uid), query, kind))
+        cur.execute(q("""INSERT INTO search_history (uid, query, kind, searched_at)
+                         VALUES (%s,%s,%s,%s)"""),
+                    (int(uid), query, kind, now_str()))
+        cur.execute(q("""DELETE FROM search_history WHERE uid=%s AND id NOT IN
+                         (SELECT id FROM search_history WHERE uid=%s
+                          ORDER BY searched_at DESC, id DESC LIMIT %s)"""),
+                    (int(uid), int(uid), max(1, min(int(limit), 100))))
+    return True
+
+
+def search_history_list(uid, limit=20):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("""SELECT id, query, kind, searched_at FROM search_history
+                         WHERE uid=%s ORDER BY searched_at DESC, id DESC LIMIT %s"""),
+                    (int(uid), max(1, min(int(limit), 100))))
+        return rows(cur)
+
+
+def search_history_remove(uid, item_id):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("DELETE FROM search_history WHERE uid=%s AND id=%s"),
+                    (int(uid), int(item_id)))
+        return cur.rowcount > 0
+
+
+def search_history_clear(uid):
+    with conn_cursor() as (conn, cur):
+        cur.execute(q("DELETE FROM search_history WHERE uid=%s"), (int(uid),))
+        return cur.rowcount
 
 
 # ─── Сесії пристроїв і віддалене керування відтворенням ────────────────────────
