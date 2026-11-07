@@ -123,23 +123,11 @@ async function search(){
    const tracks=(typeof noBlocked==="function"?noBlocked:(l=>l))(Array.isArray(results.tracks)?results.tracks:[]);
    const albums=Array.isArray(results.albums)?results.albums:[];
    const artists=Array.isArray(results.artists)?results.artists:[];
-   const appleResults=Array.isArray(d.apple_results)?d.apple_results:[];
-   if(!tracks.length&&!albums.length&&!artists.length&&!appleResults.length){$("v3Results").innerHTML='<div class="v3-empty">'+E(tr("nothing_found_body","Try another search."))+'</div>';return;}
+   if(!tracks.length&&!albums.length&&!artists.length){$("v3Results").innerHTML='<div class="v3-empty">'+E(tr("nothing_found_body","Try another search."))+'</div>';return;}
    let html="";
    if(tracks.length)html+=section(tr("search_tracks","Tracks"),'<div class="v3-track-list">'+tracks.slice(0,12).map((x,i)=>row(x,i,"alltracks")).join("")+'</div>');
    if(artists.length)html+=section(tr("search_artists","Artists"),collectionRows(artists.slice(0,8),"artists"));
    if(albums.length)html+=section(tr("search_albums","Albums"),collectionRows(albums.slice(0,8),"albums"));
-   if(appleResults.length){
-    const copy=({uk:{title:"Apple Music — каталог",note:"Каталог Apple Music · відкривається в Apple Music",song:"Трек",album:"Альбом",artist:"Виконавець"},ru:{title:"Apple Music — каталог",note:"Каталог Apple Music · открывается в Apple Music",song:"Трек",album:"Альбом",artist:"Исполнитель"},en:{title:"Apple Music catalogue",note:"Apple Music catalogue · opens in Apple Music",song:"Track",album:"Album",artist:"Artist"},pl:{title:"Katalog Apple Music",note:"Katalog Apple Music · otwiera się w Apple Music",song:"Utwór",album:"Album",artist:"Wykonawca"},de:{title:"Apple-Music-Katalog",note:"Apple-Music-Katalog · wird in Apple Music geöffnet",song:"Titel",album:"Album",artist:"Interpret"},es:{title:"Catálogo de Apple Music",note:"Catálogo de Apple Music · se abre en Apple Music",song:"Pista",album:"Álbum",artist:"Artista"},fr:{title:"Catalogue Apple Music",note:"Catalogue Apple Music · s’ouvre dans Apple Music",song:"Morceau",album:"Album",artist:"Artiste"},tr:{title:"Apple Music kataloğu",note:"Apple Music kataloğu · Apple Music’te açılır",song:"Parça",album:"Albüm",artist:"Sanatçı"}})[S.me?.lang||"uk"]||{title:"Apple Music catalogue",note:"Apple Music catalogue · opens in Apple Music",song:"Track",album:"Album",artist:"Artist"};
-    const items=appleResults.slice(0,12).map(x=>{
-     const href=typeof x.external_url==="string"&&/^https:\/\/music\.apple\.com\//i.test(x.external_url)?x.external_url:"";
-     if(!href)return "";
-     const cover=typeof x.artwork==="string"&&/^https:\/\//i.test(x.artwork)?x.artwork:"";
-     const meta=[x.artist,x.album].filter(Boolean).join(" · ")||copy[x.kind]||"Apple Music";
-     return '<a class="apple-catalog-item" href="'+E(href)+'" target="_blank" rel="noopener noreferrer">'+(cover?'<img src="'+E(cover)+'" alt="" loading="lazy" referrerpolicy="no-referrer">':'<span class="apple-catalog-placeholder">♫</span>')+'<span class="apple-catalog-meta"><b>'+E(x.title||"")+'</b><small>'+E(meta)+'</small></span><span class="apple-catalog-open" aria-label="Open Apple Music">↗</span></a>';
-    }).join("");
-    if(items)html+=section(copy.title,'<div class="apple-catalog-list">'+items+'</div><p class="apple-catalog-note">'+E(copy.note)+'</p>');
-   }
    $("v3Results").innerHTML=html;
    bindRows($("v3Results"),tracks.slice(0,12),"alltracks");
    $("v3Results").querySelectorAll("[data-collection]").forEach(b=>b.onclick=()=>{const kind=b.dataset.collectionKind,index=+b.dataset.collection;openCollection(kind,(kind==="artists"?artists:albums)[index]);});
