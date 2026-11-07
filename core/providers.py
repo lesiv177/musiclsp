@@ -1722,6 +1722,63 @@ def curated_playlist_tracks(full_id, quality="mp32"):
     return []
 
 
+def ccmixter_track(raw_id):
+    """Reload a ccMixter track by its stable upload ID after a process restart."""
+    raw_id = str(raw_id or "")
+    if not raw_id.isdigit():
+        return None
+    cached = _ccm_cache_get(raw_id)
+    if cached:
+        return cached
+    data = _get(CCMIXTER_API, {"ids": raw_id, "f": "json"})
+    entries = data if isinstance(data, list) else (
+        (data or {}).get("results") or (data or {}).get("data") or []
+    )
+    for entry in entries:
+        track = _ccm_from_json(entry)
+        if track and track.get("id") == f"ccm:{raw_id}":
+            _ccm_cache_put(track)
+            return track
+    return None
+
+
+def openverse_track(raw_id):
+    """Reload an Openverse audio record by UUID, rechecking its licence."""
+    raw_id = str(raw_id or "")
+    if not re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", raw_id):
+        return None
+    cached = _ov_cache_get(raw_id)
+    if cached:
+        return cached
+    item = _get(f"{OPENVERSE_API}{urllib.parse.quote(raw_id)}/")
+    track = _ov_track(item) if isinstance(item, dict) else None
+    if not track or track.get("id") != f"ov:{raw_id}":
+        return None
+    _ov_cache_put(track)
+    return track
+
+
+def wikimedia_track(raw_id):
+    """Reload a Wikimedia audio file by stable MediaWiki page ID and licence."""
+    raw_id = str(raw_id or "")
+    if not raw_id.isdigit():
+        return None
+    cached = _wm_cache_get(raw_id)
+    if cached:
+        return cached
+    data = _get(WIKIMEDIA_API, {
+        "action": "query", "format": "json", "pageids": raw_id,
+        "prop": "imageinfo", "iiprop": "url|mime|extmetadata",
+    })
+    pages = ((data or {}).get("query") or {}).get("pages") or {}
+    for page in pages.values():
+        track = _wm_track(page)
+        if track and track.get("id") == f"wm:{raw_id}":
+            _wm_cache_put(track)
+            return track
+    return None
+
+
 def get_track(full_id, quality="mp32"):
     prefix, raw = split_id(full_id)
     if prefix == "jam":
@@ -1732,11 +1789,11 @@ def get_track(full_id, quality="mp32"):
         res = archive_search(raw, limit=1)
         return res[0] if res else None
     if prefix == "ccm":
-        return _ccm_cache_get(raw)
+        return ccmixter_track(raw)
     if prefix == "ov":
-        return _ov_cache_get(raw)
+        return openverse_track(raw)
     if prefix == "wm":
-        return _wm_cache_get(raw)
+        return wikimedia_track(raw)
     if prefix == "sc":
         return soundcloud_track(raw)
     return None
@@ -1756,15 +1813,9 @@ def resolve_stream(full_id, quality="mp32"):
         return audius_stream_url_verified(raw)
     if prefix == "arc":
         return archive_stream_url(raw)
-    if prefix == "ccm":
-        t = _ccm_cache_get(raw)
-        return t["stream"] if t else ""
-    if prefix == "ov":
-        t = _ov_cache_get(raw)
-        return t["stream"] if t else ""
-    if prefix == "wm":
-        t = _wm_cache_get(raw)
-        return t["stream"] if t else ""
+    if prefix in {"ccm", "ov", "wm"}:
+        track = get_track(full_id, quality)
+        return track["stream"] if track else ""
     if prefix == "sc":
         return soundcloud_stream_url(raw)
     return ""
@@ -1787,15 +1838,9 @@ def resolve_download(full_id):
         url = archive_stream_url(raw)
         res = archive_search(raw, limit=1)
         return url, (res[0] if res else None)
-    if prefix == "ccm":
-        t = _ccm_cache_get(raw)
-        return (t["download_url"], t) if t else ("", None)
-    if prefix == "ov":
-        t = _ov_cache_get(raw)
-        return (t["download_url"], t) if t else ("", None)
-    if prefix == "wm":
-        t = _wm_cache_get(raw)
-        return (t["download_url"], t) if t else ("", None)
+    if prefix in {"ccm", "ov", "wm"}:
+        t = get_track(full_id)
+        return (t["download_url"], t) if t and t.get("downloadable") else ("", t)
     return "", None
 
 
