@@ -115,7 +115,7 @@ async def h_health(request):
         "ok": True,
         "version": APP_VERSION,
         "sources": {
-            "jamendo": bool(JAMENDO_CLIENT_ID),
+            "jamendo": P.jamendo_enabled(),
             "audius": bool(P.audius_host()),
             "archive": True,
             "ccmixter": True,
