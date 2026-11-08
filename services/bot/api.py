@@ -514,7 +514,7 @@ async def h_artist(request, u):
             to_thread(P.soundcloud_user_by_id, raw),
             to_thread(P.soundcloud_user_tracks, raw, 50),
         )
-        if not artist:
+        if not artist and not tracks:
             return fail("Артиста не знайдено в каталозі", 404)
     elif prefix == "mb":
         from core import musicbrainz as MB
@@ -540,10 +540,13 @@ async def h_artist(request, u):
     else:
         return fail("Невідоме джерело", 400)
     if prefix == "scu":
+        fallback_track = tracks[0] if tracks else {}
+        artist_name = (artist or {}).get("name") or fallback_track.get("artist") or "Невідомий артист"
+        artist_cover = (artist or {}).get("cover") or fallback_track.get("cover") or ""
         return ok({"ok": True, "tracks": tracks, "artist": {
-            "id": request.match_info["aid"], "name": artist["name"],
-            "cover": artist["cover"], "source": "soundcloud",
-            "source_url": artist["source_url"],
+            "id": request.match_info["aid"], "name": artist_name,
+            "cover": artist_cover, "source": "soundcloud",
+            "source_url": (artist or {}).get("source_url") or "",
         }})
     if not tracks:
         return fail("У цього артиста поки немає треків", 404)
