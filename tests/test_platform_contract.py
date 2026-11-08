@@ -10,9 +10,9 @@ API = (ROOT / "services" / "bot" / "api.py").read_text(encoding="utf-8")
 
 class PlatformContractTests(unittest.TestCase):
     def test_updated_platform_assets_have_cache_busting_versions(self):
-        self.assertIn('./v3.js?v=9', HTML)
+        self.assertIn('./v3.js?v=10', HTML)
         self.assertIn('./platform.js?v=3', HTML)
-        self.assertIn('./platform.css?v=3', HTML)
+        self.assertIn('./platform.css?v=4', HTML)
 
     def test_discovery_covers_multiple_genres_and_balances_results(self):
         discover = API.split('async def h_discover', 1)[1].split('@require_auth', 1)[0]
