@@ -926,6 +926,13 @@ async def h_history_post(request, u):
 @require_auth
 async def h_search_history_get(request, u):
     items = await to_thread(db.search_history_list, int(u["uid"]), 30)
+    # PostgreSQL returns searched_at as datetime; normalize it before JSON encoding.
+    items = [
+        {**item, "searched_at": item["searched_at"].isoformat()}
+        if isinstance(item, dict) and hasattr(item.get("searched_at"), "isoformat")
+        else item
+        for item in (items or [])
+    ]
     return ok({"ok": True, "items": items})
 
 
