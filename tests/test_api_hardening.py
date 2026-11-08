@@ -185,8 +185,8 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
             if fn is api.P.audius_trending:
                 return [{"id": "aud:1", "title": "Trending Track"}]
             if fn is api.P.jamendo_tag_tracks:
-                self.assertIn(args[0], ("pop", "rock"))
-                suffix = "1" if args[0] == "pop" else "2"
+                self.assertIn(args[0], ("pop", "rock", "electronic", "hiphop", "jazz"))
+                suffix = str(("pop", "rock", "electronic", "hiphop", "jazz").index(args[0]) + 1)
                 return [{"id": "jam:" + suffix, "title": "Popular " + args[0].title() + " Track"}]
             raise AssertionError(f"Unexpected provider function: {fn}")
         with (
@@ -198,7 +198,8 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
         payload = json.loads(response.text)
         self.assertEqual(response.status, 200)
         self.assertEqual([x["id"] for x in payload["charts"]],
-                         ["audius-trending", "electronic-trending", "popular-pop", "popular-rock"])
+                         ["audius-trending", "electronic-trending", "popular-pop", "popular-rock",
+                          "popular-electronic", "popular-hiphop", "popular-jazz"])
         self.assertEqual(payload["charts"][0]["tracks"][0]["id"], "aud:1")
         self.assertEqual(payload["charts"][2]["tracks"][0]["id"], "jam:1")
         self.assertEqual(payload["charts"][3]["tracks"][0]["id"], "jam:2")

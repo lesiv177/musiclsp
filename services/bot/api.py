@@ -452,11 +452,17 @@ async def h_charts(request, u):
     """Provider charts with playable entries, split by source and genre."""
     uid = int(u["uid"])
     quality = quality_for(uid)
-    audius_all, audius_electronic, jamendo_pop, jamendo_rock = await asyncio.gather(
+    (
+        audius_all, audius_electronic,
+        jamendo_pop, jamendo_rock, jamendo_electronic, jamendo_hiphop, jamendo_jazz,
+    ) = await asyncio.gather(
         _safe(to_thread(P.audius_trending, None, 30)),
         _safe(to_thread(P.audius_trending, "Electronic", 30)),
         _safe(to_thread(P.jamendo_tag_tracks, "pop", 30, 0, quality, "popularity_month")),
         _safe(to_thread(P.jamendo_tag_tracks, "rock", 30, 0, quality, "popularity_month")),
+        _safe(to_thread(P.jamendo_tag_tracks, "electronic", 30, 0, quality, "popularity_month")),
+        _safe(to_thread(P.jamendo_tag_tracks, "hiphop", 30, 0, quality, "popularity_month")),
+        _safe(to_thread(P.jamendo_tag_tracks, "jazz", 30, 0, quality, "popularity_month")),
     )
     return ok({
         "ok": True,
@@ -465,6 +471,9 @@ async def h_charts(request, u):
             {"id": "electronic-trending", "title": "Electronic Trending", "source": "Audius · Electronic", "tracks": audius_electronic or []},
             {"id": "popular-pop", "title": "Popular Pop", "source": "Jamendo", "tracks": jamendo_pop or []},
             {"id": "popular-rock", "title": "Popular Rock", "source": "Jamendo", "tracks": jamendo_rock or []},
+            {"id": "popular-electronic", "title": "Popular Electronic", "source": "Jamendo", "tracks": jamendo_electronic or []},
+            {"id": "popular-hiphop", "title": "Popular Hip-Hop", "source": "Jamendo", "tracks": jamendo_hiphop or []},
+            {"id": "popular-jazz", "title": "Popular Jazz", "source": "Jamendo", "tracks": jamendo_jazz or []},
         ],
     })
 
