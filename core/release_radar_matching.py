@@ -21,7 +21,7 @@ def release_matches_followed_artist(release, followed_artist):
         followed_artist.get("mbid") or followed_artist.get("artist_mbid") or ""
     ).strip().removeprefix("mb:artist:")
     release_mbid = str(
-        release.get("artist_mbid") or release.get("artist_id") or ""
+        release.get("artist_mbid") or ""
     ).strip().removeprefix("mb:artist:")
 
     if followed_mbid and release_mbid:
