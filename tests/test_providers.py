@@ -291,7 +291,7 @@ class ExpandedTrackSearchTests(unittest.TestCase):
         self.assertGreaterEqual(search.call_count, 2)
 
     def test_expanded_search_handles_empty_and_duplicate_query_variants(self):
-        self.assertEqual(P._search_query_variants("  OG-Buda  "), ["OG-Buda", "OG Buda"])
+        self.assertEqual(P._search_query_variants("  OG-Buda  "), ["OG-Buda", "OG Buda", "Buda"])
         self.assertEqual(P.search_tracks_smart(" ", limit=10), [])
 
     def test_expanded_search_respects_non_positive_limit(self):
@@ -333,6 +333,7 @@ class GlobalSearchCoverageTests(unittest.TestCase):
             patch.object(P, "_run_parallel", side_effect=run_jobs_inline),
             patch.object(P, "jamendo_search_artists", return_value=[jam, duplicate]),
             patch.object(P, "audius_search_users", return_value=[aud]),
+            patch("core.musicbrainz.search_artists", return_value=[]),
         ):
             results = P.search_artists("Artist", limit=10)
         self.assertEqual([item["id"] for item in results], ["jam:1", "aud:2"])
