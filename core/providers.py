@@ -1593,9 +1593,18 @@ def search_artists(query, limit=20):
     """Merge artist catalogues fairly without allowing one provider to starve another."""
     if int(limit) <= 0:
         return []
+    def musicbrainz_artists():
+        try:
+            from core.musicbrainz import search_artists as mb_search_artists
+            return mb_search_artists(query, limit=limit)
+        except Exception as exc:
+            logger.warning("MusicBrainz artist metadata search failed: %s", type(exc).__name__)
+            return []
+
     groups = _run_parallel_grouped([
         lambda: jamendo_search_artists(query, limit=limit),
         lambda: audius_search_users(query, limit=limit),
+        musicbrainz_artists,
     ], timeout=6)
     seen, out = set(), []
     for artist in _interleave_catalogue_groups(groups):
