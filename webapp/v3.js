@@ -133,7 +133,7 @@ async function openCollection(kind,item){
   root.innerHTML='<button class="v3-pill v3-back" id="v3CollBack">‹ Назад</button>'+
    '<div class="v3-coll-hero"><img src="'+E(cover)+'" alt="" onerror="this.style.opacity=.15"><div><div class="v3-eyebrow">'+(isAlb?"АЛЬБОМ":"АРТИСТ")+'</div><h1 class="v3-page-title">'+E(title)+'</h1><p class="v3-coll-by">'+E(by)+'</p><p class="v3-coll-meta">'+E(meta)+'</p></div></div>'+
    '<div class="v3-coll-actions"><button class="v3-coll-play" id="v3CollPlay">▶ Слухати</button><button class="v3-pill" id="v3CollShuffle">Перемішати</button><button class="v3-pill" id="v3SaveCollection">＋ Зберегти</button>'+(isAlb?"":'<button class="v3-pill" id="v3FollowArtist">＋ Стежити</button>')+'</div>'+
-   (metadataArtist?section("Дискографія",releases.length?'<div class="platform-entity-grid">'+releases.map((release)=>'<article class="platform-entity album"><span class="platform-entity-art"></span><b>'+E(release.title||"Без назви")+'</b><small>'+E(release.first_release_date||release.type||"Реліз")+'</small></article>').join("")+'</div>':'<div class="v3-empty">Дані про релізи поки відсутні.</div>'):'<div class="v3-track-list v3-coll-list">'+list.map((t,i)=>row(t,i,"coll")).join("")+'</div>');
+   (metadataArtist?section("Дискографія",releases.length?'<div class="platform-entity-grid">'+releases.map((release)=>'<a class="platform-entity album" href="'+E(release.source_url||("https://musicbrainz.org/release-group/"+E(release.mbid||"")))+'" target="_blank" rel="noopener noreferrer"><span class="platform-entity-art"></span><b>'+E(release.title||"Без назви")+'</b><small>'+E([release.first_release_date||release.year,release.type].filter(Boolean).join(" · ")||"Реліз")+' · MusicBrainz</small></a>').join("")+'</div>':'<div class="v3-empty">Дані про релізи поки відсутні.</div>'):'<div class="v3-track-list v3-coll-list">'+list.map((t,i)=>row(t,i,"coll")).join("")+'</div>');
   nav("collection");
   document.querySelectorAll("#mlsp-v3 [data-page]").forEach(x=>x.classList.toggle("active",x.dataset.page===st.prev));
   if(list.length)bindRows(root,list,"coll");
@@ -238,5 +238,5 @@ function init(){
  document.addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){e.preventDefault();nav("search");$("v3SearchInput")?.focus();}});
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
-window.MLSPv3={navigate:nav,home,explore,library,profile,search,openCollection};
+window.MLSPv3={navigate:nav,home,explore,library,profile,search,openCollection,playTracks:(tracks,index=0)=>{if(Array.isArray(tracks)&&tracks.length)setQueue(tracks,Math.max(0,Math.min(Number(index)||0,tracks.length-1)));}};
 })();
