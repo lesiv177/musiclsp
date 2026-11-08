@@ -1650,9 +1650,18 @@ def search_albums(query, limit=20, sort="relevance"):
     """Merge album catalogues fairly and collapse duplicate releases across providers."""
     if int(limit) <= 0:
         return []
+    def musicbrainz_albums():
+        try:
+            from core.musicbrainz import search_release_groups
+            return search_release_groups(query, limit=limit)
+        except Exception as exc:
+            logger.warning("MusicBrainz album metadata search failed: %s", type(exc).__name__)
+            return []
+
     groups = _run_parallel_grouped([
         lambda: jamendo_search_albums(query, limit=limit, sort=sort),
         lambda: audius_search_albums(query, limit=limit),
+        musicbrainz_albums,
     ], timeout=6)
     seen, unique_groups = set(), []
     for group in groups:
