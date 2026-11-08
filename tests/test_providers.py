@@ -323,7 +323,7 @@ class SoundCloudArtistSearchTests(unittest.TestCase):
 
     def test_soundcloud_user_tracks_returns_only_playable_tracks(self):
         payload = {"collection": [
-            {"id": 1, "title": "Playable", "user": {"username": "Artist"},
+            {"id": 1, "title": "Playable", "user": {"id": 77, "username": "Artist"},
              "streamable": True, "access": "playable"},
             {"id": 2, "title": "Blocked", "user": {"username": "Artist"},
              "streamable": False, "access": "blocked"},
@@ -337,6 +337,7 @@ class SoundCloudArtistSearchTests(unittest.TestCase):
             session.return_value.get.return_value = response
             result = P.soundcloud_user_tracks("123", limit=10)
         self.assertEqual([item["id"] for item in result], ["sc:1"])
+        self.assertEqual(result[0]["artist_id"], "scu:77")
 
     def test_soundcloud_artist_search_handles_disabled_source(self):
         with patch.object(P, "soundcloud_enabled", return_value=False):
