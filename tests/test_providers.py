@@ -344,6 +344,24 @@ class SoundCloudArtistSearchTests(unittest.TestCase):
             self.assertEqual(P.soundcloud_user_tracks("123"), [])
 
 
+class ArtistSearchFallbackTests(unittest.TestCase):
+    def test_sparse_exact_artist_results_are_filled_by_query_variant(self):
+        exact = [{"id": "aud:1", "name": "OG-Buda"}]
+        fallback = [
+            {"id": "aud:1", "name": "OG-Buda"},
+            {"id": "jam:2", "name": "Buda"},
+        ]
+        with patch.object(P, "search_artists", side_effect=[exact, fallback]) as search:
+            result = P.search_artists_smart("OG-Buda", limit=2)
+        self.assertEqual([item["id"] for item in result], ["aud:1", "jam:2"])
+        self.assertGreaterEqual(search.call_count, 2)
+
+    def test_artist_fallback_respects_non_positive_limit(self):
+        with patch.object(P, "search_artists") as search:
+            self.assertEqual(P.search_artists_smart("Artist", limit=0), [])
+        search.assert_not_called()
+
+
 class GlobalSearchCoverageTests(unittest.TestCase):
     def test_global_search_requests_optional_catalogues(self):
         with (
