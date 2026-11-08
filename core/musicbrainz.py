@@ -145,7 +145,7 @@ def recent_artist_releases(artist_mbid: str, since_date: str, limit: int = 25) -
     """
     artist_mbid = _text(artist_mbid).removeprefix("mb:artist:")
     since_date = _text(since_date)
-    if not re.fullmatch(r"[A-Za-z0-9-]{8,64}", artist_mbid):
+    if not re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", artist_mbid):
         return []
     try:
         since_date = date.fromisoformat(since_date).isoformat()
