@@ -151,6 +151,53 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
                          ["jam:10", "aud:11", "aud:12"])
 
 
+    async def test_audius_artist_profile_includes_metadata_without_changing_tracks(self):
+        request = SimpleNamespace(match_info={"aid": "aud:77"})
+        artist = {"id": "aud:77", "name": "Audius Artist", "cover": "https://img.test/a.jpg",
+                  "bio": "Independent artist", "location": "Berlin", "follower_count": 123,
+                  "track_count": 8, "source": "audius", "source_url": "https://audius.co/example"}
+        tracks = [{"id": "aud:track:1", "artist": "Audius Artist", "cover": "https://img.test/a.jpg"}]
+        async def fake_to_thread(fn, *args, **kwargs):
+            if fn is api.P.audius_user_by_id:
+                return artist
+            if fn is api.P.audius_user_tracks:
+                return tracks
+            raise AssertionError(f"Unexpected provider function: {fn}")
+        with (
+            patch.object(api, "auth_user", return_value={"uid": 123}),
+            patch.object(api, "quality_for", return_value="mp32"),
+            patch.object(api, "to_thread", side_effect=fake_to_thread),
+        ):
+            response = await api.h_artist(request)
+        payload = json.loads(response.text)
+        self.assertEqual(response.status, 200)
+        self.assertEqual(payload["artist"]["bio"], "Independent artist")
+        self.assertEqual(payload["artist"]["follower_count"], 123)
+        self.assertEqual(payload["tracks"], tracks)
+
+
+    async def test_jamendo_artist_profile_can_exist_without_playable_tracks(self):
+        request = SimpleNamespace(match_info={"aid": "jam:77"})
+        artist = {"id": "jam:77", "name": "Jamendo Artist", "cover": "https://img.test/a.jpg",
+                  "source": "jamendo", "source_url": "https://jamendo.com/artist/77"}
+        async def fake_to_thread(fn, *args, **kwargs):
+            if fn is api.P.jamendo_artist_by_id:
+                return artist
+            if fn is api.P.jamendo_artist_tracks:
+                return []
+            raise AssertionError(f"Unexpected provider function: {fn}")
+        with (
+            patch.object(api, "auth_user", return_value={"uid": 123}),
+            patch.object(api, "quality_for", return_value="mp32"),
+            patch.object(api, "to_thread", side_effect=fake_to_thread),
+        ):
+            response = await api.h_artist(request)
+        payload = json.loads(response.text)
+        self.assertEqual(response.status, 200)
+        self.assertEqual(payload["artist"]["name"], "Jamendo Artist")
+        self.assertEqual(payload["tracks"], [])
+
+
     async def test_musicbrainz_artist_detail_strips_artist_id_prefix(self):
         request = SimpleNamespace(match_info={"aid": "mb:artist:11111111-1111-4111-8111-111111111111"})
         artist = {
