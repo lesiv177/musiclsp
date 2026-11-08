@@ -1697,20 +1697,27 @@ def search_artists(query, limit=20):
 
 
 def search_artists_smart(query, limit=20):
-    """Artist search with the same query fallback policy as tracks and albums."""
-    out = search_artists(query, limit=limit)
-    if out:
-        return out
-    norm = _normalize_query(query)
-    if norm and norm.casefold() != (query or "").strip().casefold():
-        out = search_artists(norm, limit=limit)
-        if out:
-            return out
-    for word in [word for word in norm.split() if len(word) > 2]:
-        out = search_artists(word, limit=limit)
-        if out:
-            return out
-    return []
+    """Merge a bounded set of artist-query fallbacks without duplicate IDs."""
+    if int(limit) <= 0 or not str(query or "").strip():
+        return []
+    merged, seen = [], set()
+    for variant in _search_query_variants(query, max_variants=4):
+        try:
+            results = search_artists(variant, limit=limit)
+        except Exception as exc:
+            logger.warning("Artist search variant failed: %s", type(exc).__name__)
+            continue
+        for artist in results or []:
+            if not isinstance(artist, dict) or not artist.get("id") or not artist.get("name"):
+                continue
+            key = str(artist["id"]).casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(artist)
+            if len(merged) >= int(limit):
+                return merged
+    return merged
 
 
 def search_everything(query, limit=12, quality="mp32", sources=None, sort="relevance"):
