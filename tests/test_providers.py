@@ -374,7 +374,10 @@ class GlobalSearchCoverageTests(unittest.TestCase):
         aud = {"id": "aud:2", "name": "Artist", "source": "audius"}
         duplicate = {"id": "jam:1", "name": "Artist duplicate", "source": "jamendo"}
         with (
-            patch.object(P, "_run_parallel", side_effect=run_jobs_inline),
+            patch.object(P, "_run_parallel_grouped", side_effect=lambda jobs, timeout=6: [
+                jobs[1](), jobs[2](), jobs[3]()
+            ]),
+            patch.object(P, "soundcloud_search_users", return_value=[]),
             patch.object(P, "jamendo_search_artists", return_value=[jam, duplicate]),
             patch.object(P, "audius_search_users", return_value=[aud]),
             patch("core.musicbrainz.search_artists", return_value=[]),
