@@ -815,7 +815,7 @@ def archive_collection_tracks(collection, limit=40, subject=None):
             "id": f"arc:{ident}",
             "title": d.get("title") or ident,
             "artist": creator or "Невідомий виконавець",
-            "artist_id": "", "album": "", "album_id": "",
+            "artist_id": f"scu:{user.get('id')}" if user.get("id") else "", "album": "", "album_id": "",
             "cover": f"https://archive.org/services/img/{ident}",
             "duration": 0, "duration_str": "",
             "source": "archive", "source_label": "Internet Archive",
