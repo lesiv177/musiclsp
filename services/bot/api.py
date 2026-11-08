@@ -550,6 +550,7 @@ async def h_album(request, u):
         tracks = await to_thread(P.audius_album_tracks, raw)
     elif prefix == "mb":
         from core import musicbrainz as MB
+        raw = raw.removeprefix("release-group:")
         album = await to_thread(MB.release_group_by_id, raw)
         if not album:
             return fail("Альбом не знайдено в каталозі", 404)
