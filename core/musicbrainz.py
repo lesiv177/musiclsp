@@ -97,6 +97,7 @@ def _artist(item: dict) -> dict | None:
         "begin_date": _text((item.get("life-span") or {}).get("begin")),
         "end_date": _text((item.get("life-span") or {}).get("end")),
         "source": "musicbrainz",
+        "metadata_only": True,
         "source_url": f"https://musicbrainz.org/artist/{artist_id}",
     }
 
@@ -149,6 +150,7 @@ def artist_release_groups(artist_mbid: str, limit: int = 25) -> list[dict]:
             "year": first_release[:4] if first_release else "",
             "artist_mbid": artist_mbid,
             "source": "musicbrainz",
+            "metadata_only": True,
             "source_url": f"https://musicbrainz.org/release-group/{release_id}",
         })
     return results
@@ -223,6 +225,7 @@ def search_recordings(query: str, limit: int = 20) -> list[dict]:
             "artist": ", ".join(name for name in artists if name),
             "length_ms": row.get("length"),
             "source": "musicbrainz",
+            "metadata_only": True,
             "source_url": f"https://musicbrainz.org/recording/{recording_id}",
         })
     return results
