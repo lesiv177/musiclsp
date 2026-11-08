@@ -7,6 +7,8 @@ until MusicLSP's commercial-use terms are confirmed.
 from __future__ import annotations
 
 import os
+import re
+from datetime import date
 import threading
 import time
 from urllib.parse import urlencode
@@ -128,6 +130,50 @@ def artist_release_groups(artist_mbid: str, limit: int = 25) -> list[dict]:
             "secondary_types": row.get("secondary-types") or [],
             "first_release_date": first_release,
             "year": first_release[:4] if first_release else "",
+            "artist_mbid": artist_mbid,
+            "source": "musicbrainz",
+            "source_url": f"https://musicbrainz.org/release-group/{release_id}",
+        })
+    return results
+
+
+def recent_artist_releases(artist_mbid: str, since_date: str, limit: int = 25) -> list[dict]:
+    """Find an artist's release groups first released on/after since_date.
+
+    This is metadata discovery only. It does not imply audio availability or
+    grant streaming rights. Dates must be complete ISO calendar dates.
+    """
+    artist_mbid = _text(artist_mbid).removeprefix("mb:artist:")
+    since_date = _text(since_date)
+    if not re.fullmatch(r"[A-Za-z0-9-]{8,64}", artist_mbid):
+        return []
+    try:
+        since_date = date.fromisoformat(since_date).isoformat()
+    except ValueError:
+        return []
+    limit = max(1, min(int(limit), 25))
+    query = f"arid:{artist_mbid} AND date:[{since_date} TO *]"
+    data = _get_json("release-group", {"query": query, "limit": limit})
+    results = []
+    for row in data.get("release-groups", []):
+        release_id = _text(row.get("id"))
+        title = _text(row.get("title"))
+        first_release = _text(row.get("first-release-date"))
+        if not release_id or not title or len(first_release) < 10:
+            continue
+        try:
+            released = date.fromisoformat(first_release[:10])
+        except ValueError:
+            continue
+        if released < date.fromisoformat(since_date):
+            continue
+        results.append({
+            "id": f"mb:release-group:{release_id}",
+            "mbid": release_id,
+            "title": title,
+            "type": _text(row.get("primary-type")),
+            "first_release_date": first_release,
+            "year": first_release[:4],
             "artist_mbid": artist_mbid,
             "source": "musicbrainz",
             "source_url": f"https://musicbrainz.org/release-group/{release_id}",
