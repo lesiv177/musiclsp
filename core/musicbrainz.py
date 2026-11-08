@@ -86,7 +86,10 @@ def _artist(item: dict) -> dict | None:
         "type": _text(item.get("type")),
         "country": _text(item.get("country")),
         "disambiguation": _text(item.get("disambiguation")),
-        "aliases": [\n            _text(alias.get("name")) for alias in item.get("aliases", [])\n            if isinstance(alias, dict) and _text(alias.get("name"))\n        ],
+        "aliases": [
+            _text(alias.get("name")) for alias in item.get("aliases", [])
+            if isinstance(alias, dict) and _text(alias.get("name"))
+        ],
         "begin_date": _text((item.get("life-span") or {}).get("begin")),
         "end_date": _text((item.get("life-span") or {}).get("end")),
         "source": "musicbrainz",
