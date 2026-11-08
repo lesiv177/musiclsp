@@ -59,6 +59,23 @@ def _safe_log_url(url):
     return (parsed.netloc + parsed.path)[:180]
 
 
+def _public_http_url(value):
+    """Accept only absolute HTTP(S) URLs from external provider metadata."""
+    value = str(value or "").strip()
+    try:
+        parsed = urllib.parse.urlparse(value)
+    except ValueError:
+        return ""
+    return value if parsed.scheme in {"http", "https"} and parsed.netloc else ""
+
+
+def _safe_count(value):
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
 def _get(url, params=None, timeout=HTTP_TIMEOUT):
     try:
         r = _http_session().get(url, params=params, timeout=timeout)
@@ -298,6 +315,27 @@ def jamendo_search_artists(query, limit=20):
         "source_label": "Jamendo",
         "source_url": a.get("shareurl") or "",
     } for a in data.get("results", [])]
+
+
+def jamendo_artist_by_id(artist_id):
+    """Return public Jamendo artist profile metadata."""
+    if not jamendo_enabled() or not str(artist_id or "").strip():
+        return None
+    data = _get(f"{JAMENDO_API}/artists/", _jam_params(
+        id=artist_id, limit=1, imagesize=400,
+    ))
+    if not data or not data.get("results"):
+        return None
+    artist = data["results"][0]
+    return {
+        "id": f"jam:{artist.get('id')}",
+        "name": artist.get("name") or "",
+        "cover": artist.get("image") or "",
+        "website": _public_http_url(artist.get("website")),
+        "joined_at": artist.get("joindate") or "",
+        "source": "jamendo",
+        "source_url": artist.get("shareurl") or "",
+    }
 
 
 def jamendo_artist_tracks(artist_id, limit=40, audioformat="mp32"):
@@ -654,6 +692,40 @@ def audius_search_users(query, limit=15):
             "source_url": f"https://audius.co/{u.get('handle', '')}",
         })
     return out
+
+
+def audius_user_by_id(user_id):
+    """Fetch public Audius user profile metadata by user ID."""
+    host = audius_host()
+    if not host or not str(user_id or "").strip():
+        return None
+    data = _get(f"{host}/v1/users/{urllib.parse.quote(str(user_id), safe='')}", {
+        "app_name": AUDIUS_APP_NAME,
+    })
+    if not isinstance(data, dict):
+        return None
+    user = data.get("data")
+    if isinstance(user, list):
+        user = user[0] if user else None
+    if not isinstance(user, dict):
+        return None
+    picture = user.get("profile_picture") or {}
+    handle = user.get("handle") or ""
+    return {
+        "id": f"aud:{user.get('id') or user_id}",
+        "name": user.get("name") or handle,
+        "handle": handle,
+        "cover": picture.get("480x480") or picture.get("150x150") or "",
+        "bio": str(user.get("bio") or "")[:600],
+        "location": user.get("location") or "",
+        "website": _public_http_url(user.get("website")),
+        "twitter_handle": user.get("twitter_handle") or "",
+        "instagram_handle": user.get("instagram_handle") or "",
+        "follower_count": _safe_count(user.get("follower_count")),
+        "track_count": _safe_count(user.get("track_count")),
+        "source": "audius",
+        "source_url": f"https://audius.co/{handle}" if handle else "",
+    }
 
 
 def audius_user_tracks(user_id, limit=40):

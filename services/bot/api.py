@@ -587,9 +587,15 @@ async def h_artist(request, u):
     prefix, raw = P.split_id(request.match_info["aid"])
     qual = quality_for(uid)
     if prefix == "jam":
-        tracks = await to_thread(P.jamendo_artist_tracks, raw, 50, qual)
+        artist, tracks = await asyncio.gather(
+            to_thread(P.jamendo_artist_by_id, raw),
+            to_thread(P.jamendo_artist_tracks, raw, 50, qual),
+        )
     elif prefix == "aud":
-        tracks = await to_thread(P.audius_user_tracks, raw, 50)
+        artist, tracks = await asyncio.gather(
+            to_thread(P.audius_user_by_id, raw),
+            to_thread(P.audius_user_tracks, raw, 50),
+        )
     elif prefix == "scu":
         artist, tracks = await asyncio.gather(
             to_thread(P.soundcloud_user_by_id, raw),
@@ -628,6 +634,18 @@ async def h_artist(request, u):
         })
     else:
         return fail("Невідоме джерело", 400)
+    if prefix in {"jam", "aud"}:
+        fallback_track = tracks[0] if tracks else {}
+        if not artist and not tracks:
+            return fail("Артиста не знайдено в каталозі", 404)
+        artist = artist or {}
+        return ok({"ok": True, "tracks": tracks, "artist": {
+            **artist,
+            "id": request.match_info["aid"],
+            "name": artist.get("name") or fallback_track.get("artist") or "Невідомий артист",
+            "cover": artist.get("cover") or fallback_track.get("cover") or "",
+            "source": artist.get("source") or ("jamendo" if prefix == "jam" else "audius"),
+        }})
     if prefix == "scu":
         fallback_track = tracks[0] if tracks else {}
         artist_name = (artist or {}).get("name") or fallback_track.get("artist") or "Невідомий артист"

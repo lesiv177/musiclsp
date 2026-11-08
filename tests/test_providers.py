@@ -439,6 +439,43 @@ class GlobalSearchCoverageTests(unittest.TestCase):
             results = P.search_artists("Artist", limit=10)
         self.assertEqual([item["id"] for item in results], ["jam:1", "aud:2"])
 
+    def test_audius_user_profile_normalizes_public_metadata(self):
+        with (
+            patch.object(P, "audius_host", return_value="https://discovery.example"),
+            patch.object(P, "_get", return_value={"data": {
+                "id": "77", "name": "Profile Artist", "handle": "profile-artist",
+                "bio": "Independent musician", "location": "Berlin",
+                "profile_picture": {"480x480": "https://img.test/profile.jpg"},
+                "follower_count": 42, "track_count": 7,
+            }}),
+        ):
+            result = P.audius_user_by_id("77")
+        self.assertEqual(result["id"], "aud:77")
+        self.assertEqual(result["bio"], "Independent musician")
+        self.assertEqual(result["follower_count"], 42)
+        self.assertEqual(result["source_url"], "https://audius.co/profile-artist")
+
+    def test_audius_user_profile_sanitizes_external_fields(self):
+        with (
+            patch.object(P, "audius_host", return_value="https://discovery.example"),
+            patch.object(P, "_get", return_value={"data": {
+                "id": "88", "handle": "artist", "website": "javascript:alert(1)",
+                "bio": "B" * 900, "follower_count": "not-a-number",
+            }}),
+        ):
+            result = P.audius_user_by_id("88")
+        self.assertEqual(result["website"], "")
+        self.assertEqual(len(result["bio"]), 600)
+        self.assertEqual(result["follower_count"], 0)
+
+    def test_jamendo_artist_profile_respects_commercial_approval_gate(self):
+        with (
+            patch.object(P, "jamendo_enabled", return_value=False),
+            patch.object(P, "_get") as get,
+        ):
+            self.assertIsNone(P.jamendo_artist_by_id("77"))
+            get.assert_not_called()
+
     def test_audius_artist_tracks_drop_noncommercial_or_invalid_records(self):
         payload = [
             {"id": "1", "title": "Allowed", "license": "CC-BY", "user": {"name": "A"}},
