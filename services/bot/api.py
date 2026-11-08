@@ -510,7 +510,12 @@ async def h_artist(request, u):
     elif prefix == "aud":
         tracks = await to_thread(P.audius_user_tracks, raw, 50)
     elif prefix == "scu":
-        tracks = await to_thread(P.soundcloud_user_tracks, raw, 50)
+        artist, tracks = await asyncio.gather(
+            to_thread(P.soundcloud_user_by_id, raw),
+            to_thread(P.soundcloud_user_tracks, raw, 50),
+        )
+        if not artist:
+            return fail("Артиста не знайдено в каталозі", 404)
     elif prefix == "mb":
         from core import musicbrainz as MB
         artist, releases = await asyncio.gather(
@@ -535,9 +540,6 @@ async def h_artist(request, u):
     else:
         return fail("Невідоме джерело", 400)
     if prefix == "scu":
-        artist = await to_thread(P.soundcloud_user_by_id, raw)
-        if not artist:
-            return fail("Артиста не знайдено в каталозі", 404)
         return ok({"ok": True, "tracks": tracks, "artist": {
             "id": request.match_info["aid"], "name": artist["name"],
             "cover": artist["cover"], "source": "soundcloud",
