@@ -122,22 +122,24 @@ async function openCollection(kind,item){
  if(st.page!=="collection")st.prev=st.page;
  try{
   const d=await get("/api/"+(kind==="artists"?"artist":"album")+"/"+encodeURIComponent(item.id));
-  const list=d.tracks||[];if(!list.length)return toast(tr("nothing_found_body","Нічого не знайдено"));
+  const list=d.tracks||[],releases=d.releases||[];
+  const metadataArtist=kind==="artists"&&d.metadata_only&&d.artist;
+  if(!list.length&&!metadataArtist)return toast(tr("nothing_found_body","Нічого не знайдено"));
   const al=d.album||{},total=list.reduce((n,t)=>n+(+t.duration||0),0),isAlb=kind!=="artists";
   const cover=item.cover||al.cover||list[0]?.cover||"",title=item.title||item.name||al.title||"";
-  const by=isAlb?(item.artist||al.artist||list[0]?.artist||""):"Артист";
-  const meta=[list.length+" треків",total?Math.max(1,Math.round(total/60))+" хв":"",String(al.release_date||item.release_date||"").slice(0,4),list[0]?.source_label||""].filter(Boolean).join(" · ");
+  const by=isAlb?(item.artist||al.artist||list[0]?.artist||""):(d.artist?.name||item.name||"Артист");
+  const meta=[metadataArtist?releases.length+" релізів":list.length+" треків",total?Math.max(1,Math.round(total/60))+" хв":"",String(al.release_date||item.release_date||"").slice(0,4),list[0]?.source_label||d.artist?.source||""].filter(Boolean).join(" · ");
   const root=$("v3-collection");
   root.innerHTML='<button class="v3-pill v3-back" id="v3CollBack">‹ Назад</button>'+
    '<div class="v3-coll-hero"><img src="'+E(cover)+'" alt="" onerror="this.style.opacity=.15"><div><div class="v3-eyebrow">'+(isAlb?"АЛЬБОМ":"АРТИСТ")+'</div><h1 class="v3-page-title">'+E(title)+'</h1><p class="v3-coll-by">'+E(by)+'</p><p class="v3-coll-meta">'+E(meta)+'</p></div></div>'+
    '<div class="v3-coll-actions"><button class="v3-coll-play" id="v3CollPlay">▶ Слухати</button><button class="v3-pill" id="v3CollShuffle">Перемішати</button><button class="v3-pill" id="v3SaveCollection">＋ Зберегти</button>'+(isAlb?"":'<button class="v3-pill" id="v3FollowArtist">＋ Стежити</button>')+'</div>'+
-   '<div class="v3-track-list v3-coll-list">'+list.map((t,i)=>row(t,i,"coll")).join("")+'</div>';
+   (metadataArtist?section("Дискографія",releases.length?'<div class="platform-entity-grid">'+releases.map((release)=>'<article class="platform-entity album"><span class="platform-entity-art"></span><b>'+E(release.title||"Без назви")+'</b><small>'+E(release.first_release_date||release.type||"Реліз")+'</small></article>').join("")+'</div>':'<div class="v3-empty">Дані про релізи поки відсутні.</div>'):'<div class="v3-track-list v3-coll-list">'+list.map((t,i)=>row(t,i,"coll")).join("")+'</div>');
   nav("collection");
   document.querySelectorAll("#mlsp-v3 [data-page]").forEach(x=>x.classList.toggle("active",x.dataset.page===st.prev));
-  bindRows(root,list,"coll");
+  if(list.length)bindRows(root,list,"coll");
   $("v3CollBack").onclick=()=>nav(st.prev||"home");
-  $("v3CollPlay").onclick=()=>setQueue(list,0);
-  $("v3CollShuffle").onclick=()=>setQueue(list.slice().sort(()=>Math.random()-.5),0);
+  $("v3CollPlay").onclick=()=>{if(list.length)setQueue(list,0);else toast("Цей каталог містить лише метадані, аудіо тут немає.");};
+  $("v3CollShuffle").onclick=()=>{if(list.length)setQueue(list.slice().sort(()=>Math.random()-.5),0);};
   $("v3SaveCollection").onclick=async()=>{const kind=isAlb?"album":"artist",id=String(item.id||"");if(!id)return toast("Немає ID елемента");const r=await post("/api/collection",{kind,id,item:{id,title,name:title,artist:by,cover}});if(r.ok){$("v3SaveCollection").textContent="✓ Збережено";toast("Додано до колекції");}};
   if(!isAlb)$("v3FollowArtist").onclick=async()=>{const r=await post("/api/release-radar/follow",{id:String(item.id||""),artist:{id:item.id,name:title,title,cover}});if(r.ok){$("v3FollowArtist").textContent="✓ Стежиш";toast("Артиста додано до Release Radar");}};
 
@@ -236,5 +238,5 @@ function init(){
  document.addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){e.preventDefault();nav("search");$("v3SearchInput")?.focus();}});
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
-window.MLSPv3={navigate:nav,home,explore,library,profile,search};
+window.MLSPv3={navigate:nav,home,explore,library,profile,search,openCollection};
 })();

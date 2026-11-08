@@ -1,0 +1,38 @@
+/* MusicLSP platform layer — deliberately isolated from playback widgets and Connect. */
+#mlsp-v3 .platform-discovery{margin:34px 0 8px;padding:24px;border:1px solid rgba(120,190,230,.16);border-radius:26px;background:linear-gradient(145deg,rgba(18,42,62,.78),rgba(9,19,31,.72));}
+#mlsp-v3 .platform-discovery-head{display:flex;align-items:end;justify-content:space-between;gap:14px;margin-bottom:18px}
+#mlsp-v3 .platform-discovery-head h2{font-size:clamp(22px,3vw,30px);letter-spacing:-.8px;margin:5px 0}
+#mlsp-v3 .platform-discovery-head p{color:var(--muted,#91a7bc);font-size:12px;margin:0;line-height:1.5}
+#mlsp-v3 .platform-discovery-kicker{font-size:9px;letter-spacing:2px;color:var(--accent-2,#7ce6df)}
+#mlsp-v3 .platform-entity-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));gap:14px}
+#mlsp-v3 .platform-entity{min-width:0;text-align:left;border:1px solid rgba(155,190,222,.12);border-radius:18px;padding:11px;background:rgba(8,18,29,.72);color:var(--text,#f4f8ff);cursor:pointer;transition:transform .18s,border-color .18s}
+#mlsp-v3 .platform-entity:hover{transform:translateY(-3px);border-color:var(--accent,#48b9ff)}
+#mlsp-v3 .platform-entity-art{display:block;width:100%;aspect-ratio:1;overflow:hidden;border-radius:13px;background:linear-gradient(145deg,#18334a,#102033);margin-bottom:10px}
+#mlsp-v3 .platform-entity-art img{width:100%;height:100%;object-fit:cover;display:block}
+#mlsp-v3 .platform-entity.artist .platform-entity-art{border-radius:50%;width:78%;margin:0 auto 14px}
+#mlsp-v3 .platform-entity b,#mlsp-v3 .platform-entity small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#mlsp-v3 .platform-entity b{font-size:13px}
+#mlsp-v3 .platform-entity small{font-size:10px;color:var(--muted,#91a7bc);margin-top:4px}
+#mlsp-v3 .platform-discovery-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 15px}
+#mlsp-v3 .platform-discovery-tabs button{border:1px solid var(--line,rgba(155,190,222,.16));border-radius:999px;padding:8px 13px;background:transparent;color:var(--muted,#91a7bc);font-size:11px}
+#mlsp-v3 .platform-discovery-tabs button.active{background:var(--accent,#48b9ff);border-color:transparent;color:#071521}
+#mlsp-v3 .platform-empty{color:var(--muted,#91a7bc);font-size:12px;padding:12px 0}
+#mlsp-v3 .v3-coll-hero{align-items:center}
+#mlsp-v3 .v3-coll-hero img{box-shadow:0 14px 44px rgba(0,0,0,.28)}
+@media(max-width:640px){#mlsp-v3 .platform-discovery{padding:17px;border-radius:21px;margin-top:24px}#mlsp-v3 .platform-entity-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}#mlsp-v3 .platform-entity{padding:9px}}
+
+#mlsp-v3 .platform-charts{margin-top:26px}
+#mlsp-v3 .platform-chart{margin-top:18px}
+#mlsp-v3 .platform-chart-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+#mlsp-v3 .platform-chart-head h3{font-size:17px;margin:0}
+#mlsp-v3 .platform-chart-head small{font-size:10px;color:var(--muted,#91a7bc);text-transform:uppercase;letter-spacing:1px}
+#mlsp-v3 .platform-chart-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+#mlsp-v3 .platform-chart-track{display:flex;align-items:center;gap:10px;min-width:0;padding:9px;border:1px solid rgba(155,190,222,.12);border-radius:14px;background:rgba(8,18,29,.64);color:var(--text,#f4f8ff);text-align:left;cursor:pointer}
+#mlsp-v3 .platform-chart-rank{width:20px;color:var(--accent-2,#7ce6df);font-size:11px;font-weight:700}
+#mlsp-v3 .platform-chart-track img,#mlsp-v3 .platform-chart-cover{width:40px;height:40px;flex:none;object-fit:cover;border-radius:9px;background:#173047;display:grid;place-items:center}
+#mlsp-v3 .platform-chart-track>span:nth-last-child(2){display:flex;flex-direction:column;min-width:0;flex:1}
+#mlsp-v3 .platform-chart-track b,#mlsp-v3 .platform-chart-track small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#mlsp-v3 .platform-chart-track b{font-size:12px}
+#mlsp-v3 .platform-chart-track small{font-size:10px;color:var(--muted,#91a7bc);margin-top:3px}
+#mlsp-v3 .platform-chart-track i{font-style:normal;color:var(--accent,#48b9ff);font-size:11px}
+@media(max-width:640px){#mlsp-v3 .platform-chart-list{grid-template-columns:1fr}}

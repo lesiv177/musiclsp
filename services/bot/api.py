@@ -448,6 +448,55 @@ async def h_home(request, u):
 
 
 @require_auth
+async def h_charts(request, u):
+    """Current provider charts; only sources with playable catalogue entries."""
+    uid = int(u["uid"])
+    audius, jamendo = await asyncio.gather(
+        _safe(to_thread(P.audius_trending, None, 30)),
+        _safe(to_thread(P.jamendo_tag_tracks, "pop", 30, 0, quality_for(uid), "popularity_month")),
+    )
+    return ok({
+        "ok": True,
+        "charts": [
+            {"id": "audius-trending", "title": "Audius Trending", "source": "audius", "tracks": audius or []},
+            {"id": "jamendo-popular", "title": "Popular on Jamendo", "source": "jamendo", "tracks": jamendo or []},
+        ],
+    })
+
+
+@require_auth
+async def h_discover(request, u):
+    """Curated cross-provider artist and album discovery; metadata/catalogue only."""
+    queries = ("indie", "electronic", "hip hop")
+    artist_jobs = [to_thread(P.search_artists, query, 8) for query in queries]
+    album_jobs = [to_thread(P.search_albums, query, 8, "popularity") for query in queries]
+    results = await asyncio.gather(*[_safe(job) for job in artist_jobs + album_jobs])
+    artists_raw, albums_raw = results[:len(queries)], results[len(queries):]
+
+    def merge(groups, identity, limit=24):
+        merged, seen = [], set()
+        for group in groups:
+            for item in group or []:
+                if not isinstance(item, dict) or not item.get(identity):
+                    continue
+                key = str(item[identity]).casefold()
+                if key in seen:
+                    continue
+                seen.add(key)
+                merged.append(item)
+                if len(merged) >= limit:
+                    return merged
+        return merged
+
+    return ok({
+        "ok": True,
+        "artists": merge(artists_raw, "id"),
+        "albums": merge(albums_raw, "id"),
+        "catalogue": "cross-provider",
+    })
+
+
+@require_auth
 async def h_collections(request, u):
     """Кураторські добірки (Jamendo + Audius) — окремо від /api/home, щоб
     завантажувались незалежно й не блокували решту головного екрана."""
@@ -517,6 +566,7 @@ async def h_artist(request, u):
         if not artist and not tracks:
             return fail("Артиста не знайдено в каталозі", 404)
     elif prefix == "mb":
+        raw = raw.removeprefix("artist:")
         from core import musicbrainz as MB
         artist, releases = await asyncio.gather(
             to_thread(MB.artist_by_id, raw),
@@ -1409,6 +1459,8 @@ def build_app():
     r.add_get("/api/connect/devices", h_connect_devices)
     r.add_get("/api/search", h_search)
     r.add_get("/api/home", h_home)
+    r.add_get("/api/discover", h_discover)
+    r.add_get("/api/charts", h_charts)
     r.add_get("/api/collections", h_collections)
     r.add_get("/api/genres", h_genres)
     r.add_get("/api/daily", h_daily)
