@@ -127,8 +127,8 @@ async function openCollection(kind,item){
   if(!list.length&&!metadataArtist)return toast(tr("nothing_found_body","Нічого не знайдено"));
   const al=d.album||{},total=list.reduce((n,t)=>n+(+t.duration||0),0),isAlb=kind!=="artists";
   const cover=item.cover||al.cover||list[0]?.cover||"",title=item.title||item.name||al.title||"";
-  const by=isAlb?(item.artist||al.artist||list[0]?.artist||""):"Артист";
-  const meta=[list.length+" треків",total?Math.max(1,Math.round(total/60))+" хв":"",String(al.release_date||item.release_date||"").slice(0,4),list[0]?.source_label||""].filter(Boolean).join(" · ");
+  const by=isAlb?(item.artist||al.artist||list[0]?.artist||""):(d.artist?.name||item.name||"Артист");
+  const meta=[metadataArtist?releases.length+" релізів":list.length+" треків",total?Math.max(1,Math.round(total/60))+" хв":"",String(al.release_date||item.release_date||"").slice(0,4),list[0]?.source_label||d.artist?.source||""].filter(Boolean).join(" · ");
   const root=$("v3-collection");
   root.innerHTML='<button class="v3-pill v3-back" id="v3CollBack">‹ Назад</button>'+
    '<div class="v3-coll-hero"><img src="'+E(cover)+'" alt="" onerror="this.style.opacity=.15"><div><div class="v3-eyebrow">'+(isAlb?"АЛЬБОМ":"АРТИСТ")+'</div><h1 class="v3-page-title">'+E(title)+'</h1><p class="v3-coll-by">'+E(by)+'</p><p class="v3-coll-meta">'+E(meta)+'</p></div></div>'+
