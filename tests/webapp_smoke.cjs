@@ -24,6 +24,7 @@ const { spawn } = require("node:child_process");
     apiRequests.push({ path, method: route.request().method(), body: route.request().postDataJSON() });
     let data = { ok: true };
     if (path === "/api/me") data = { ok:true, user:{id:7,name:"QA Listener",premium:false,theme:"midnight",lang:"uk",crossfade:0,eq:null}, limits:{playlists:5,offline_pack:false,ambient_styles:[],wrapped:true}, features:[] };
+    else if (path === "/api/charts") data = {ok:true,charts:[{id:"qa-chart",title:"QA Chart",source:"audius",tracks:[{id:"qa-chart-track",title:"Chart track",artist:"QA Artist",cover:"",duration:180}]}]};
     else if (path === "/api/discover") data = { ok:true, artists:[{id:"jam:artist-1",name:"QA Artist",cover:""}], albums:[{id:"jam:album-1",title:"QA Album",artist:"QA Artist",cover:""}] };\n    else if (path === "/api/home") data = { ok:true, sections:[{id:"recent",title:"Recent",tracks:[{id:"qa-seed",title:"Recent track",artist:"QA Artist",cover:"",duration:180,duration_str:"3:00"}]},{id:"popular",title:"Popular",tracks:[{id:"qa-pop",title:"Popular track",artist:"QA Artist",cover:"",duration:180}]}] };
     else if (path === "/api/moods") data = {ok:true,moods:[{key:"calm",label:"Спокій",locked:false}]};
     else if (path === "/api/genres") data = {ok:true,genres:[{tag:"jazz",label:"Jazz"}]};
@@ -112,6 +113,8 @@ const { spawn } = require("node:child_process");
 
     await page.locator('.v3-mobile-nav [data-page="explore"]').first().click();
     await page.waitForSelector("#v3-explore [data-genre]");
+    await page.waitForSelector("#platformCharts .platform-chart-track");
+    await page.locator("#platformCharts .platform-chart-track").first().click();
     await page.locator("#v3-explore [data-genre]").first().click();
     await page.waitForSelector("#v3Results .v3-track");
     await page.locator('.v3-mobile-nav [data-page="explore"]').first().click();
