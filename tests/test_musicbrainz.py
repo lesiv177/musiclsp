@@ -63,7 +63,7 @@ class MusicBrainzMetadataTests(unittest.TestCase):
             {"id": "", "title": "Invalid", "first-release-date": "2026-11-01"},
         ]}
         with patch.object(MB, "_get_json", return_value=payload) as get:
-            result = MB.recent_artist_releases("mb:artist:12345678-abcd", "2026-01-01")
+            result = MB.recent_artist_releases("mb:artist:12345678-abcd-4abc-8def-1234567890ab", "2026-01-01")
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["title"], "New Single")
         self.assertIn("date:[2026-01-01 TO *]", get.call_args.args[1]["query"])
