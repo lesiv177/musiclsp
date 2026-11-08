@@ -94,7 +94,7 @@ class UnifiedAlbumCatalogueTests(unittest.TestCase):
         metadata = [{"id": "mb:release-group:3", "title": "Metadata Album",
                      "artist": "Artist", "metadata_only": True}]
         with (
-            patch.object(P, "_run_parallel_grouped", side_effect=run_jobs_inline),
+            patch.object(P, "_run_parallel_grouped", side_effect=lambda jobs, timeout=6: [job() or [] for job in jobs]),
             patch.object(P, "jamendo_search_albums", return_value=jamendo),
             patch.object(P, "audius_search_albums", return_value=audius),
             patch("core.musicbrainz.search_release_groups", return_value=metadata),
