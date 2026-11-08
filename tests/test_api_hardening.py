@@ -150,6 +150,7 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
             raise AssertionError(f"Unexpected function: {fn}")
         with (
             patch.object(api, "auth_user", return_value={"uid": 123}),
+            patch.object(api, "quality_for", return_value="mp32"),
             patch.object(api, "to_thread", side_effect=fake_to_thread),
         ):
             response = await api.h_artist(request)
