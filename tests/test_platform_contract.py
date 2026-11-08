@@ -24,7 +24,7 @@ class PlatformContractTests(unittest.TestCase):
 
     def test_chart_catalogue_has_four_provider_sections(self):
         charts = API.split('async def h_charts', 1)[1].split('@require_auth', 1)[0]
-        for chart_id in ('global-trending', 'electronic-trending', 'popular-pop', 'popular-rock'):
+        for chart_id in ('audius-trending', 'electronic-trending', 'popular-pop', 'popular-rock'):
             self.assertIn(chart_id, charts)
         self.assertIn('P.audius_trending', charts)
         self.assertIn('P.jamendo_tag_tracks', charts)

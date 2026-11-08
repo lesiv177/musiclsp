@@ -180,7 +180,7 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
         payload = json.loads(response.text)
         self.assertEqual(response.status, 200)
         self.assertEqual([x["id"] for x in payload["charts"]],
-                         ["global-trending", "electronic-trending", "popular-pop", "popular-rock"])
+                         ["audius-trending", "electronic-trending", "popular-pop", "popular-rock"])
         self.assertEqual(payload["charts"][0]["tracks"][0]["id"], "aud:1")
         self.assertEqual(payload["charts"][2]["tracks"][0]["id"], "jam:1")
         self.assertEqual(payload["charts"][3]["tracks"][0]["id"], "jam:2")
