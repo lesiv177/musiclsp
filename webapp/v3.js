@@ -236,5 +236,5 @@ function init(){
  document.addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){e.preventDefault();nav("search");$("v3SearchInput")?.focus();}});
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
-window.MLSPv3={navigate:nav,home,explore,library,profile,search};
+window.MLSPv3={navigate:nav,home,explore,library,profile,search,openCollection};
 })();
