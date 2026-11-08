@@ -1447,22 +1447,74 @@ def _normalize_query(text):
     return re.sub(r"\s+", " ", cleaned).strip()
 
 
+def _search_query_variants(query, max_variants=4):
+    """Build bounded, progressively broader queries without repeating equivalent terms."""
+    raw = str(query or "").strip()
+    normalized = _normalize_query(raw)
+    variants, seen = [], set()
+
+    def add(value):
+        value = str(value or "").strip()
+        key = value.casefold()
+        if value and key not in seen and len(variants) < max_variants:
+            seen.add(key)
+            variants.append(value)
+
+    add(raw)
+    add(normalized)
+    # Preserve useful phrase combinations before broad single-token fallbacks.
+    words = [word for word in normalized.split() if len(word) > 2]
+    if len(words) > 1:
+        add(" ".join(words[:2]))
+        add(" ".join(words[-2:]))
+    for word in words:
+        add(word)
+    return variants
+
+
+def _merge_track_search_results(groups, limit):
+    """Merge fallback query pages, preserving source order and removing duplicates."""
+    seen_ids, seen_names, out = set(), set(), []
+    for group in groups:
+        for track in group or []:
+            if not isinstance(track, dict):
+                continue
+            track_id = str(track.get("id") or "").strip().casefold()
+            title = _normalize_query(track.get("title") or "").casefold()
+            artist = _normalize_query(track.get("artist") or "").casefold()
+            if not title:
+                continue
+            name_key = (title, artist)
+            if (track_id and track_id in seen_ids) or name_key in seen_names:
+                continue
+            if track_id:
+                seen_ids.add(track_id)
+            seen_names.add(name_key)
+            out.append(track)
+            if len(out) >= max(1, int(limit)):
+                return out
+    return out
+
+
 def search_tracks_smart(query, limit=30, quality="mp32", sources=None, sort="relevance"):
-    """Той самий пошук треків, але з відкатом: якщо точний запит не дав нічого,
-    пробує очищений запит, а тоді — по одному значущому слову з нього."""
-    out = search_tracks(query, limit, quality, sources, sort)
-    if out:
-        return out
-    norm = _normalize_query(query)
-    if norm and norm.lower() != (query or "").strip().lower():
-        out = search_tracks(norm, limit, quality, sources, sort)
-        if out:
-            return out
-    for word in [w for w in norm.split() if len(w) > 2]:
-        out = search_tracks(word, limit, quality, sources, sort)
-        if out:
-            return out
-    return []
+    """Expanded search: combine exact, normalized and bounded broad fallback queries.
+
+    Unlike the old implementation, a small exact-match page no longer prevents
+    fallback queries from filling the remaining slots.
+    """
+    if int(limit) <= 0 or not str(query or "").strip():
+        return []
+    variants = _search_query_variants(query)
+    groups = []
+    for variant in variants:
+        try:
+            groups.append(search_tracks(variant, limit, quality, sources, sort))
+        except Exception as exc:
+            logger.warning("Expanded track search failed: %s", type(exc).__name__)
+            groups.append([])
+        if len(_merge_track_search_results(groups, limit)) >= int(limit):
+            break
+    return _merge_track_search_results(groups, limit)
 
 
 def _run_parallel_grouped(jobs, timeout=6):
