@@ -31,7 +31,8 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
                 return profile
             raise AssertionError(f"Unexpected provider function: {fn}")
 
-        with patch.object(api, "to_thread", side_effect=fake_to_thread):
+        with patch.object(api, "quality_for", return_value="mp32"), \
+             patch.object(api, "to_thread", side_effect=fake_to_thread):
             response = await api.h_artist(request, {"uid": 123})
         payload = json.loads(response.text)
         self.assertEqual(response.status, 200)
