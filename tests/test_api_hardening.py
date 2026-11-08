@@ -263,6 +263,22 @@ class MusicCatalogueRouteTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["results"], albums)
         search.assert_called_once_with("Example Album", 10, "relevance")
 
+    async def test_musicbrainz_album_route_returns_metadata_only_release(self):
+        request = SimpleNamespace(match_info={"aid": "mb:release-group:12345678-abcd-4abc-8def-1234567890ab"}, headers={})
+        album = {"id": request.match_info["aid"], "title": "Album", "tracks": [], "metadata_only": True}
+        async def inline_to_thread(fn, *args, **kwargs):
+            self.assertEqual(args, ("12345678-abcd-4abc-8def-1234567890ab",))
+            return album
+        with (
+            patch.object(api, "auth_user", return_value={"uid": 7}),
+            patch.object(api, "to_thread", side_effect=inline_to_thread),
+            patch("core.musicbrainz.release_group_by_id", return_value=album),
+        ):
+            response = await api.h_album(request)
+        payload = json.loads(response.text)
+        self.assertTrue(payload["metadata_only"])
+        self.assertEqual(payload["album"]["title"], "Album")
+
     async def test_audius_album_route_returns_album_tracks(self):
         request = SimpleNamespace(match_info={"aid": "aud:album-1"}, headers={})
         tracks = [{"id": "aud:track-1", "title": "Track", "album": "Album"}]
