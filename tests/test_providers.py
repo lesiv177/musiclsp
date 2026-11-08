@@ -321,6 +321,24 @@ class SoundCloudArtistSearchTests(unittest.TestCase):
         self.assertEqual(result[0]["source"], "soundcloud")
         self.assertEqual(result[0]["source_url"], "https://soundcloud.com/example-artist")
 
+    def test_soundcloud_user_detail_normalizes_public_profile(self):
+        payload = {
+            "id": 77, "username": "Example Artist",
+            "avatar_url": "https://i1.sndcdn.com/avatars/example-large.jpg",
+            "permalink_url": "https://soundcloud.com/example-artist",
+        }
+        response = type("Response", (), {"status_code": 200, "json": lambda self: payload})()
+        with (
+            patch.object(P, "soundcloud_enabled", return_value=True),
+            patch.object(P, "_sc_headers", return_value={"Authorization": "OAuth test"}),
+            patch.object(P, "_http_session") as session,
+        ):
+            session.return_value.get.return_value = response
+            result = P.soundcloud_user_by_id("77")
+        self.assertEqual(result["id"], "scu:77")
+        self.assertEqual(result["name"], "Example Artist")
+        self.assertEqual(result["source"], "soundcloud")
+
     def test_soundcloud_user_tracks_returns_only_playable_tracks(self):
         payload = {"collection": [
             {"id": 1, "title": "Playable", "user": {"id": 77, "username": "Artist"},
