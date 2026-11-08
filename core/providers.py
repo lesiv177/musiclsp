@@ -1366,6 +1366,30 @@ def soundcloud_search_users(query, limit=20):
         return []
 
 
+def soundcloud_user_by_id(user_id):
+    """Fetch one public SoundCloud creator profile by numeric API ID."""
+    if not str(user_id or "").strip() or not soundcloud_enabled():
+        return None
+    headers = _sc_headers()
+    if not headers:
+        return None
+    try:
+        response = _http_session().get(
+            f"{_SC_API}/users/{urllib.parse.quote(str(user_id), safe='')}",
+            headers=headers, timeout=HTTP_TIMEOUT,
+        )
+        if response.status_code != 200:
+            logger.warning("SoundCloud user detail -> %s", response.status_code)
+            return None
+        payload = response.json()
+        if not isinstance(payload, dict):
+            return None
+        return _sc_artist(payload)
+    except Exception as exc:
+        logger.warning("SoundCloud user detail failed: %s", type(exc).__name__)
+        return None
+
+
 def soundcloud_user_tracks(user_id, limit=50):
     """Return playable tracks published by a SoundCloud user."""
     if not str(user_id or "").strip() or not soundcloud_enabled():
