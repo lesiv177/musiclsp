@@ -75,7 +75,7 @@ MUSIC_SOURCES = (
     ),
     SourceCapability(
         key="soundcloud", label="SoundCloud", id_prefix="sc",
-        playback_mode="provider_stream", catalogue_types=("tracks",),
+        playback_mode="provider_stream", catalogue_types=("tracks", "artists"),
         credential_env=("SOUNDCLOUD_CLIENT_ID", "SOUNDCLOUD_CLIENT_SECRET"),
         approval_env="SOUNDCLOUD_AGGREGATION_APPROVED",
     ),
