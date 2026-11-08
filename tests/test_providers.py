@@ -343,6 +343,10 @@ class SoundCloudArtistSearchTests(unittest.TestCase):
             "id": 77, "username": "Example Artist",
             "avatar_url": "https://i1.sndcdn.com/avatars/example-large.jpg",
             "permalink_url": "https://soundcloud.com/example-artist",
+            "description": "Independent electronic musician",
+            "city": "Wrocław", "country": "Poland",
+            "website": "https://example.com",
+            "followers_count": 321, "track_count": 14, "verified": True,
         }
         response = type("Response", (), {"status_code": 200, "json": lambda self: payload})()
         with (
@@ -355,6 +359,11 @@ class SoundCloudArtistSearchTests(unittest.TestCase):
         self.assertEqual(result["id"], "scu:77")
         self.assertEqual(result["name"], "Example Artist")
         self.assertEqual(result["source"], "soundcloud")
+        self.assertEqual(result["bio"], "Independent electronic musician")
+        self.assertEqual(result["location"], "Wrocław, Poland")
+        self.assertEqual(result["follower_count"], 321)
+        self.assertEqual(result["track_count"], 14)
+        self.assertTrue(result["verified"])
 
     def test_soundcloud_user_tracks_returns_only_playable_tracks(self):
         payload = {"collection": [

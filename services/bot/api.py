@@ -651,6 +651,7 @@ async def h_artist(request, u):
         artist_name = (artist or {}).get("name") or fallback_track.get("artist") or "Невідомий артист"
         artist_cover = (artist or {}).get("cover") or fallback_track.get("cover") or ""
         return ok({"ok": True, "tracks": tracks, "artist": {
+            **(artist or {}),
             "id": request.match_info["aid"], "name": artist_name,
             "cover": artist_cover, "source": "soundcloud",
             "source_url": (artist or {}).get("source_url") or "",

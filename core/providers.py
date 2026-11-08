@@ -1410,6 +1410,15 @@ def _sc_artist(user):
         "source": "soundcloud",
         "source_label": "SoundCloud",
         "source_url": permalink or f"https://soundcloud.com/{user.get('permalink') or ''}",
+        "bio": str(user.get("description") or "")[:600],
+        "location": ", ".join(part for part in (
+            str(user.get("city") or "").strip(),
+            str(user.get("country") or "").strip(),
+        ) if part),
+        "website": _public_http_url(user.get("website")),
+        "follower_count": _safe_count(user.get("followers_count")),
+        "track_count": _safe_count(user.get("track_count")),
+        "verified": bool(user.get("verified")),
         "metadata_only": False,
     }
 
