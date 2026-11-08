@@ -114,7 +114,7 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
                 return [
                     {"id": "jam:10", "title": "Album One"},
                     {"id": "aud:11", "title": "Album Two"},
-                ] if query == "indie" else [
+                ] if query == "pop" else [
                     {"id": "jam:10", "title": "Album One"},
                     {"id": "aud:12", "title": "Album Three"},
                 ]
