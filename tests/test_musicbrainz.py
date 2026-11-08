@@ -49,6 +49,48 @@ class MusicBrainzMetadataTests(unittest.TestCase):
         self.assertEqual(result[0]["year"], "2026")
         self.assertEqual(result[0]["id"], "mb:release-group:release-id")
 
+    def test_search_release_groups_returns_metadata_only_album_entries(self):
+        payload = {"release-groups": [{
+            "id": "12345678-abcd-4abc-8def-1234567890ab",
+            "title": "Album One",
+            "primary-type": "Album",
+            "first-release-date": "2026-04-01",
+            "artist-credit": [{"artist": {"name": "Artist One"}}],
+        }]}
+        with patch.object(MB, "_get_json", return_value=payload) as get:
+            result = MB.search_release_groups("Album One", 100)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["id"], "mb:release-group:12345678-abcd-4abc-8def-1234567890ab")
+        self.assertEqual(result[0]["artist"], "Artist One")
+        self.assertTrue(result[0]["metadata_only"])
+        self.assertEqual(get.call_args.args[1]["limit"], 25)
+
+    def test_release_group_details_returns_non_playable_track_metadata(self):
+        release_group_id = "12345678-abcd-4abc-8def-1234567890ab"
+        release_id = "87654321-abcd-4abc-8def-1234567890ab"
+        group = {
+            "id": release_group_id, "title": "Album One",
+            "first-release-date": "2026-04-01", "primary-type": "Album",
+            "artist-credit": [{"artist": {"name": "Artist One"}}],
+            "releases": [{"id": release_id, "date": "2026-04-01"}],
+        }
+        release = {"media": [{"tracks": [{
+            "number": "1", "title": "Track One",
+            "recording": {"id": "11111111-abcd-4abc-8def-1234567890ab", "length": 183000},
+        }]}]}
+        with patch.object(MB, "_get_json", side_effect=[group, release]) as get:
+            result = MB.release_group_by_id("mb:release-group:" + release_group_id)
+        self.assertEqual(result["title"], "Album One")
+        self.assertEqual(result["tracks"][0]["title"], "Track One")
+        self.assertEqual(result["tracks"][0]["duration"], 183)
+        self.assertTrue(result["tracks"][0]["metadata_only"])
+        self.assertEqual(get.call_count, 2)
+
+    def test_release_group_details_rejects_invalid_mbid(self):
+        with patch.object(MB, "_get_json") as get:
+            self.assertIsNone(MB.release_group_by_id("not-an-mbid"))
+            get.assert_not_called()
+
     def test_recording_search_formats_artist_credit(self):
         payload = {"recordings": [{
             "id": "recording-id", "title": "Track", "length": 182000,

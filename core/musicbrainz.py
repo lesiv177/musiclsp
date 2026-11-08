@@ -200,6 +200,102 @@ def recent_artist_releases(artist_mbid: str, since_date: str, limit: int = 25) -
     return results
 
 
+def search_release_groups(query: str, limit: int = 20) -> list[dict]:
+    """Search album/EP/single metadata; results do not imply playable audio."""
+    query = _text(query)
+    if not query:
+        return []
+    limit = max(1, min(int(limit), 25))
+    data = _get_json("release-group", {"query": query, "limit": limit})
+    results = []
+    for row in data.get("release-groups", []):
+        release_id = _text(row.get("id"))
+        title = _text(row.get("title"))
+        if not release_id or not title:
+            continue
+        credits = row.get("artist-credit") or []
+        artist_names = [
+            _text((credit.get("artist") or {}).get("name"))
+            for credit in credits if isinstance(credit, dict)
+        ]
+        first_release = _text(row.get("first-release-date"))
+        results.append({
+            "id": f"mb:release-group:{release_id}",
+            "mbid": release_id,
+            "title": title,
+            "artist": ", ".join(name for name in artist_names if name),
+            "release_date": first_release,
+            "year": first_release[:4] if first_release else "",
+            "type": _text(row.get("primary-type")),
+            "cover": "",
+            "source": "musicbrainz",
+            "source_label": "MusicBrainz · metadata",
+            "metadata_only": True,
+            "source_url": f"https://musicbrainz.org/release-group/{release_id}",
+        })
+    return results
+
+
+def release_group_by_id(release_group_mbid: str) -> dict | None:
+    """Fetch release-group metadata and one representative release tracklist."""
+    release_group_mbid = _text(release_group_mbid).removeprefix("mb:release-group:")
+    if not re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", release_group_mbid):
+        return None
+    data = _get_json(f"release-group/{release_group_mbid}", {"inc": "artist-credits+releases"})
+    title = _text(data.get("title"))
+    if not title:
+        return None
+    credits = data.get("artist-credit") or []
+    artists = [
+        _text((credit.get("artist") or {}).get("name"))
+        for credit in credits if isinstance(credit, dict)
+    ]
+    releases = data.get("releases") or []
+    representative = next((r for r in releases if isinstance(r, dict) and r.get("id")), None)
+    tracks = []
+    release_date = _text(data.get("first-release-date"))
+    if representative:
+        release_date = release_date or _text(representative.get("date"))
+        release_data = _get_json(
+            f"release/{representative['id']}",
+            {"inc": "recordings"},
+        )
+        for medium_index, medium in enumerate(release_data.get("media") or [], 1):
+            for track_index, track in enumerate(medium.get("tracks") or [], 1):
+                recording = track.get("recording") or {}
+                recording_id = _text(recording.get("id"))
+                track_title = _text(track.get("title") or recording.get("title"))
+                if not track_title:
+                    continue
+                tracks.append({
+                    "id": f"mb:recording:{recording_id}" if recording_id else f"mb:track:{medium_index}:{track_index}",
+                    "title": track_title,
+                    "artist": ", ".join(name for name in artists if name),
+                    "duration": int((recording.get("length") or track.get("length") or 0) / 1000),
+                    "track_number": _text(track.get("number")) or str(track_index),
+                    "disc_number": medium_index,
+                    "source": "musicbrainz",
+                    "source_label": "Metadata only",
+                    "metadata_only": True,
+                    "source_url": f"https://musicbrainz.org/recording/{recording_id}" if recording_id else "",
+                })
+    return {
+        "id": f"mb:release-group:{release_group_mbid}",
+        "mbid": release_group_mbid,
+        "title": title,
+        "artist": ", ".join(name for name in artists if name),
+        "release_date": release_date,
+        "type": _text(data.get("primary-type")),
+        "cover": "",
+        "tracks": tracks,
+        "track_count": len(tracks),
+        "source": "musicbrainz",
+        "source_label": "MusicBrainz · metadata only",
+        "metadata_only": True,
+        "source_url": f"https://musicbrainz.org/release-group/{release_group_mbid}",
+    }
+
+
 def search_recordings(query: str, limit: int = 20) -> list[dict]:
     """Search recording metadata (not playable audio)."""
     query = _text(query)

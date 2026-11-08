@@ -548,6 +548,18 @@ async def h_album(request, u):
         tracks = await to_thread(P.jamendo_album_tracks, raw, quality_for(uid))
     elif prefix == "aud":
         tracks = await to_thread(P.audius_album_tracks, raw)
+    elif prefix == "mb":
+        from core import musicbrainz as MB
+        raw = raw.removeprefix("release-group:")
+        album = await to_thread(MB.release_group_by_id, raw)
+        if not album:
+            return fail("Альбом не знайдено в каталозі", 404)
+        return ok({
+            "ok": True,
+            "tracks": album.get("tracks") or [],
+            "metadata_only": True,
+            "album": album,
+        })
     else:
         return fail("Невідоме джерело альбому", 400)
     if not tracks:

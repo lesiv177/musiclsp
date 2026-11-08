@@ -40,3 +40,6 @@
 /* Metadata-only discography entries link to their canonical catalogue record. */
 #mlsp-v3 a.platform-entity{display:block;text-decoration:none;color:var(--text,#f4f8ff)}
 #mlsp-v3 a.platform-entity:focus-visible{outline:2px solid var(--accent,#48b9ff);outline-offset:3px}
+
+#mlsp-v3 .v3-track-duration{flex:none;color:var(--muted,#91a7bc);font-size:11px;font-variant-numeric:tabular-nums}
+#mlsp-v3 .v3-coll-list .v3-track{cursor:pointer}
