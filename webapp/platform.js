@@ -4,7 +4,7 @@
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const getData=async path=>{
- if(typeof window.get==="function")return window.get(path);
+ if(typeof get==="function")return get(path);
  const response=await fetch(path,{credentials:"same-origin"});
  const data=await response.json();if(!response.ok||data.ok===false)throw new Error(data.error||"Request failed");return data;
 };
