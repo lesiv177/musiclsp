@@ -85,7 +85,7 @@ def _artist(item: dict) -> dict | None:
         "name": name,
         "type": _text(item.get("type")),
         "country": _text(item.get("country")),
-        "disambiguation": _text(item.get("disambiguation")),
+        "disambiguation": _text(item.get("disambiguation")),\n        "aliases": [\n            _text(alias.get("name")) for alias in item.get("aliases", [])\n            if isinstance(alias, dict) and _text(alias.get("name"))\n        ],
         "begin_date": _text((item.get("life-span") or {}).get("begin")),
         "end_date": _text((item.get("life-span") or {}).get("end")),
         "source": "musicbrainz",
@@ -209,3 +209,17 @@ def search_recordings(query: str, limit: int = 20) -> list[dict]:
             "source_url": f"https://musicbrainz.org/recording/{recording_id}",
         })
     return results
+
+
+def resolve_artist(query: str) -> dict | None:
+    """Resolve a query only when MusicBrainz returns one exact name/alias match.
+
+    Ambiguous results are intentionally left unresolved for explicit user choice.
+    """
+    query = _text(query)
+    if not query:
+        return None
+    from core.musicbrainz_matching import resolve_exact_artist
+
+    candidates = search_artists(query, limit=25)
+    return resolve_exact_artist(query, candidates)
