@@ -21,6 +21,7 @@ import hashlib
 from core import db
 from core import providers as P
 from core.release_radar import is_recent_release
+from core.release_radar_matching import release_matches_followed_artist
 from core.config import (
     WORKER_INTERVAL, BOT_TOKEN, APP_NAME, APP_VERSION, FREE_LIMITS,
     RENEWAL_REMINDER_HOURS, RELEASE_RADAR_INTERVAL,
@@ -106,8 +107,9 @@ async def notify_release_radar():
         for album in albums or []:
             if not isinstance(album, dict) or not is_recent_release(album, days=7):
                 continue
-            album_artist = str(album.get("artist") or album.get("artist_name") or "").strip().casefold()
-            if album_artist and name.casefold() not in album_artist and album_artist not in name.casefold():
+            followed_identity = dict(artist)
+            followed_identity.setdefault("name", name)
+            if not release_matches_followed_artist(album, followed_identity):
                 continue
             item = dict(album)
             item["followed_artist"] = name
