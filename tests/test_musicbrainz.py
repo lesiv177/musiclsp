@@ -94,5 +94,33 @@ class MusicBrainzMetadataTests(unittest.TestCase):
             self.assertIsNone(MB.resolve_artist("Artist"))
 
 
+    def test_get_json_caches_successful_response(self):
+        response = unittest.mock.Mock()
+        response.json.return_value = {"artists": []}
+        response.raise_for_status.return_value = None
+        with patch.object(MB, "_throttle"), patch.object(MB.requests, "get", return_value=response) as get:
+            first = MB._get_json("artist", {"query": "test"})
+            second = MB._get_json("artist", {"query": "test"})
+        self.assertEqual(first, second)
+        get.assert_called_once()
+
+    def test_get_json_does_not_cache_http_failures(self):
+        response = unittest.mock.Mock()
+        response.raise_for_status.side_effect = RuntimeError("upstream failure")
+        with patch.object(MB, "_throttle"), patch.object(MB.requests, "get", return_value=response) as get:
+            with self.assertRaises(RuntimeError):
+                MB._get_json("artist", {"query": "failure"})
+            with self.assertRaises(RuntimeError):
+                MB._get_json("artist", {"query": "failure"})
+        self.assertEqual(get.call_count, 2)
+
+    def test_get_json_rejects_non_object_json(self):
+        response = unittest.mock.Mock()
+        response.json.return_value = ["unexpected"]
+        response.raise_for_status.return_value = None
+        with patch.object(MB, "_throttle"), patch.object(MB.requests, "get", return_value=response):
+            with self.assertRaises(ValueError):
+                MB._get_json("artist", {"query": "bad-shape"})
+
 if __name__ == "__main__":
     unittest.main()
