@@ -75,5 +75,24 @@ class MusicBrainzMetadataTests(unittest.TestCase):
             get.assert_not_called()
 
 
+    def test_resolve_artist_uses_exact_matching_and_returns_unique_candidate(self):
+        candidate = {
+            "mbid": "12345678-abcd-4abc-8def-1234567890ab",
+            "name": "OG Buda", "aliases": ["OG Buda"],
+        }
+        with patch.object(MB, "search_artists", return_value=[candidate]) as search:
+            result = MB.resolve_artist("og-buda")
+        self.assertEqual(result["mbid"], candidate["mbid"])
+        search.assert_called_once_with("og-buda", limit=25)
+
+    def test_resolve_artist_returns_none_for_ambiguous_results(self):
+        candidates = [
+            {"mbid": "12345678-abcd-4abc-8def-1234567890ab", "name": "Artist"},
+            {"mbid": "87654321-abcd-4abc-8def-1234567890ab", "name": "Artist"},
+        ]
+        with patch.object(MB, "search_artists", return_value=candidates):
+            self.assertIsNone(MB.resolve_artist("Artist"))
+
+
 if __name__ == "__main__":
     unittest.main()
