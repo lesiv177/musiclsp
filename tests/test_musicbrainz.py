@@ -21,6 +21,17 @@ class MusicBrainzMetadataTests(unittest.TestCase):
         self.assertEqual(result[0]["id"], "mb:artist:artist-id")
         self.assertEqual(get.call_args.args[1]["limit"], 25)
 
+    def test_artist_by_id_validates_id_and_returns_metadata(self):
+        artist_id = "12345678-abcd-4abc-8def-1234567890ab"
+        payload = {"id": artist_id, "name": "Lil Peep"}
+        with patch.object(MB, "_get_json", return_value=payload) as get:
+            result = MB.artist_by_id("mb:artist:" + artist_id)
+        self.assertEqual(result["name"], "Lil Peep")
+        self.assertEqual(get.call_args.args[0], f"artist/{artist_id}")
+        with patch.object(MB, "_get_json") as get:
+            self.assertIsNone(MB.artist_by_id("not-a-mbid"))
+            get.assert_not_called()
+
     def test_empty_artist_query_does_not_call_api(self):
         with patch.object(MB, "_get_json") as get:
             self.assertEqual(MB.search_artists("  "), [])
