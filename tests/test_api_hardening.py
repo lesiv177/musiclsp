@@ -130,6 +130,33 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
                          ["jam:10", "aud:11", "aud:12"])
 
 
+    async def test_musicbrainz_artist_detail_strips_artist_id_prefix(self):
+        request = SimpleNamespace(match_info={"aid": "mb:artist:11111111-1111-4111-8111-111111111111"})
+        artist = {
+            "id": "mb:artist:11111111-1111-4111-8111-111111111111",
+            "name": "Metadata Artist",
+            "source_url": "https://musicbrainz.org/artist/11111111-1111-4111-8111-111111111111",
+        }
+        async def fake_to_thread(fn, *args, **kwargs):
+            if fn.__name__ == "artist_by_id":
+                self.assertEqual(args[0], "11111111-1111-4111-8111-111111111111")
+                return artist
+            if fn.__name__ == "artist_release_groups":
+                self.assertEqual(args[0], "11111111-1111-4111-8111-111111111111")
+                return [{"id": "mb:release-group:1", "title": "First Album"}]
+            raise AssertionError(f"Unexpected function: {fn}")
+        with (
+            patch.object(api, "auth_user", return_value={"uid": 123}),
+            patch.object(api, "to_thread", side_effect=fake_to_thread),
+        ):
+            response = await api.h_artist(request)
+        payload = json.loads(response.text)
+        self.assertEqual(response.status, 200)
+        self.assertTrue(payload["metadata_only"])
+        self.assertEqual(payload["artist"]["name"], "Metadata Artist")
+        self.assertEqual(payload["releases"][0]["title"], "First Album")
+
+
     def test_connect_routes_are_registered(self):
         app = api.build_app()
         paths = {route.resource.canonical for route in app.router.routes()}
