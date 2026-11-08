@@ -15,9 +15,7 @@ class PlatformContractTests(unittest.TestCase):
         self.assertIn('./platform.css?v=3', HTML)
 
     def test_discovery_covers_multiple_genres_and_balances_results(self):
-        discover = API.split('async def h_discover', 1)[1].split(
-            '\\n\\n@require_auth', 1
-        )[0]
+        discover = API.split('async def h_discover', 1)[1].split('@require_auth', 1)[0]
         for genre in ('"pop"', '"rock"', '"electronic"', '"hip hop"', '"jazz"'):
             self.assertIn(genre, discover)
         self.assertIn('Round-robin genre results', discover)
@@ -25,9 +23,7 @@ class PlatformContractTests(unittest.TestCase):
         self.assertIn('merge(albums_raw, "id")', discover)
 
     def test_chart_catalogue_has_four_provider_sections(self):
-        charts = API.split('async def h_charts', 1)[1].split(
-            '\\n\\n@require_auth', 1
-        )[0]
+        charts = API.split('async def h_charts', 1)[1].split('@require_auth', 1)[0]
         for chart_id in ('global-trending', 'electronic-trending', 'popular-pop', 'popular-rock'):
             self.assertIn(chart_id, charts)
         self.assertIn('P.audius_trending', charts)
