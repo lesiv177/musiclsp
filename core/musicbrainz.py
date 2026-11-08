@@ -101,6 +101,15 @@ def _artist(item: dict) -> dict | None:
     }
 
 
+def artist_by_id(artist_mbid: str) -> dict | None:
+    """Fetch one artist's metadata by MusicBrainz ID."""
+    artist_mbid = _text(artist_mbid).removeprefix("mb:artist:")
+    if not re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", artist_mbid):
+        return None
+    data = _get_json(f"artist/{artist_mbid}", {"inc": "aliases"})
+    return _artist(data)
+
+
 def search_artists(query: str, limit: int = 10) -> list[dict]:
     """Search artists by name; returns metadata only."""
     query = _text(query)
