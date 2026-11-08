@@ -300,6 +300,27 @@ def jamendo_search_artists(query, limit=20):
     } for a in data.get("results", [])]
 
 
+def jamendo_artist_by_id(artist_id):
+    """Return public Jamendo artist profile metadata."""
+    if not jamendo_enabled() or not str(artist_id or "").strip():
+        return None
+    data = _get(f"{JAMENDO_API}/artists/", _jam_params(
+        id=artist_id, limit=1, imagesize=400,
+    ))
+    if not data or not data.get("results"):
+        return None
+    artist = data["results"][0]
+    return {
+        "id": f"jam:{artist.get('id')}",
+        "name": artist.get("name") or "",
+        "cover": artist.get("image") or "",
+        "website": artist.get("website") or "",
+        "joined_at": artist.get("joindate") or "",
+        "source": "jamendo",
+        "source_url": artist.get("shareurl") or "",
+    }
+
+
 def jamendo_artist_tracks(artist_id, limit=40, audioformat="mp32"):
     if not jamendo_enabled():
         return []
@@ -654,6 +675,40 @@ def audius_search_users(query, limit=15):
             "source_url": f"https://audius.co/{u.get('handle', '')}",
         })
     return out
+
+
+def audius_user_by_id(user_id):
+    """Fetch public Audius user profile metadata by user ID."""
+    host = audius_host()
+    if not host or not str(user_id or "").strip():
+        return None
+    data = _get(f"{host}/v1/users/{urllib.parse.quote(str(user_id), safe='')}", {
+        "app_name": AUDIUS_APP_NAME,
+    })
+    if not isinstance(data, dict):
+        return None
+    user = data.get("data")
+    if isinstance(user, list):
+        user = user[0] if user else None
+    if not isinstance(user, dict):
+        return None
+    picture = user.get("profile_picture") or {}
+    handle = user.get("handle") or ""
+    return {
+        "id": f"aud:{user.get('id') or user_id}",
+        "name": user.get("name") or handle,
+        "handle": handle,
+        "cover": picture.get("480x480") or picture.get("150x150") or "",
+        "bio": user.get("bio") or "",
+        "location": user.get("location") or "",
+        "website": user.get("website") or "",
+        "twitter_handle": user.get("twitter_handle") or "",
+        "instagram_handle": user.get("instagram_handle") or "",
+        "follower_count": int(user.get("follower_count") or 0),
+        "track_count": int(user.get("track_count") or 0),
+        "source": "audius",
+        "source_url": f"https://audius.co/{handle}" if handle else "",
+    }
 
 
 def audius_user_tracks(user_id, limit=40):
