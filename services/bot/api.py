@@ -448,6 +448,23 @@ async def h_home(request, u):
 
 
 @require_auth
+async def h_charts(request, u):
+    """Current provider charts; only sources with playable catalogue entries."""
+    uid = int(u["uid"])
+    audius, jamendo = await asyncio.gather(
+        _safe(to_thread(P.audius_trending, None, 30)),
+        _safe(to_thread(P.jamendo_tag_tracks, "pop", 30, 0, quality_for(uid), "popularity_month")),
+    )
+    return ok({
+        "ok": True,
+        "charts": [
+            {"id": "audius-trending", "title": "Audius Trending", "source": "audius", "tracks": audius or []},
+            {"id": "jamendo-popular", "title": "Popular on Jamendo", "source": "jamendo", "tracks": jamendo or []},
+        ],
+    })
+
+
+@require_auth
 async def h_discover(request, u):
     """Curated cross-provider artist and album discovery; metadata/catalogue only."""
     queries = ("indie", "electronic", "hip hop")
@@ -1443,6 +1460,7 @@ def build_app():
     r.add_get("/api/search", h_search)
     r.add_get("/api/home", h_home)
     r.add_get("/api/discover", h_discover)
+    r.add_get("/api/charts", h_charts)
     r.add_get("/api/collections", h_collections)
     r.add_get("/api/genres", h_genres)
     r.add_get("/api/daily", h_daily)
