@@ -78,13 +78,40 @@ class MusicBrainzMetadataTests(unittest.TestCase):
             "number": "1", "title": "Track One",
             "recording": {"id": "11111111-abcd-4abc-8def-1234567890ab", "length": 183000},
         }]}]}
-        with patch.object(MB, "_get_json", side_effect=[group, release]) as get:
+        with (
+            patch.object(MB, "_get_json", side_effect=[group, release]) as get,
+            patch.object(MB, "release_group_cover_url", return_value="https://coverartarchive.org/test-front-500.jpg"),
+        ):
             result = MB.release_group_by_id("mb:release-group:" + release_group_id)
         self.assertEqual(result["title"], "Album One")
         self.assertEqual(result["tracks"][0]["title"], "Track One")
         self.assertEqual(result["tracks"][0]["duration"], 183)
         self.assertTrue(result["tracks"][0]["metadata_only"])
         self.assertEqual(get.call_count, 2)
+
+    def test_cover_art_archive_prefers_front_thumbnail(self):
+        response = unittest.mock.Mock()
+        response.status_code = 200
+        response.json.return_value = {"images": [
+            {"front": False, "image": "https://coverartarchive.org/back.jpg"},
+            {"front": True, "image": "https://coverartarchive.org/front.jpg",
+             "thumbnails": {"500": "https://coverartarchive.org/front-500.jpg"}},
+        ]}
+        with patch.object(MB.requests, "get", return_value=response) as get:
+            url = MB.release_group_cover_url("12345678-abcd-4abc-8def-1234567890ab")
+        self.assertEqual(url, "https://coverartarchive.org/front-500.jpg")
+        self.assertEqual(get.call_args.kwargs["timeout"], 6)
+
+    def test_cover_art_archive_missing_art_is_non_fatal(self):
+        response = unittest.mock.Mock()
+        response.status_code = 404
+        with patch.object(MB.requests, "get", return_value=response):
+            self.assertEqual(MB.release_group_cover_url("12345678-abcd-4abc-8def-1234567890ab"), "")
+
+    def test_cover_art_archive_rejects_invalid_mbid_without_network(self):
+        with patch.object(MB.requests, "get") as get:
+            self.assertEqual(MB.release_group_cover_url("bad-id"), "")
+            get.assert_not_called()
 
     def test_release_group_details_rejects_invalid_mbid(self):
         with patch.object(MB, "_get_json") as get:

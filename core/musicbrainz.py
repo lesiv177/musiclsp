@@ -236,6 +236,37 @@ def search_release_groups(query: str, limit: int = 20) -> list[dict]:
     return results
 
 
+def release_group_cover_url(release_group_mbid: str) -> str:
+    """Return official Cover Art Archive front artwork URL when available."""
+    release_group_mbid = _text(release_group_mbid).removeprefix("mb:release-group:")
+    if not re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", release_group_mbid):
+        return ""
+    try:
+        response = requests.get(
+            f"https://coverartarchive.org/release-group/{release_group_mbid}",
+            headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+            timeout=6,
+        )
+        if response.status_code == 404:
+            return ""
+        response.raise_for_status()
+        payload = response.json()
+        images = payload.get("images") if isinstance(payload, dict) else []
+        if not isinstance(images, list):
+            return ""
+        front = next((item for item in images if isinstance(item, dict) and item.get("front")), None)
+        selected = front or next((item for item in images if isinstance(item, dict)), None)
+        if not selected:
+            return ""
+        thumbnails = selected.get("thumbnails") or {}
+        url = _text(thumbnails.get("500") or thumbnails.get("large") or thumbnails.get("250") or selected.get("image"))
+        return url if url.startswith("https://") else ""
+    except Exception as exc:
+        # Artwork is optional: a CAA outage must not break catalogue metadata.
+        logger.warning("Cover Art Archive lookup failed: %s", type(exc).__name__)
+        return ""
+
+
 def release_group_by_id(release_group_mbid: str) -> dict | None:
     """Fetch release-group metadata and one representative release tracklist."""
     release_group_mbid = _text(release_group_mbid).removeprefix("mb:release-group:")
@@ -286,7 +317,7 @@ def release_group_by_id(release_group_mbid: str) -> dict | None:
         "artist": ", ".join(name for name in artists if name),
         "release_date": release_date,
         "type": _text(data.get("primary-type")),
-        "cover": "",
+        "cover": release_group_cover_url(release_group_mbid),
         "tracks": tracks,
         "track_count": len(tracks),
         "source": "musicbrainz",
