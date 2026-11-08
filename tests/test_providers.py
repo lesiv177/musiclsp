@@ -278,6 +278,28 @@ class CommercialProviderApprovalTests(unittest.TestCase):
         self.assertEqual(allowed["license_short"], "CC BY")
 
 
+class ExpandedTrackSearchTests(unittest.TestCase):
+    def test_expanded_search_fills_sparse_exact_results_from_fallback_query(self):
+        exact = [{"id": "aud:1", "title": "Song A", "artist": "Artist"}]
+        fallback = [
+            {"id": "aud:1", "title": "Song A", "artist": "Artist"},
+            {"id": "jam:2", "title": "Song B", "artist": "Artist"},
+        ]
+        with patch.object(P, "search_tracks", side_effect=[exact, fallback]) as search:
+            result = P.search_tracks_smart("Artist - Song", limit=2)
+        self.assertEqual([item["id"] for item in result], ["aud:1", "jam:2"])
+        self.assertGreaterEqual(search.call_count, 2)
+
+    def test_expanded_search_handles_empty_and_duplicate_query_variants(self):
+        self.assertEqual(P._search_query_variants("  OG-Buda  "), ["OG-Buda", "OG Buda"])
+        self.assertEqual(P.search_tracks_smart(" ", limit=10), [])
+
+    def test_expanded_search_respects_non_positive_limit(self):
+        with patch.object(P, "search_tracks") as search:
+            self.assertEqual(P.search_tracks_smart("Artist", limit=0), [])
+        search.assert_not_called()
+
+
 class GlobalSearchCoverageTests(unittest.TestCase):
     def test_global_search_requests_optional_catalogues(self):
         with (
