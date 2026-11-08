@@ -43,3 +43,7 @@
 
 #mlsp-v3 .v3-track-duration{flex:none;color:var(--muted,#91a7bc);font-size:11px;font-variant-numeric:tabular-nums}
 #mlsp-v3 .v3-coll-list .v3-track{cursor:pointer}
+
+#mlsp-v3 .platform-entity-art.no-art{background:linear-gradient(145deg,#203b52,#101c2b)}
+#mlsp-v3 .platform-entity-art img{transition:transform .25s}
+#mlsp-v3 .platform-entity:hover .platform-entity-art img{transform:scale(1.04)}
