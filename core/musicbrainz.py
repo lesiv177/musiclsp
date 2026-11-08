@@ -11,7 +11,6 @@ import re
 from datetime import date
 import threading
 import time
-from urllib.parse import urlencode
 
 import requests
 
@@ -26,6 +25,7 @@ CACHE_TTL = 900
 _CACHE_MAX = 256
 
 _lock = threading.Lock()
+_cache_lock = threading.Lock()
 _last_request = 0.0
 _cache: dict[tuple, tuple[float, object]] = {}
 
@@ -44,9 +44,12 @@ def _throttle() -> None:
 def _get_json(entity: str, params: dict) -> dict:
     key = (entity, tuple(sorted((k, str(v)) for k, v in params.items())))
     now = time.monotonic()
-    cached = _cache.get(key)
-    if cached and cached[0] > now:
-        return cached[1]
+    with _cache_lock:
+        cached = _cache.get(key)
+        if cached and cached[0] > now:
+            return cached[1]
+        if cached:
+            _cache.pop(key, None)
 
     _throttle()
     response = requests.get(
@@ -59,14 +62,15 @@ def _get_json(entity: str, params: dict) -> dict:
     payload = response.json()
     if not isinstance(payload, dict):
         raise ValueError("Unexpected MusicBrainz response")
-    if len(_cache) >= _CACHE_MAX:
-        # Simple bounded cache: discard expired entries, then oldest insertion.
-        expired = [k for k, (expiry, _) in _cache.items() if expiry <= now]
-        for old_key in expired:
-            _cache.pop(old_key, None)
-        while len(_cache) >= _CACHE_MAX:
-            _cache.pop(next(iter(_cache)))
-    _cache[key] = (time.monotonic() + CACHE_TTL, payload)
+    with _cache_lock:
+        if len(_cache) >= _CACHE_MAX:
+            # Simple bounded cache: discard expired entries, then oldest insertion.
+            expired = [k for k, (expiry, _) in _cache.items() if expiry <= now]
+            for old_key in expired:
+                _cache.pop(old_key, None)
+            while len(_cache) >= _CACHE_MAX:
+                _cache.pop(next(iter(_cache)))
+        _cache[key] = (time.monotonic() + CACHE_TTL, payload)
     return payload
 
 
