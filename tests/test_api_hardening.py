@@ -1,5 +1,6 @@
 import json
 import unittest
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -80,6 +81,23 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
     async def test_json_object_handles_malformed_payload(self):
         request = SimpleNamespace(json=AsyncMock(side_effect=ValueError("bad json")))
         self.assertIsNone(await api.json_object(request))
+
+    async def test_search_history_serializes_database_datetime(self):
+        request = SimpleNamespace()
+        searched_at = datetime(2026, 11, 8, 15, 50, 0, tzinfo=timezone.utc)
+        async def fake_to_thread(fn, *args, **kwargs):
+            self.assertIs(fn, api.db.search_history_list)
+            self.assertEqual(args, (123, 30))
+            return [{"id": 7, "query": "ambient", "kind": "tracks", "searched_at": searched_at}]
+        with (
+            patch.object(api, "auth_user", return_value={"uid": 123}),
+            patch.object(api, "to_thread", side_effect=fake_to_thread),
+        ):
+            response = await api.h_search_history_get(request)
+        payload = json.loads(response.text)
+        self.assertEqual(response.status, 200)
+        self.assertEqual(payload["items"][0]["searched_at"], searched_at.isoformat())
+
 
     def test_device_id_validation(self):
         self.assertTrue(api.valid_device_id("ios-device_123"))
