@@ -137,6 +137,11 @@ async def notify_release_radar():
             artist = followed.get("artist") or {}
             name = str(followed.get("artist_name") or artist.get("name") or "").strip()
             for album in releases_by_artist.get(name.casefold(), []):
+                if not release_matches_followed_artist(album, {
+                    **dict(artist),
+                    "name": artist.get("name") or name,
+                }):
+                    continue
                 key = album["_notification_key"]
                 if key not in seen:
                     seen.add(key)
