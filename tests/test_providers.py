@@ -455,6 +455,19 @@ class GlobalSearchCoverageTests(unittest.TestCase):
         self.assertEqual(result["follower_count"], 42)
         self.assertEqual(result["source_url"], "https://audius.co/profile-artist")
 
+    def test_audius_user_profile_sanitizes_external_fields(self):
+        with (
+            patch.object(P, "audius_host", return_value="https://discovery.example"),
+            patch.object(P, "_get", return_value={"data": {
+                "id": "88", "handle": "artist", "website": "javascript:alert(1)",
+                "bio": "B" * 900, "follower_count": "not-a-number",
+            }}),
+        ):
+            result = P.audius_user_by_id("88")
+        self.assertEqual(result["website"], "")
+        self.assertEqual(len(result["bio"]), 600)
+        self.assertEqual(result["follower_count"], 0)
+
     def test_jamendo_artist_profile_respects_commercial_approval_gate(self):
         with (
             patch.object(P, "jamendo_enabled", return_value=False),
