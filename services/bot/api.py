@@ -534,6 +534,15 @@ async def h_artist(request, u):
         })
     else:
         return fail("Невідоме джерело", 400)
+    if prefix == "scu":
+        artist = await to_thread(P.soundcloud_user_by_id, raw)
+        if not artist:
+            return fail("Артиста не знайдено в каталозі", 404)
+        return ok({"ok": True, "tracks": tracks, "artist": {
+            "id": request.match_info["aid"], "name": artist["name"],
+            "cover": artist["cover"], "source": "soundcloud",
+            "source_url": artist["source_url"],
+        }})
     if not tracks:
         return fail("У цього артиста поки немає треків", 404)
     return ok({"ok": True, "tracks": tracks, "artist": {
