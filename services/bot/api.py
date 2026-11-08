@@ -461,7 +461,7 @@ async def h_charts(request, u):
     return ok({
         "ok": True,
         "charts": [
-            {"id": "global-trending", "title": "Global Trending", "source": "Audius", "tracks": audius_all or []},
+            {"id": "audius-trending", "title": "Audius Trending", "source": "Audius", "tracks": audius_all or []},
             {"id": "electronic-trending", "title": "Electronic Trending", "source": "Audius · Electronic", "tracks": audius_electronic or []},
             {"id": "popular-pop", "title": "Popular Pop", "source": "Jamendo", "tracks": jamendo_pop or []},
             {"id": "popular-rock", "title": "Popular Rock", "source": "Jamendo", "tracks": jamendo_rock or []},
