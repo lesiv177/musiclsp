@@ -8,7 +8,7 @@ const getData=async path=>{
  const response=await fetch(path,{credentials:"same-origin"});
  const data=await response.json();if(!response.ok||data.ok===false)throw new Error(data.error||"Request failed");return data;
 };
-let loaded=false, data=null, chartsLoaded=false;
+let loaded=false, loading=false, data=null, chartsLoading=false;
 function entityCard(item,kind){
  const artist=kind==="artist",name=item.name||item.title||"Без назви",sub=artist?(item.source_label||item.source||"Артист"):(item.artist||item.source_label||"Альбом");
  return '<button class="platform-entity '+(artist?"artist":"album")+'" data-platform-kind="'+kind+'" data-platform-id="'+esc(item.id)+'"><span class="platform-entity-art">'+(item.cover?'<img loading="lazy" src="'+esc(item.cover)+'" alt="" onerror="this.style.opacity=.12">':'')+'</span><b>'+esc(name)+'</b><small>'+esc(sub)+'</small></button>';
@@ -34,9 +34,17 @@ function render(){
  });
 }
 async function load(){
- if(loaded)return;loaded=true;
- try{data=await getData("/api/discover");render();}
- catch(error){const root=$("v3-home");if(root&&!$("platformDiscovery"))root.insertAdjacentHTML("beforeend",'<section class="platform-discovery"><div class="platform-discovery-kicker">GLOBAL CATALOGUE</div><h2>Каталог артистів та альбомів</h2><p class="platform-empty">Не вдалося завантажити каталог. Спробуй оновити сторінку.</p></section>');}
+ const root=$("v3-home");
+ if(!root||loading||(loaded&&root.querySelector("#platformDiscovery")))return;
+ loading=true;
+ try{
+  data=await getData("/api/discover");
+  loaded=true;
+  render();
+ }catch(error){
+  loaded=false;
+  if(root&&!root.querySelector("#platformDiscovery"))root.insertAdjacentHTML("beforeend",'<section class="platform-discovery"><div class="platform-discovery-kicker">GLOBAL CATALOGUE</div><h2>Каталог артистів та альбомів</h2><p class="platform-empty">Не вдалося завантажити каталог. Спробуй оновити сторінку.</p></section>');
+ }finally{loading=false;}
 }
 function watch(){
  const root=$("v3-home");if(!root)return;
@@ -47,19 +55,23 @@ function watch(){
  if(root.querySelector(".v3-home-heading"))load();
 }
 async function loadCharts(){
- if(chartsLoaded)return;chartsLoaded=true;
- const root=$("v3-explore");if(!root)return;
+ const root=$("v3-explore");
+ if(!root||chartsLoading||root.querySelector("#platformCharts"))return;
+ chartsLoading=true;
  try{
   const response=await getData("/api/charts"),charts=response.charts||[];
   const host=document.createElement("section");host.className="platform-discovery platform-charts";host.id="platformCharts";
-  host.innerHTML='<div class="platform-discovery-head"><div><div class="platform-discovery-kicker">MUSICLSP / CHARTS</div><h2>Чарти та тренди</h2><p>Популярні треки з доступних музичних каталогів</p></div></div>'+
-   (charts.length?charts.map((chart,index)=>'<div class="platform-chart"><div class="platform-chart-head"><h3>'+esc(chart.title)+'</h3><small>'+esc(chart.source||"")+'</small></div><div class="platform-chart-list">'+(chart.tracks||[]).slice(0,15).map((track,i)=>'<button class="platform-chart-track" data-chart="'+index+'" data-track="'+i+'"><span class="platform-chart-rank">'+String(i+1).padStart(2,"0")+'</span>'+(track.cover?'<img src="'+esc(track.cover)+'" alt="" loading="lazy">':'<span class="platform-chart-cover">♫</span>')+'<span><b>'+esc(track.title||"Без назви")+'</b><small>'+esc(track.artist||"Невідомий артист")+'</small></span><i>▶</i></button>').join("")+'</div></div>').join(""):'<div class="platform-empty">Чарти тимчасово недоступні.</div>');
+  host.innerHTML='<div class="platform-discovery-head"><div><div class="platform-discovery-kicker">MUSICLSP / GLOBAL CHARTS</div><h2>Чарти та тренди</h2><p>Рейтинги за актуальними даними доступних музичних каталогів</p></div></div>'+
+   (charts.length?charts.map((chart,index)=>'<div class="platform-chart"><div class="platform-chart-head"><h3>'+esc(chart.title)+'</h3><small>'+esc(chart.source||"")+'</small></div><div class="platform-chart-list">'+(chart.tracks||[]).slice(0,20).map((track,i)=>'<button class="platform-chart-track" data-chart="'+index+'" data-track="'+i+'"><span class="platform-chart-rank">'+String(i+1).padStart(2,"0")+'</span>'+(track.cover?'<img src="'+esc(track.cover)+'" alt="" loading="lazy">':'<span class="platform-chart-cover">♫</span>')+'<span><b>'+esc(track.title||"Без назви")+'</b><small>'+esc(track.artist||"Невідомий артист")+'</small></span><i>▶</i></button>').join("")+'</div></div>').join(""):'<div class="platform-empty">Чарти тимчасово недоступні.</div>');
   root.appendChild(host);
   host.querySelectorAll("[data-chart]").forEach(button=>button.addEventListener("click",()=>{
    const chart=charts[Number(button.dataset.chart)],tracks=chart?.tracks||[];
-   if(typeof setQueue==="function"&&tracks.length)setQueue(tracks,Number(button.dataset.track)||0);
+   const play=window.MLSPv3?.playTracks;
+   if(typeof play==="function"&&tracks.length)play(tracks,Number(button.dataset.track)||0);
   }));
- }catch(error){const host=document.createElement("section");host.className="platform-discovery";host.innerHTML='<h2>Чарти</h2><p class="platform-empty">Не вдалося завантажити чарти.</p>';root.appendChild(host);}
+ }catch(error){
+  const host=document.createElement("section");host.className="platform-discovery";host.innerHTML='<h2>Чарти</h2><p class="platform-empty">Не вдалося завантажити чарти.</p>';root.appendChild(host);
+ }finally{chartsLoading=false;}
 }
 function watchExplore(){
  const root=$("v3-explore");if(!root)return;

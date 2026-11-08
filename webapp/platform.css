@@ -36,3 +36,7 @@
 #mlsp-v3 .platform-chart-track small{font-size:10px;color:var(--muted,#91a7bc);margin-top:3px}
 #mlsp-v3 .platform-chart-track i{font-style:normal;color:var(--accent,#48b9ff);font-size:11px}
 @media(max-width:640px){#mlsp-v3 .platform-chart-list{grid-template-columns:1fr}}
+
+/* Metadata-only discography entries link to their canonical catalogue record. */
+#mlsp-v3 a.platform-entity{display:block;text-decoration:none;color:var(--text,#f4f8ff)}
+#mlsp-v3 a.platform-entity:focus-visible{outline:2px solid var(--accent,#48b9ff);outline-offset:3px}

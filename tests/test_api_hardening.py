@@ -106,7 +106,7 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
                 return [
                     {"id": "aud:1", "name": "Artist One"},
                     {"id": "mb:artist:2", "name": "Artist Two"},
-                ] if query == "indie" else [
+                ] if query == "pop" else [
                     {"id": "aud:1", "name": "Artist One"},
                     {"id": "jam:3", "name": "Artist Three"},
                 ]
@@ -114,7 +114,7 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
                 return [
                     {"id": "jam:10", "title": "Album One"},
                     {"id": "aud:11", "title": "Album Two"},
-                ] if query == "indie" else [
+                ] if query == "pop" else [
                     {"id": "jam:10", "title": "Album One"},
                     {"id": "aud:12", "title": "Album Three"},
                 ]
@@ -167,8 +167,9 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
             if fn is api.P.audius_trending:
                 return [{"id": "aud:1", "title": "Trending Track"}]
             if fn is api.P.jamendo_tag_tracks:
-                self.assertEqual(args[0], "pop")
-                return [{"id": "jam:1", "title": "Popular Track"}]
+                self.assertIn(args[0], ("pop", "rock"))
+                suffix = "1" if args[0] == "pop" else "2"
+                return [{"id": "jam:" + suffix, "title": "Popular " + args[0].title() + " Track"}]
             raise AssertionError(f"Unexpected provider function: {fn}")
         with (
             patch.object(api, "auth_user", return_value={"uid": 123}),
@@ -179,8 +180,10 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
         payload = json.loads(response.text)
         self.assertEqual(response.status, 200)
         self.assertEqual([x["id"] for x in payload["charts"]],
-                         ["audius-trending", "jamendo-popular"])
+                         ["global-trending", "electronic-trending", "popular-pop", "popular-rock"])
         self.assertEqual(payload["charts"][0]["tracks"][0]["id"], "aud:1")
+        self.assertEqual(payload["charts"][2]["tracks"][0]["id"], "jam:1")
+        self.assertEqual(payload["charts"][3]["tracks"][0]["id"], "jam:2")
 
 
     def test_connect_routes_are_registered(self):
