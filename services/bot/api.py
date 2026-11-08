@@ -549,6 +549,7 @@ async def h_artist(request, u):
         if not artist and not tracks:
             return fail("Артиста не знайдено в каталозі", 404)
     elif prefix == "mb":
+        raw = raw.removeprefix("artist:")
         from core import musicbrainz as MB
         artist, releases = await asyncio.gather(
             to_thread(MB.artist_by_id, raw),
