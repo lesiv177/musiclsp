@@ -1385,7 +1385,7 @@ def soundcloud_user_tracks(user_id, limit=50):
         payload = response.json()
         tracks = payload.get("collection", []) if isinstance(payload, dict) else payload
         return [_sc_track(item) for item in tracks
-                if isinstance(item, dict)
+                if isinstance(item, dict) and item.get("id")
                 and item.get("streamable", True)
                 and item.get("access", "playable") == "playable"][:limit]
     except Exception as exc:
