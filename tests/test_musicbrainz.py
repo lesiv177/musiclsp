@@ -55,5 +55,25 @@ class MusicBrainzMetadataTests(unittest.TestCase):
             get.assert_not_called()
 
 
+    def test_recent_artist_releases_builds_date_scoped_query(self):
+        payload = {"release-groups": [
+            {"id": "new-id", "title": "New Single", "first-release-date": "2026-10-12",
+             "primary-type": "Single"},
+            {"id": "old-id", "title": "Old Single", "first-release-date": "2025-01-01"},
+            {"id": "", "title": "Invalid", "first-release-date": "2026-11-01"},
+        ]}
+        with patch.object(MB, "_get_json", return_value=payload) as get:
+            result = MB.recent_artist_releases("mb:artist:12345678-abcd", "2026-01-01")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["title"], "New Single")
+        self.assertIn("date:[2026-01-01 TO *]", get.call_args.args[1]["query"])
+
+    def test_recent_artist_releases_rejects_invalid_inputs(self):
+        with patch.object(MB, "_get_json") as get:
+            self.assertEqual(MB.recent_artist_releases("not-a-valid-id", "2026-01-01"), [])
+            self.assertEqual(MB.recent_artist_releases("12345678-abcd", "not-a-date"), [])
+            get.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
