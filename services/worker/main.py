@@ -88,14 +88,19 @@ async def notify_release_radar():
 
     semaphore = asyncio.Semaphore(5)
     artist_names = {}
+    artist_identities = {}
     for group in grouped.values():
         for followed in group["follows"]:
             artist = followed.get("artist") or {}
             name = str(followed.get("artist_name") or artist.get("name") or "").strip()
             if name:
-                artist_names.setdefault(name.casefold(), name)
+                key = name.casefold()
+                artist_names.setdefault(key, name)
+                identity = dict(artist)
+                identity.setdefault("name", name)
+                artist_identities.setdefault(key, []).append(identity)
 
-    async def lookup(name):
+    async def lookup(name, identities):
         async with semaphore:
             try:
                 albums = await asyncio.to_thread(P.search_albums_smart, name, 8, "newest")
@@ -107,9 +112,10 @@ async def notify_release_radar():
         for album in albums or []:
             if not isinstance(album, dict) or not is_recent_release(album, days=7):
                 continue
-            followed_identity = dict(artist)
-            followed_identity.setdefault("name", name)
-            if not release_matches_followed_artist(album, followed_identity):
+            if not any(
+                release_matches_followed_artist(album, identity)
+                for identity in identities
+            ):
                 continue
             item = dict(album)
             item["followed_artist"] = name
@@ -119,7 +125,9 @@ async def notify_release_radar():
         return matched
 
     artist_keys = list(artist_names)
-    artist_batches = await asyncio.gather(*(lookup(artist_names[key]) for key in artist_keys))
+    artist_batches = await asyncio.gather(*(
+        lookup(artist_names[key], artist_identities[key]) for key in artist_keys
+    ))
     releases_by_artist = dict(zip(artist_keys, artist_batches))
 
     sent_count = 0
