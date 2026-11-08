@@ -87,6 +87,23 @@ class AudiusAlbumCatalogueTests(unittest.TestCase):
         self.assertIsNone(P._aud_album({**base, "is_unlisted": True}))
 
 
+class UnifiedAlbumCatalogueTests(unittest.TestCase):
+    def test_album_search_merges_musicbrainz_metadata_with_playable_sources(self):
+        jamendo = [{"id": "jam:1", "title": "Jam Album", "artist": "Artist"}]
+        audius = [{"id": "aud:2", "title": "Audius Album", "artist": "Artist"}]
+        metadata = [{"id": "mb:release-group:3", "title": "Metadata Album",
+                     "artist": "Artist", "metadata_only": True}]
+        with (
+            patch.object(P, "_run_parallel_grouped", side_effect=run_jobs_inline),
+            patch.object(P, "jamendo_search_albums", return_value=jamendo),
+            patch.object(P, "audius_search_albums", return_value=audius),
+            patch("core.musicbrainz.search_release_groups", return_value=metadata),
+        ):
+            results = P.search_albums("Album", limit=10)
+        self.assertEqual({item["id"] for item in results}, {"jam:1", "aud:2", "mb:release-group:3"})
+        self.assertTrue(next(item for item in results if item["id"].startswith("mb:"))["metadata_only"])
+
+
 class AudiusPlaylistVisibilityTests(unittest.TestCase):
     def test_trending_playlists_exclude_private_unlisted_and_invalid_items(self):
         payload = {"data": [
