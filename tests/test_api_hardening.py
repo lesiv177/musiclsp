@@ -23,6 +23,8 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
             "id": "scu:77", "name": "Example Artist",
             "cover": "https://img.test/avatar.jpg",
             "source": "soundcloud", "source_url": "https://soundcloud.com/example-artist",
+            "bio": "Independent electronic musician", "follower_count": 321,
+            "track_count": 14, "location": "Wrocław, Poland",
         }
 
         async def fake_to_thread(fn, *args, **kwargs):
