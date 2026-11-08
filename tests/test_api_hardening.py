@@ -157,6 +157,28 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["releases"][0]["title"], "First Album")
 
 
+    async def test_charts_endpoint_returns_provider_chart_sections(self):
+        request = SimpleNamespace()
+        async def fake_to_thread(fn, *args, **kwargs):
+            if fn is api.P.audius_trending:
+                return [{"id": "aud:1", "title": "Trending Track"}]
+            if fn is api.P.jamendo_tag_tracks:
+                self.assertEqual(args[0], "pop")
+                return [{"id": "jam:1", "title": "Popular Track"}]
+            raise AssertionError(f"Unexpected provider function: {fn}")
+        with (
+            patch.object(api, "auth_user", return_value={"uid": 123}),
+            patch.object(api, "quality_for", return_value="mp32"),
+            patch.object(api, "to_thread", side_effect=fake_to_thread),
+        ):
+            response = await api.h_charts(request)
+        payload = json.loads(response.text)
+        self.assertEqual(response.status, 200)
+        self.assertEqual([x["id"] for x in payload["charts"]],
+                         ["audius-trending", "jamendo-popular"])
+        self.assertEqual(payload["charts"][0]["tracks"][0]["id"], "aud:1")
+
+
     def test_connect_routes_are_registered(self):
         app = api.build_app()
         paths = {route.resource.canonical for route in app.router.routes()}
