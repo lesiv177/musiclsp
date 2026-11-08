@@ -1318,6 +1318,81 @@ def soundcloud_track(raw):
         return None
 
 
+def _sc_artist(user):
+    """Normalize an official SoundCloud user record as a metadata artist."""
+    raw_id = user.get("urn") or user.get("id")
+    if not raw_id:
+        return None
+    raw_id = str(raw_id)
+    # Keep the stable API id for the existing /users/{id} endpoints.
+    numeric_id = str(user.get("id") or raw_id.rsplit(":", 1)[-1])
+    name = str(user.get("username") or user.get("full_name") or "").strip()
+    if not name:
+        return None
+    avatar = str(user.get("avatar_url") or "").replace("-large", "-t500x500")
+    permalink = str(user.get("permalink_url") or "")
+    return {
+        "id": f"scu:{numeric_id}",
+        "name": name,
+        "cover": avatar,
+        "source": "soundcloud",
+        "source_label": "SoundCloud",
+        "source_url": permalink or f"https://soundcloud.com/{user.get('permalink') or ''}",
+        "metadata_only": False,
+    }
+
+
+def soundcloud_search_users(query, limit=20):
+    """Search SoundCloud creators using the official authenticated API."""
+    if not str(query or "").strip() or not soundcloud_enabled():
+        return []
+    headers = _sc_headers()
+    if not headers:
+        return []
+    try:
+        response = _http_session().get(
+            f"{_SC_API}/users", headers=headers, timeout=HTTP_TIMEOUT,
+            params={"q": str(query).strip(), "limit": max(1, min(int(limit), 50))},
+        )
+        if response.status_code != 200:
+            logger.warning("SoundCloud user search -> %s", response.status_code)
+            return []
+        payload = response.json()
+        users = payload.get("collection", []) if isinstance(payload, dict) else payload
+        return [artist for item in users[:limit]
+                if isinstance(item, dict) and (artist := _sc_artist(item))]
+    except Exception as exc:
+        logger.warning("SoundCloud user search failed: %s", type(exc).__name__)
+        return []
+
+
+def soundcloud_user_tracks(user_id, limit=50):
+    """Return playable tracks published by a SoundCloud user."""
+    if not str(user_id or "").strip() or not soundcloud_enabled():
+        return []
+    headers = _sc_headers()
+    if not headers:
+        return []
+    try:
+        response = _http_session().get(
+            f"{_SC_API}/users/{urllib.parse.quote(str(user_id), safe='')}/tracks",
+            headers=headers, timeout=HTTP_TIMEOUT,
+            params={"limit": max(1, min(int(limit), 200)), "access": "playable"},
+        )
+        if response.status_code != 200:
+            logger.warning("SoundCloud user tracks -> %s", response.status_code)
+            return []
+        payload = response.json()
+        tracks = payload.get("collection", []) if isinstance(payload, dict) else payload
+        return [_sc_track(item) for item in tracks
+                if isinstance(item, dict)
+                and item.get("streamable", True)
+                and item.get("access", "playable") == "playable"][:limit]
+    except Exception as exc:
+        logger.warning("SoundCloud user tracks failed: %s", type(exc).__name__)
+        return []
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  YouTube Music — ЛИШЕ каталог (офіційний Data API). Звук не проксується:
 #  клієнт грає трек через офіційний embed-плеєр YouTube.
@@ -1602,6 +1677,7 @@ def search_artists(query, limit=20):
             return []
 
     groups = _run_parallel_grouped([
+        lambda: soundcloud_search_users(query, limit=limit),
         lambda: jamendo_search_artists(query, limit=limit),
         lambda: audius_search_users(query, limit=limit),
         musicbrainz_artists,
