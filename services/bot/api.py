@@ -509,6 +509,27 @@ async def h_artist(request, u):
         tracks = await to_thread(P.jamendo_artist_tracks, raw, 50, qual)
     elif prefix == "aud":
         tracks = await to_thread(P.audius_user_tracks, raw, 50)
+    elif prefix == "mb":
+        from core import musicbrainz as MB
+        artist, releases = await asyncio.gather(
+            to_thread(MB.artist_by_id, raw),
+            to_thread(MB.artist_release_groups, raw, 50),
+        )
+        if not artist:
+            return fail("Артиста не знайдено в каталозі", 404)
+        return ok({
+            "ok": True,
+            "tracks": [],
+            "metadata_only": True,
+            "releases": releases,
+            "artist": {
+                "id": request.match_info["aid"],
+                "name": artist["name"],
+                "cover": "",
+                "source": "musicbrainz",
+                "source_url": artist["source_url"],
+            },
+        })
     else:
         return fail("Невідоме джерело", 400)
     if not tracks:
