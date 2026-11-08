@@ -449,34 +449,44 @@ async def h_home(request, u):
 
 @require_auth
 async def h_charts(request, u):
-    """Current provider charts; only sources with playable catalogue entries."""
+    """Provider charts with playable entries, split by source and genre."""
     uid = int(u["uid"])
-    audius, jamendo = await asyncio.gather(
+    quality = quality_for(uid)
+    audius_all, audius_electronic, jamendo_pop, jamendo_rock = await asyncio.gather(
         _safe(to_thread(P.audius_trending, None, 30)),
-        _safe(to_thread(P.jamendo_tag_tracks, "pop", 30, 0, quality_for(uid), "popularity_month")),
+        _safe(to_thread(P.audius_trending, "Electronic", 30)),
+        _safe(to_thread(P.jamendo_tag_tracks, "pop", 30, 0, quality, "popularity_month")),
+        _safe(to_thread(P.jamendo_tag_tracks, "rock", 30, 0, quality, "popularity_month")),
     )
     return ok({
         "ok": True,
         "charts": [
-            {"id": "audius-trending", "title": "Audius Trending", "source": "audius", "tracks": audius or []},
-            {"id": "jamendo-popular", "title": "Popular on Jamendo", "source": "jamendo", "tracks": jamendo or []},
+            {"id": "global-trending", "title": "Global Trending", "source": "Audius", "tracks": audius_all or []},
+            {"id": "electronic-trending", "title": "Electronic Trending", "source": "Audius · Electronic", "tracks": audius_electronic or []},
+            {"id": "popular-pop", "title": "Popular Pop", "source": "Jamendo", "tracks": jamendo_pop or []},
+            {"id": "popular-rock", "title": "Popular Rock", "source": "Jamendo", "tracks": jamendo_rock or []},
         ],
     })
 
 
 @require_auth
 async def h_discover(request, u):
-    """Curated cross-provider artist and album discovery; metadata/catalogue only."""
-    queries = ("indie", "electronic", "hip hop")
-    artist_jobs = [to_thread(P.search_artists, query, 8) for query in queries]
-    album_jobs = [to_thread(P.search_albums, query, 8, "popularity") for query in queries]
+    """Diverse cross-provider discovery across multiple genres; metadata/catalogue only."""
+    queries = ("pop", "rock", "electronic", "hip hop", "jazz")
+    artist_jobs = [to_thread(P.search_artists, query, 10) for query in queries]
+    album_jobs = [to_thread(P.search_albums, query, 10, "popularity") for query in queries]
     results = await asyncio.gather(*[_safe(job) for job in artist_jobs + album_jobs])
     artists_raw, albums_raw = results[:len(queries)], results[len(queries):]
 
-    def merge(groups, identity, limit=24):
+    def merge(groups, identity, limit=40):
+        """Round-robin genre results so one large provider/genre cannot dominate."""
         merged, seen = [], set()
-        for group in groups:
-            for item in group or []:
+        for offset in range(max((len(group or []) for group in groups), default=0)):
+            for group in groups:
+                items = group or []
+                if offset >= len(items):
+                    continue
+                item = items[offset]
                 if not isinstance(item, dict) or not item.get(identity):
                     continue
                 key = str(item[identity]).casefold()
@@ -493,6 +503,7 @@ async def h_discover(request, u):
         "artists": merge(artists_raw, "id"),
         "albums": merge(albums_raw, "id"),
         "catalogue": "cross-provider",
+        "genres": list(queries),
     })
 
 
