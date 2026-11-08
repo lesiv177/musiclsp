@@ -157,6 +157,8 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
             "id": "mb:artist:11111111-1111-4111-8111-111111111111",
             "name": "Metadata Artist",
             "source_url": "https://musicbrainz.org/artist/11111111-1111-4111-8111-111111111111",
+            "type": "Person", "country": "US", "begin_date": "1998",
+            "disambiguation": "American recording artist", "mbid": "11111111-1111-4111-8111-111111111111",
         }
         async def fake_to_thread(fn, *args, **kwargs):
             if fn.__name__ == "artist_by_id":
@@ -164,7 +166,7 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
                 return artist
             if fn.__name__ == "artist_release_groups":
                 self.assertEqual(args[0], "11111111-1111-4111-8111-111111111111")
-                return [{"id": "mb:release-group:1", "title": "First Album"}]
+                return [{"id": "mb:release-group:1", "title": "First Album", "cover": "https://coverartarchive.org/release-group/1/front-250"}]
             raise AssertionError(f"Unexpected function: {fn}")
         with (
             patch.object(api, "auth_user", return_value={"uid": 123}),
@@ -176,6 +178,9 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status, 200)
         self.assertTrue(payload["metadata_only"])
         self.assertEqual(payload["artist"]["name"], "Metadata Artist")
+        self.assertEqual(payload["artist"]["type"], "Person")
+        self.assertEqual(payload["artist"]["country"], "US")
+        self.assertEqual(payload["artist"]["cover"], "https://coverartarchive.org/release-group/1/front-250")
         self.assertEqual(payload["releases"][0]["title"], "First Album")
 
 

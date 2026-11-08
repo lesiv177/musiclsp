@@ -48,6 +48,7 @@ class MusicBrainzMetadataTests(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["year"], "2026")
         self.assertEqual(result[0]["id"], "mb:release-group:release-id")
+        self.assertEqual(result[0]["cover"], "https://coverartarchive.org/release-group/release-id/front-250")
 
     def test_search_release_groups_returns_metadata_only_album_entries(self):
         payload = {"release-groups": [{
