@@ -149,6 +149,7 @@ def artist_release_groups(artist_mbid: str, limit: int = 25) -> list[dict]:
             "first_release_date": first_release,
             "year": first_release[:4] if first_release else "",
             "artist_mbid": artist_mbid,
+            "cover": f"https://coverartarchive.org/release-group/{release_id}/front-250",
             "source": "musicbrainz",
             "metadata_only": True,
             "source_url": f"https://musicbrainz.org/release-group/{release_id}",
