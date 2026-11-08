@@ -98,6 +98,39 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(payload["sources"]["jamendo"])
         self.assertTrue(payload["sources"]["audius"])
 
+    async def test_discover_merges_and_deduplicates_artist_and_album_catalogues(self):
+        request = SimpleNamespace()
+        async def fake_to_thread(fn, *args, **kwargs):
+            query = args[0]
+            if fn is api.P.search_artists:
+                return [
+                    {"id": "aud:1", "name": "Artist One"},
+                    {"id": "mb:artist:2", "name": "Artist Two"},
+                ] if query == "indie" else [
+                    {"id": "aud:1", "name": "Artist One"},
+                    {"id": "jam:3", "name": "Artist Three"},
+                ]
+            if fn is api.P.search_albums:
+                return [
+                    {"id": "jam:10", "title": "Album One"},
+                    {"id": "aud:11", "title": "Album Two"},
+                ] if query == "indie" else [
+                    {"id": "jam:10", "title": "Album One"},
+                    {"id": "aud:12", "title": "Album Three"},
+                ]
+            raise AssertionError(f"Unexpected provider function: {fn}")
+
+        with patch.object(api, "auth_user", return_value={"uid": 123}), \\
+             patch.object(api, "to_thread", side_effect=fake_to_thread):
+            response = await api.h_discover(request)
+        payload = json.loads(response.text)
+        self.assertEqual(response.status, 200)
+        self.assertEqual([x["id"] for x in payload["artists"]],
+                         ["aud:1", "mb:artist:2", "jam:3"])
+        self.assertEqual([x["id"] for x in payload["albums"]],
+                         ["jam:10", "aud:11", "aud:12"])
+
+
     def test_connect_routes_are_registered(self):
         app = api.build_app()
         paths = {route.resource.canonical for route in app.router.routes()}
