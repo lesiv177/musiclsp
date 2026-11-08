@@ -509,6 +509,8 @@ async def h_artist(request, u):
         tracks = await to_thread(P.jamendo_artist_tracks, raw, 50, qual)
     elif prefix == "aud":
         tracks = await to_thread(P.audius_user_tracks, raw, 50)
+    elif prefix == "scu":
+        tracks = await to_thread(P.soundcloud_user_tracks, raw, 50)
     elif prefix == "mb":
         from core import musicbrainz as MB
         artist, releases = await asyncio.gather(
