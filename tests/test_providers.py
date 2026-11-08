@@ -300,6 +300,50 @@ class ExpandedTrackSearchTests(unittest.TestCase):
         search.assert_not_called()
 
 
+class SoundCloudArtistSearchTests(unittest.TestCase):
+    def test_soundcloud_user_search_normalizes_artist_results(self):
+        payload = {"collection": [{
+            "id": 123, "username": "Example Artist",
+            "avatar_url": "https://i1.sndcdn.com/avatars/large.jpg",
+            "permalink_url": "https://soundcloud.com/example-artist",
+        }]}
+        response = type("Response", (), {"status_code": 200, "json": lambda self: payload})()
+        with (
+            patch.object(P, "soundcloud_enabled", return_value=True),
+            patch.object(P, "_sc_headers", return_value={"Authorization": "OAuth test"}),
+            patch.object(P, "_http_session") as session,
+        ):
+            session.return_value.get.return_value = response
+            result = P.soundcloud_search_users("Example Artist", limit=10)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["id"], "scu:123")
+        self.assertEqual(result[0]["name"], "Example Artist")
+        self.assertEqual(result[0]["source"], "soundcloud")
+        self.assertEqual(result[0]["source_url"], "https://soundcloud.com/example-artist")
+
+    def test_soundcloud_user_tracks_returns_only_playable_tracks(self):
+        payload = {"collection": [
+            {"id": 1, "title": "Playable", "user": {"username": "Artist"},
+             "streamable": True, "access": "playable"},
+            {"id": 2, "title": "Blocked", "user": {"username": "Artist"},
+             "streamable": False, "access": "blocked"},
+        ]}
+        response = type("Response", (), {"status_code": 200, "json": lambda self: payload})()
+        with (
+            patch.object(P, "soundcloud_enabled", return_value=True),
+            patch.object(P, "_sc_headers", return_value={"Authorization": "OAuth test"}),
+            patch.object(P, "_http_session") as session,
+        ):
+            session.return_value.get.return_value = response
+            result = P.soundcloud_user_tracks("123", limit=10)
+        self.assertEqual([item["id"] for item in result], ["sc:1"])
+
+    def test_soundcloud_artist_search_handles_disabled_source(self):
+        with patch.object(P, "soundcloud_enabled", return_value=False):
+            self.assertEqual(P.soundcloud_search_users("Artist"), [])
+            self.assertEqual(P.soundcloud_user_tracks("123"), [])
+
+
 class GlobalSearchCoverageTests(unittest.TestCase):
     def test_global_search_requests_optional_catalogues(self):
         with (
