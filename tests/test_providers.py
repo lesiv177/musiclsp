@@ -278,6 +278,109 @@ class CommercialProviderApprovalTests(unittest.TestCase):
         self.assertEqual(allowed["license_short"], "CC BY")
 
 
+class ExpandedTrackSearchTests(unittest.TestCase):
+    def test_expanded_search_fills_sparse_exact_results_from_fallback_query(self):
+        exact = [{"id": "aud:1", "title": "Song A", "artist": "Artist"}]
+        fallback = [
+            {"id": "aud:1", "title": "Song A", "artist": "Artist"},
+            {"id": "jam:2", "title": "Song B", "artist": "Artist"},
+        ]
+        with patch.object(P, "search_tracks", side_effect=[exact, fallback]) as search:
+            result = P.search_tracks_smart("Artist - Song", limit=2)
+        self.assertEqual([item["id"] for item in result], ["aud:1", "jam:2"])
+        self.assertGreaterEqual(search.call_count, 2)
+
+    def test_expanded_search_handles_empty_and_duplicate_query_variants(self):
+        self.assertEqual(P._search_query_variants("  OG-Buda  "), ["OG-Buda", "OG Buda", "Buda"])
+        self.assertEqual(P.search_tracks_smart(" ", limit=10), [])
+
+    def test_expanded_search_respects_non_positive_limit(self):
+        with patch.object(P, "search_tracks") as search:
+            self.assertEqual(P.search_tracks_smart("Artist", limit=0), [])
+        search.assert_not_called()
+
+
+class SoundCloudArtistSearchTests(unittest.TestCase):
+    def test_soundcloud_user_search_normalizes_artist_results(self):
+        payload = {"collection": [{
+            "id": 123, "username": "Example Artist",
+            "avatar_url": "https://i1.sndcdn.com/avatars/large.jpg",
+            "permalink_url": "https://soundcloud.com/example-artist",
+        }]}
+        response = type("Response", (), {"status_code": 200, "json": lambda self: payload})()
+        with (
+            patch.object(P, "soundcloud_enabled", return_value=True),
+            patch.object(P, "_sc_headers", return_value={"Authorization": "OAuth test"}),
+            patch.object(P, "_http_session") as session,
+        ):
+            session.return_value.get.return_value = response
+            result = P.soundcloud_search_users("Example Artist", limit=10)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["id"], "scu:123")
+        self.assertEqual(result[0]["name"], "Example Artist")
+        self.assertEqual(result[0]["source"], "soundcloud")
+        self.assertEqual(result[0]["source_url"], "https://soundcloud.com/example-artist")
+
+    def test_soundcloud_user_detail_normalizes_public_profile(self):
+        payload = {
+            "id": 77, "username": "Example Artist",
+            "avatar_url": "https://i1.sndcdn.com/avatars/example-large.jpg",
+            "permalink_url": "https://soundcloud.com/example-artist",
+        }
+        response = type("Response", (), {"status_code": 200, "json": lambda self: payload})()
+        with (
+            patch.object(P, "soundcloud_enabled", return_value=True),
+            patch.object(P, "_sc_headers", return_value={"Authorization": "OAuth test"}),
+            patch.object(P, "_http_session") as session,
+        ):
+            session.return_value.get.return_value = response
+            result = P.soundcloud_user_by_id("77")
+        self.assertEqual(result["id"], "scu:77")
+        self.assertEqual(result["name"], "Example Artist")
+        self.assertEqual(result["source"], "soundcloud")
+
+    def test_soundcloud_user_tracks_returns_only_playable_tracks(self):
+        payload = {"collection": [
+            {"id": 1, "title": "Playable", "user": {"id": 77, "username": "Artist"},
+             "streamable": True, "access": "playable"},
+            {"id": 2, "title": "Blocked", "user": {"username": "Artist"},
+             "streamable": False, "access": "blocked"},
+        ]}
+        response = type("Response", (), {"status_code": 200, "json": lambda self: payload})()
+        with (
+            patch.object(P, "soundcloud_enabled", return_value=True),
+            patch.object(P, "_sc_headers", return_value={"Authorization": "OAuth test"}),
+            patch.object(P, "_http_session") as session,
+        ):
+            session.return_value.get.return_value = response
+            result = P.soundcloud_user_tracks("123", limit=10)
+        self.assertEqual([item["id"] for item in result], ["sc:1"])
+        self.assertEqual(result[0]["artist_id"], "scu:77")
+
+    def test_soundcloud_artist_search_handles_disabled_source(self):
+        with patch.object(P, "soundcloud_enabled", return_value=False):
+            self.assertEqual(P.soundcloud_search_users("Artist"), [])
+            self.assertEqual(P.soundcloud_user_tracks("123"), [])
+
+
+class ArtistSearchFallbackTests(unittest.TestCase):
+    def test_sparse_exact_artist_results_are_filled_by_query_variant(self):
+        exact = [{"id": "aud:1", "name": "OG-Buda"}]
+        fallback = [
+            {"id": "aud:1", "name": "OG-Buda"},
+            {"id": "jam:2", "name": "Buda"},
+        ]
+        with patch.object(P, "search_artists", side_effect=[exact, fallback]) as search:
+            result = P.search_artists_smart("OG-Buda", limit=2)
+        self.assertEqual([item["id"] for item in result], ["aud:1", "jam:2"])
+        self.assertGreaterEqual(search.call_count, 2)
+
+    def test_artist_fallback_respects_non_positive_limit(self):
+        with patch.object(P, "search_artists") as search:
+            self.assertEqual(P.search_artists_smart("Artist", limit=0), [])
+        search.assert_not_called()
+
+
 class GlobalSearchCoverageTests(unittest.TestCase):
     def test_global_search_requests_optional_catalogues(self):
         with (
@@ -308,9 +411,13 @@ class GlobalSearchCoverageTests(unittest.TestCase):
         aud = {"id": "aud:2", "name": "Artist", "source": "audius"}
         duplicate = {"id": "jam:1", "name": "Artist duplicate", "source": "jamendo"}
         with (
-            patch.object(P, "_run_parallel", side_effect=run_jobs_inline),
+            patch.object(P, "_run_parallel_grouped", side_effect=lambda jobs, timeout=6: [
+                jobs[1](), jobs[2](), jobs[3]()
+            ]),
+            patch.object(P, "soundcloud_search_users", return_value=[]),
             patch.object(P, "jamendo_search_artists", return_value=[jam, duplicate]),
             patch.object(P, "audius_search_users", return_value=[aud]),
+            patch("core.musicbrainz.search_artists", return_value=[]),
         ):
             results = P.search_artists("Artist", limit=10)
         self.assertEqual([item["id"] for item in results], ["jam:1", "aud:2"])

@@ -100,6 +100,34 @@ class ReleaseRadarNotificationTests(unittest.IsolatedAsyncioTestCase):
         send.assert_not_awaited()
         mark.assert_not_called()
 
+    async def test_same_display_name_does_not_cross_notify_different_mbid(self):
+        follows = [
+            {"uid": 42, "artist_id": "artist:one", "artist_name": "Artist",
+             "artist": {"name": "Artist", "mbid": "11111111-1111-4111-8111-111111111111"}, "lang": "en"},
+            {"uid": 43, "artist_id": "artist:two", "artist_name": "Artist",
+             "artist": {"name": "Artist", "mbid": "22222222-2222-4222-8222-222222222222"}, "lang": "en"},
+        ]
+        albums = [{
+            "id": "jam:album-1", "source": "jamendo", "title": "New Album",
+            "artist": "Artist", "artist_mbid": "11111111-1111-4111-8111-111111111111",
+            "release_date": "2026-11-07",
+        }]
+        release_key = worker.release_notification_key(albums[0])
+        with (
+            patch.object(worker, "BOT_TOKEN", "test-token"),
+            patch.object(worker.db, "artist_following_all", return_value=follows),
+            patch.object(worker.P, "search_albums_smart", return_value=albums),
+            patch.object(worker, "is_recent_release", return_value=True),
+            patch.object(worker.db, "release_radar_unnotified", return_value=[release_key]),
+            patch.object(worker, "notify", new_callable=AsyncMock, return_value=True) as send,
+            patch.object(worker.db, "release_radar_mark_notified") as mark,
+        ):
+            count = await worker.notify_release_radar()
+
+        self.assertEqual(count, 1)
+        self.assertEqual([call.args[0] for call in send.await_args_list], [42])
+        mark.assert_called_once_with(42, [release_key])
+
     def test_release_notification_key_is_stable_and_source_aware(self):
         album = {"id": "42", "source": "jamendo", "title": "Album"}
         self.assertEqual(worker.release_notification_key(album),

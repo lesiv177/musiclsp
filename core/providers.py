@@ -1244,7 +1244,7 @@ def _sc_track(t):
         "id": f"sc:{uid}",
         "title": t.get("title") or "Без назви",
         "artist": user.get("username") or "Невідомий артист",
-        "artist_id": "", "album": "", "album_id": "",
+        "artist_id": f"scu:{user.get('id')}" if user.get("id") else "", "album": "", "album_id": "",
         "cover": art,
         "duration": int((t.get("duration") or 0) / 1000),
         "duration_str": fmt_duration((t.get("duration") or 0) / 1000),
@@ -1316,6 +1316,105 @@ def soundcloud_track(raw):
         return _sc_track(r.json()) if r.status_code == 200 else None
     except Exception:
         return None
+
+
+def _sc_artist(user):
+    """Normalize an official SoundCloud user record as a metadata artist."""
+    raw_id = user.get("urn") or user.get("id")
+    if not raw_id:
+        return None
+    raw_id = str(raw_id)
+    # Keep the stable API id for the existing /users/{id} endpoints.
+    numeric_id = str(user.get("id") or raw_id.rsplit(":", 1)[-1])
+    name = str(user.get("username") or user.get("full_name") or "").strip()
+    if not name:
+        return None
+    avatar = str(user.get("avatar_url") or "").replace("-large", "-t500x500")
+    permalink = str(user.get("permalink_url") or "")
+    return {
+        "id": f"scu:{numeric_id}",
+        "name": name,
+        "cover": avatar,
+        "source": "soundcloud",
+        "source_label": "SoundCloud",
+        "source_url": permalink or f"https://soundcloud.com/{user.get('permalink') or ''}",
+        "metadata_only": False,
+    }
+
+
+def soundcloud_search_users(query, limit=20):
+    """Search SoundCloud creators using the official authenticated API."""
+    if not str(query or "").strip() or not soundcloud_enabled():
+        return []
+    headers = _sc_headers()
+    if not headers:
+        return []
+    try:
+        response = _http_session().get(
+            f"{_SC_API}/users", headers=headers, timeout=HTTP_TIMEOUT,
+            params={"q": str(query).strip(), "limit": max(1, min(int(limit), 50))},
+        )
+        if response.status_code != 200:
+            logger.warning("SoundCloud user search -> %s", response.status_code)
+            return []
+        payload = response.json()
+        users = payload.get("collection", []) if isinstance(payload, dict) else payload
+        return [artist for item in users[:limit]
+                if isinstance(item, dict) and (artist := _sc_artist(item))]
+    except Exception as exc:
+        logger.warning("SoundCloud user search failed: %s", type(exc).__name__)
+        return []
+
+
+def soundcloud_user_by_id(user_id):
+    """Fetch one public SoundCloud creator profile by numeric API ID."""
+    if not str(user_id or "").strip() or not soundcloud_enabled():
+        return None
+    headers = _sc_headers()
+    if not headers:
+        return None
+    try:
+        response = _http_session().get(
+            f"{_SC_API}/users/{urllib.parse.quote(str(user_id), safe='')}",
+            headers=headers, timeout=HTTP_TIMEOUT,
+        )
+        if response.status_code != 200:
+            logger.warning("SoundCloud user detail -> %s", response.status_code)
+            return None
+        payload = response.json()
+        if not isinstance(payload, dict):
+            return None
+        return _sc_artist(payload)
+    except Exception as exc:
+        logger.warning("SoundCloud user detail failed: %s", type(exc).__name__)
+        return None
+
+
+def soundcloud_user_tracks(user_id, limit=50):
+    """Return playable tracks published by a SoundCloud user."""
+    if not str(user_id or "").strip() or not soundcloud_enabled():
+        return []
+    headers = _sc_headers()
+    if not headers:
+        return []
+    try:
+        response = _http_session().get(
+            f"{_SC_API}/users/{urllib.parse.quote(str(user_id), safe='')}/tracks",
+            headers=headers, timeout=HTTP_TIMEOUT,
+            params={"limit": max(1, min(int(limit), 200)), "access": "playable"},
+        )
+        if response.status_code != 200:
+            logger.warning("SoundCloud user tracks -> %s", response.status_code)
+            return []
+        payload = response.json()
+        tracks = payload.get("collection", []) if isinstance(payload, dict) else payload
+        return [_sc_track(item) for item in tracks
+                if isinstance(item, dict) and item.get("id")
+                and item.get("streamable", True)
+                and item.get("access", "playable") == "playable"][:limit]
+    except Exception as exc:
+        logger.warning("SoundCloud user tracks failed: %s", type(exc).__name__)
+        return []
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1447,22 +1546,74 @@ def _normalize_query(text):
     return re.sub(r"\s+", " ", cleaned).strip()
 
 
+def _search_query_variants(query, max_variants=4):
+    """Build bounded, progressively broader queries without repeating equivalent terms."""
+    raw = str(query or "").strip()
+    normalized = _normalize_query(raw)
+    variants, seen = [], set()
+
+    def add(value):
+        value = str(value or "").strip()
+        key = value.casefold()
+        if value and key not in seen and len(variants) < max_variants:
+            seen.add(key)
+            variants.append(value)
+
+    add(raw)
+    add(normalized)
+    # Preserve useful phrase combinations before broad single-token fallbacks.
+    words = [word for word in normalized.split() if len(word) > 2]
+    if len(words) > 1:
+        add(" ".join(words[:2]))
+        add(" ".join(words[-2:]))
+    for word in words:
+        add(word)
+    return variants
+
+
+def _merge_track_search_results(groups, limit):
+    """Merge fallback query pages, preserving source order and removing duplicates."""
+    seen_ids, seen_names, out = set(), set(), []
+    for group in groups:
+        for track in group or []:
+            if not isinstance(track, dict):
+                continue
+            track_id = str(track.get("id") or "").strip().casefold()
+            title = _normalize_query(track.get("title") or "").casefold()
+            artist = _normalize_query(track.get("artist") or "").casefold()
+            if not title:
+                continue
+            name_key = (title, artist)
+            if (track_id and track_id in seen_ids) or name_key in seen_names:
+                continue
+            if track_id:
+                seen_ids.add(track_id)
+            seen_names.add(name_key)
+            out.append(track)
+            if len(out) >= max(1, int(limit)):
+                return out
+    return out
+
+
 def search_tracks_smart(query, limit=30, quality="mp32", sources=None, sort="relevance"):
-    """Той самий пошук треків, але з відкатом: якщо точний запит не дав нічого,
-    пробує очищений запит, а тоді — по одному значущому слову з нього."""
-    out = search_tracks(query, limit, quality, sources, sort)
-    if out:
-        return out
-    norm = _normalize_query(query)
-    if norm and norm.lower() != (query or "").strip().lower():
-        out = search_tracks(norm, limit, quality, sources, sort)
-        if out:
-            return out
-    for word in [w for w in norm.split() if len(w) > 2]:
-        out = search_tracks(word, limit, quality, sources, sort)
-        if out:
-            return out
-    return []
+    """Expanded search: combine exact, normalized and bounded broad fallback queries.
+
+    Unlike the old implementation, a small exact-match page no longer prevents
+    fallback queries from filling the remaining slots.
+    """
+    if int(limit) <= 0 or not str(query or "").strip():
+        return []
+    variants = _search_query_variants(query)
+    groups = []
+    for variant in variants:
+        try:
+            groups.append(search_tracks(variant, limit, quality, sources, sort))
+        except Exception as exc:
+            logger.warning("Expanded track search failed: %s", type(exc).__name__)
+            groups.append([])
+        if len(_merge_track_search_results(groups, limit)) >= int(limit):
+            break
+    return _merge_track_search_results(groups, limit)
 
 
 def _run_parallel_grouped(jobs, timeout=6):
@@ -1541,9 +1692,19 @@ def search_artists(query, limit=20):
     """Merge artist catalogues fairly without allowing one provider to starve another."""
     if int(limit) <= 0:
         return []
+    def musicbrainz_artists():
+        try:
+            from core.musicbrainz import search_artists as mb_search_artists
+            return mb_search_artists(query, limit=limit)
+        except Exception as exc:
+            logger.warning("MusicBrainz artist metadata search failed: %s", type(exc).__name__)
+            return []
+
     groups = _run_parallel_grouped([
+        lambda: soundcloud_search_users(query, limit=limit),
         lambda: jamendo_search_artists(query, limit=limit),
         lambda: audius_search_users(query, limit=limit),
+        musicbrainz_artists,
     ], timeout=6)
     seen, out = set(), []
     for artist in _interleave_catalogue_groups(groups):
@@ -1560,20 +1721,27 @@ def search_artists(query, limit=20):
 
 
 def search_artists_smart(query, limit=20):
-    """Artist search with the same query fallback policy as tracks and albums."""
-    out = search_artists(query, limit=limit)
-    if out:
-        return out
-    norm = _normalize_query(query)
-    if norm and norm.casefold() != (query or "").strip().casefold():
-        out = search_artists(norm, limit=limit)
-        if out:
-            return out
-    for word in [word for word in norm.split() if len(word) > 2]:
-        out = search_artists(word, limit=limit)
-        if out:
-            return out
-    return []
+    """Merge a bounded set of artist-query fallbacks without duplicate IDs."""
+    if int(limit) <= 0 or not str(query or "").strip():
+        return []
+    merged, seen = [], set()
+    for variant in _search_query_variants(query, max_variants=4):
+        try:
+            results = search_artists(variant, limit=limit)
+        except Exception as exc:
+            logger.warning("Artist search variant failed: %s", type(exc).__name__)
+            continue
+        for artist in results or []:
+            if not isinstance(artist, dict) or not artist.get("id") or not artist.get("name"):
+                continue
+            key = str(artist["id"]).casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(artist)
+            if len(merged) >= int(limit):
+                return merged
+    return merged
 
 
 def search_everything(query, limit=12, quality="mp32", sources=None, sort="relevance"):

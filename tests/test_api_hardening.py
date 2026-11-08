@@ -16,6 +16,51 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(api.bounded_int("not-a-number", 30, 1, 20))
         self.assertIsNone(api.bounded_int("2.5", 30, 1, 20))
 
+    async def test_soundcloud_artist_profile_is_returned_without_tracks(self):
+        request = SimpleNamespace(match_info={"aid": "scu:77"})
+        profile = {
+            "id": "scu:77", "name": "Example Artist",
+            "cover": "https://img.test/avatar.jpg",
+            "source": "soundcloud", "source_url": "https://soundcloud.com/example-artist",
+        }
+
+        async def fake_to_thread(fn, *args, **kwargs):
+            if fn is api.P.soundcloud_user_tracks:
+                return []
+            if fn is api.P.soundcloud_user_by_id:
+                return profile
+            raise AssertionError(f"Unexpected provider function: {fn}")
+
+        with patch.object(api, "auth_user", return_value={"uid": 123}), \
+             patch.object(api, "quality_for", return_value="mp32"), \
+             patch.object(api, "to_thread", side_effect=fake_to_thread):
+            response = await api.h_artist(request)
+        payload = json.loads(response.text)
+        self.assertEqual(response.status, 200)
+        self.assertEqual(payload["artist"]["name"], "Example Artist")
+        self.assertEqual(payload["tracks"], [])
+
+    async def test_soundcloud_artist_uses_track_metadata_when_profile_lookup_fails(self):
+        request = SimpleNamespace(match_info={"aid": "scu:77"})
+        tracks = [{"id": "sc:1", "artist": "Fallback Artist", "cover": "https://img.test/track.jpg"}]
+
+        async def fake_to_thread(fn, *args, **kwargs):
+            if fn is api.P.soundcloud_user_tracks:
+                return tracks
+            if fn is api.P.soundcloud_user_by_id:
+                return None
+            raise AssertionError(f"Unexpected provider function: {fn}")
+
+        with patch.object(api, "auth_user", return_value={"uid": 123}), \
+             patch.object(api, "quality_for", return_value="mp32"), \
+             patch.object(api, "to_thread", side_effect=fake_to_thread):
+            response = await api.h_artist(request)
+        payload = json.loads(response.text)
+        self.assertEqual(response.status, 200)
+        self.assertEqual(payload["artist"]["name"], "Fallback Artist")
+        self.assertEqual(payload["artist"]["cover"], "https://img.test/track.jpg")
+        self.assertEqual(payload["tracks"], tracks)
+
     async def test_error_middleware_hides_internal_exception_details(self):
         request = SimpleNamespace(path="/private/test")
 

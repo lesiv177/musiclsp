@@ -43,6 +43,11 @@ class MusicSourceRegistryTests(unittest.TestCase):
             self.assertTrue(source_status()["soundcloud"]["available"])
             self.assertIn("soundcloud", available_sources())
 
+    def test_soundcloud_registry_exposes_artist_catalogue(self):
+        soundcloud = next(source for source in MUSIC_SOURCES if source.key == "soundcloud")
+        self.assertIn("tracks", soundcloud.catalogue_types)
+        self.assertIn("artists", soundcloud.catalogue_types)
+
     def test_archive_can_be_disabled(self):
         with patch.dict(os.environ, {"ARCHIVE_ENABLED": "0"}, clear=True):
             self.assertFalse(source_status()["archive"]["available"])
