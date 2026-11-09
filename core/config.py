@@ -157,3 +157,8 @@ PREMIUM_FEATURES = [
 def missing(*names):
     """Повертає список незаданих обов'язкових змінних."""
     return [n for n in names if not globals().get(n)]
+
+
+# Редакція секретів у логах для всіх сервісів.
+from core import log_safety as _log_safety  # noqa: E402
+_log_safety.install()

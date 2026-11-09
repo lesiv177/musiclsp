@@ -40,3 +40,19 @@ class PlaylistImportContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ImportPreviewContractTests(unittest.TestCase):
+    def _source(self):
+        handler = next(n for n in API_TREE.body
+                       if isinstance(n, ast.AsyncFunctionDef) and n.name == "h_import_playlist")
+        return ast.get_source_segment(API_SOURCE, handler)
+
+    def test_preview_returns_before_any_playlist_is_created(self):
+        source = self._source()
+        self.assertLess(source.index('body.get("preview")'), source.index("db.pl_create"))
+
+    def test_import_uses_verified_match_not_first_result(self):
+        source = self._source()
+        self.assertIn("IM.best_match", source)
+        self.assertNotIn("matches[0]", source)

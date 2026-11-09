@@ -10,7 +10,7 @@ API = (ROOT / "services" / "bot" / "api.py").read_text(encoding="utf-8")
 
 class PlatformContractTests(unittest.TestCase):
     def test_updated_platform_assets_have_cache_busting_versions(self):
-        self.assertIn('./v3.js?v=10', HTML)
+        self.assertIn('./v3.js?v=12', HTML)
         self.assertIn('./platform.js?v=3', HTML)
         self.assertIn('./platform.css?v=4', HTML)
 
@@ -24,8 +24,9 @@ class PlatformContractTests(unittest.TestCase):
 
     def test_chart_catalogue_has_four_provider_sections(self):
         charts = API.split('async def h_charts', 1)[1].split('@require_auth', 1)[0]
+        charts_py = (ROOT / 'core' / 'charts.py').read_text(encoding='utf-8')
         for chart_id in ('audius-trending', 'electronic-trending', 'popular-pop', 'popular-rock'):
-            self.assertIn(chart_id, charts)
+            self.assertIn(chart_id, charts_py)
         self.assertIn('P.audius_trending', charts)
         self.assertIn('P.jamendo_tag_tracks', charts)
 

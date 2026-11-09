@@ -26,8 +26,14 @@ class ReleaseRadarContractTests(unittest.TestCase):
         )
         source = ast.get_source_segment(API_SOURCE, function)
         self.assertIn("except Exception as exc:", source)
-        self.assertIn("return []", source)
+        self.assertIn("return None", source)  # збій одного артиста не валить решту
+        self.assertIn("albums_by_artist = {k: v or []", source)
         self.assertIn('logger.warning("Release Radar lookup failed', source)
+
+    def test_release_radar_uses_exact_matching_feed_and_seen_endpoint(self):
+        self.assertIn("RF.build_feed(", API_SOURCE)
+        self.assertNotIn("name.casefold() not in album_artist", API_SOURCE)  # підрядкове зіставлення заборонене
+        self.assertIn('"/api/release-radar/seen"', API_SOURCE)
 
 
 if __name__ == "__main__":

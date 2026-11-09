@@ -14,7 +14,7 @@
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
   <link rel="stylesheet" href="./v3.css?v=3">
   <link rel="stylesheet" href="./theme.css?v=21">
-  <script defer src="./v3.js?v=10"></script>
+  <script defer src="./v3.js?v=12"></script>
 <script defer src="./platform.js?v=3"></script>
 <script>try{var d=document.documentElement;d.dataset.space=localStorage.getItem("mlsp_space")||"nebula";d.dataset.spAnim=localStorage.getItem("mlsp_spanim")==="0"?"0":"1";}catch(e){document.documentElement.dataset.space="nebula";}</script>
 <link rel="stylesheet" href="./platform.css?v=4">
@@ -997,8 +997,7 @@ function go(name){
     if(becomesOn && !b.classList.contains("on")){
       b.classList.add("bump");
       setTimeout(()=>b.classList.remove("bump"), 400);
-    }
-    b.classList.toggle("on", becomesOn);
+    }    b.classList.toggle("on", becomesOn);
   });  if(name==="Me"){ refreshMe().then(renderProfile); renderProfile(); }
   const topTitle=$("topTitle"); if(topTitle) topTitle.textContent="MusicLSP";
   if(name==="Lib") renderLibrary();
@@ -1803,14 +1802,14 @@ async function openShared(code){
     const p = (await get("/api/shared/"+code)).playlist;
     go("Lib");
     $("libBody").innerHTML = `<div class="sect"><h2>${esc(p.name)}</h2></div>
-      <button class="pill" onclick='copyShared(${p.id})'>${ICON("plus","sm")}Зберегти собі</button>
+      <button class="pill" data-code="${esc(String(code))}" onclick="copyShared(this.dataset.code)">${ICON("plus","sm")}Зберегти собі</button>
       <div style="height:12px"></div><div id="shBody"></div>`;
     mountRows($("shBody"), p.tracks, "shared");
   }catch(e){ toast(e.message); }
 }
 
-async function copyShared(pid){
-  try{ await post("/api/playlists", {action:"copy", pid}); toast("Збережено в ваші плейлисти"); }
+async function copyShared(code){
+  try{ await post("/api/playlists", {action:"copy_shared", code}); toast("Збережено в ваші плейлисти"); }
   catch(e){ toast(e.message); }
 }
 
@@ -1997,8 +1996,7 @@ function cnApplySnapshot(m){
   CN.state=m.state||null; CN.stateAt=Date.now();
   const mine=CN.owner===CN.id;
   const guard=CN.bypass || Date.now()<CN.guardUntil;
-  const localPlaying=!!current() && !cur.paused && !cur.ended;
-  if(!guard && localPlaying){    if(CN.owner && !mine){ cur.pause(); S.playing=false; paintPlayState(); }   // грає інший пристрій
+  const localPlaying=!!current() && !cur.paused && !cur.ended;  if(!guard && localPlaying){    if(CN.owner && !mine){ cur.pause(); S.playing=false; paintPlayState(); }   // грає інший пристрій
     else if(!CN.owner){ claimLocalPlayback(); }                                 // втратили зʼєднання — забираємо назад
   }
   if(CN.remote()) cnAdoptRemote();
@@ -2997,8 +2995,7 @@ function renderProfile(){
     <button class="pm-open" type="button" onclick="openPremiumSettings()"><b>✦ Premium-налаштування</b><small>Налаштуй MusicLSP під себе</small></button>
     <div class="profile-quick-actions" aria-label="Швидкі дії профілю">
       <button type="button" onclick="go('Lib')"><span class="pqa-icon">♫</span><span><b data-i18n="lib_liked">Збережене</b><small data-i18n="lib_playlists">Плейлисти</small></span><i>›</i></button>
-      <button type="button" onclick="openWrapped()"><span class="pqa-icon">↗</span><span><b data-i18n="pr_wrapped">Мій рік у музиці</b><small data-i18n="pr_stats">Статистика</small></span><i>›</i></button>      <button type="button" onclick="openPlan()"><span class="pqa-icon">✦</span><span><b data-i18n="pr_premium">Premium</b><small data-i18n="pr_theme_all">Усі теми відкриті</small></span><i>›</i></button>
-    </div>
+      <button type="button" onclick="openWrapped()"><span class="pqa-icon">↗</span><span><b data-i18n="pr_wrapped">Мій рік у музиці</b><small data-i18n="pr_stats">Статистика</small></span><i>›</i></button>      <button type="button" onclick="openPlan()"><span class="pqa-icon">✦</span><span><b data-i18n="pr_premium">Premium</b><small data-i18n="pr_theme_all">Усі теми відкриті</small></span><i>›</i></button>    </div>
     <div class="sect" id="profileStats"><h2 data-i18n="pr_stats">Статистика</h2><div id="statBox"><div class="skel"></div></div>
       <button class="pill" style="margin-top:10px" onclick="openWrapped()">${ICON("gift","sm")}<span data-i18n="pr_wrapped">Мій рік у музиці</span></button>
     </div>
@@ -3853,4 +3850,3 @@ paintStaticIcons();
 </script>
 </body>
 </html>
-

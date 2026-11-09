@@ -331,3 +331,17 @@ body{min-height:100dvh!important}
 
 @media(max-width:900px){#mlsp-v3 .v3-mobile-nav{bottom:18px!important;}}
 @media(max-width:520px){body:has(#bar.on) #mlsp-v3 .v3-mobile-nav{bottom:calc(112px + env(safe-area-inset-bottom))!important;}}
+.v3-coll-note{opacity:.8;font-size:.9em}
+
+/* Release Radar: період, NEW-мітка, дата */
+.v3-album-card{position:relative}
+.v3-new-badge{position:absolute;top:6px;left:6px;font-style:normal;font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 6px;border-radius:8px;background:var(--accent,#7c5cff);color:#fff}
+.v3-release-date{display:block;opacity:.7}
+.v3-count{display:inline-block;min-width:18px;padding:0 6px;margin-left:6px;border-radius:9px;font-size:12px;line-height:18px;text-align:center;background:var(--accent,#7c5cff);color:#fff;vertical-align:middle}
+.v3-pill.active{background:var(--accent,#7c5cff);color:#fff}
+
+.v3-pl-desc{margin:6px 0 0;color:var(--v3-muted);font-size:11px}.v3-pl-edit{display:grid;gap:10px;margin:14px 0;padding:12px;border:1px solid var(--v3-line);border-radius:12px}.v3-pl-edit[hidden]{display:none}.v3-pl-edit label{display:grid;gap:4px;color:var(--v3-muted);font-size:11px}.v3-pl-edit input[type=text],.v3-pl-edit input:not([type]),.v3-pl-edit textarea{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid var(--v3-line);border-radius:8px;background:#121720;color:var(--v3-text);font:inherit;font-size:14px}.v3-pl-check{display:flex!important;align-items:center;gap:8px}.v3-pl-move{min-width:32px;min-height:32px;font-size:16px;color:var(--v3-muted)}.v3-pl-move:active{color:var(--v3-accent)}
+#v3-library .v3-track[data-i]{grid-auto-flow:column;grid-auto-columns:auto}
+
+.v3-import-sum{display:grid;gap:4px;margin:10px 0}.v3-import-sum small{color:var(--v3-muted);font-size:11px}.v3-import-list{display:grid;gap:4px;max-height:50vh;overflow:auto;margin:10px 0}.v3-import-row{display:grid;grid-template-columns:24px minmax(0,1fr);align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:#121720}.v3-import-icon{text-align:center;font-weight:800}.v3-import-matched .v3-import-icon{color:#4ade80}.v3-import-uncertain .v3-import-icon{color:#facc15}.v3-import-not_found .v3-import-icon,.v3-import-invalid .v3-import-icon{color:#f87171}
+.v3-import-row:has(.v3-import-accept){grid-template-columns:24px minmax(0,1fr) auto}.v3-import-accept{display:flex;gap:4px;align-items:center;font-size:12px;color:var(--v3-muted);white-space:nowrap}

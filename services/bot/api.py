@@ -23,10 +23,21 @@ import urllib.parse
 import requests
 from aiohttp import WSMsgType, web
 
+from core import meta_cache as MC
 from core import db
 from core import runtime as RT
 from core import providers as P
 from core import smart as SM
+from core import charts as CH
+from core import recommend as REC
+from core import personal_collections as PC
+from core import import_match as IM
+from core import user_data as UD
+from core import radar_feed as RF
+from core import favorites as FAV
+from core import playlists_ext as PLX
+from core import search_rank as SR
+from core.catalog_api import annotate_search, enrich_album, enrich_artist
 from core.connect import Hub, valid_device_id
 from core.auth import verify_init_data
 from core.config import (
@@ -215,7 +226,7 @@ async def _connect_persist(uid, state):
         if state:
             await to_thread(db.player_session_set, uid, "", json.dumps(state, ensure_ascii=False))
     except Exception as e:
-        logger.warning("Connect: не вдалося зберегти сесію: %s", e)
+        logger.warning("Connect: не вдалося зберегти сесію: %s", type(e).__name__)
 
 
 CONNECT = Hub(load=_connect_load, persist=_connect_persist)
@@ -273,6 +284,16 @@ async def h_connect_devices(request, u):
 
 # ─── Каталог ─────────────────────────────────────────────────────────────────
 
+def _search_filters(request):
+    """Безпечні необов'язкові фільтри пошуку: source, release_type, availability."""
+    source = (request.query.get("source") or "").strip().lower()[:20]
+    rtype = (request.query.get("release_type") or "").strip().lower()
+    rtype = rtype if rtype in SR.RELEASE_TYPES else ""
+    avail = (request.query.get("availability") or "").strip().lower()
+    avail = avail if avail in ("playable", "metadata_only") else ""
+    return source, rtype, avail
+
+
 @require_auth
 async def h_search(request, u):
     uid = int(u["uid"])
@@ -301,12 +322,18 @@ async def h_search(request, u):
     qual = quality_for(uid)
     if kind == "all":
         data = await to_thread(P.search_everything, query, min(limit, 20), qual, sources, sort)
+        data = SR.postprocess("all", data, query, sort, *_search_filters(request))
+        data = await to_thread(annotate_search, "all", data)
         return ok({"ok": True, "type": kind, "query": query, "sort": sort,
                    "results": data, "searches_left": max(0, cap - used)})
     elif kind == "albums":
         data = await to_thread(P.search_albums_smart, query, limit, sort)
+        data = SR.postprocess("albums", data, query, sort, *_search_filters(request))
+        data = await to_thread(annotate_search, "albums", data)
     elif kind == "artists":
         data = await to_thread(P.search_artists_smart, query, limit)
+        data = SR.postprocess("artists", data, query, sort, *_search_filters(request))
+        data = await to_thread(annotate_search, "artists", data)
     elif kind == "public_domain":
         data = await to_thread(P.archive_search, query, limit)
     else:
@@ -398,7 +425,7 @@ async def _safe(coro, default=None):
     try:
         return await coro
     except Exception as e:
-        logger.warning("Домашній екран: підзапит не вдався (%s)", e)
+        logger.warning("Домашній екран: підзапит не вдався (%s)", type(e).__name__)
         return default if default is not None else []
 
 
@@ -449,33 +476,19 @@ async def h_home(request, u):
 
 @require_auth
 async def h_charts(request, u):
-    """Provider charts with playable entries, split by source and genre."""
+    """Добірки провайдерів із прозорою методикою; порожні чарти не повертаємо."""
     uid = int(u["uid"])
     quality = quality_for(uid)
-    (
-        audius_all, audius_electronic,
-        jamendo_pop, jamendo_rock, jamendo_electronic, jamendo_hiphop, jamendo_jazz,
-    ) = await asyncio.gather(
-        _safe(to_thread(P.audius_trending, None, 30)),
-        _safe(to_thread(P.audius_trending, "Electronic", 30)),
-        _safe(to_thread(P.jamendo_tag_tracks, "pop", 30, 0, quality, "popularity_month")),
-        _safe(to_thread(P.jamendo_tag_tracks, "rock", 30, 0, quality, "popularity_month")),
-        _safe(to_thread(P.jamendo_tag_tracks, "electronic", 30, 0, quality, "popularity_month")),
-        _safe(to_thread(P.jamendo_tag_tracks, "hiphop", 30, 0, quality, "popularity_month")),
-        _safe(to_thread(P.jamendo_tag_tracks, "jazz", 30, 0, quality, "popularity_month")),
-    )
-    return ok({
-        "ok": True,
-        "charts": [
-            {"id": "audius-trending", "title": "Audius Trending", "source": "Audius", "tracks": audius_all or []},
-            {"id": "electronic-trending", "title": "Electronic Trending", "source": "Audius · Electronic", "tracks": audius_electronic or []},
-            {"id": "popular-pop", "title": "Popular Pop", "source": "Jamendo", "tracks": jamendo_pop or []},
-            {"id": "popular-rock", "title": "Popular Rock", "source": "Jamendo", "tracks": jamendo_rock or []},
-            {"id": "popular-electronic", "title": "Popular Electronic", "source": "Jamendo", "tracks": jamendo_electronic or []},
-            {"id": "popular-hiphop", "title": "Popular Hip-Hop", "source": "Jamendo", "tracks": jamendo_hiphop or []},
-            {"id": "popular-jazz", "title": "Popular Jazz", "source": "Jamendo", "tracks": jamendo_jazz or []},
-        ],
-    })
+    period = CH.normalize_period(request.query.get("period"))
+    jobs = []
+    for _cid, _title, _source, provider, param in CH.SPECS:
+        if provider == "audius":
+            jobs.append(_safe(to_thread(P.audius_trending, param, 30)))
+        else:
+            jobs.append(_safe(to_thread(P.jamendo_tag_tracks, param, 30, 0, quality, CH.JAMENDO_ORDER[period])))
+    results = await asyncio.gather(*jobs)
+    charts = CH.visible([CH.build_chart(spec, tracks, period) for spec, tracks in zip(CH.SPECS, results)])
+    return ok({"ok": True, "period": period, "charts": charts})
 
 
 @require_auth
@@ -588,17 +601,17 @@ async def h_artist(request, u):
     qual = quality_for(uid)
     if prefix == "jam":
         artist, tracks = await asyncio.gather(
-            to_thread(P.jamendo_artist_by_id, raw),
+            to_thread(MC.cached, "jam:artist", raw, lambda: P.jamendo_artist_by_id(raw)),
             to_thread(P.jamendo_artist_tracks, raw, 50, qual),
         )
     elif prefix == "aud":
         artist, tracks = await asyncio.gather(
-            to_thread(P.audius_user_by_id, raw),
+            to_thread(MC.cached, "aud:artist", raw, lambda: P.audius_user_by_id(raw)),
             to_thread(P.audius_user_tracks, raw, 50),
         )
     elif prefix == "scu":
         artist, tracks = await asyncio.gather(
-            to_thread(P.soundcloud_user_by_id, raw),
+            to_thread(MC.cached, "scu:artist", raw, lambda: P.soundcloud_user_by_id(raw)),
             to_thread(P.soundcloud_user_tracks, raw, 50),
         )
         if not artist and not tracks:
@@ -664,6 +677,86 @@ async def h_artist(request, u):
     }})
 
 
+_h_artist_base = h_artist
+_h_album_base = h_album
+
+
+async def _enrich_json_response(resp, enrich):
+    """Додати поля каталогу до успішної JSON-відповіді; помилки лишаються як є."""
+    if getattr(resp, "status", 0) != 200:
+        return resp
+    try:
+        payload = json.loads(resp.body)
+        return ok(await to_thread(enrich, payload))
+    except Exception:
+        logger.warning("catalog enrichment skipped", exc_info=True)
+        return resp
+
+
+async def h_artist(request):
+    resp = await _h_artist_base(request)
+    prefix, raw = P.split_id(request.match_info["aid"])
+    return await _enrich_json_response(resp, lambda p: enrich_artist(prefix, raw, p))
+
+
+async def h_album(request):
+    resp = await _h_album_base(request)
+    prefix, raw = P.split_id(request.match_info["aid"])
+    return await _enrich_json_response(resp, lambda p: enrich_album(p, prefix, raw))
+
+
+@require_auth
+async def h_recommendations(request, u):
+    """Прозорі рекомендації за обраним, історією та підписками; без даних — чесно порожньо."""
+    uid = int(u["uid"])
+    library, history, following, hidden = await asyncio.gather(
+        to_thread(db.lib_list, uid, 200), to_thread(db.history_list, uid, 100),
+        to_thread(db.artist_following, uid), to_thread(UD.hidden_keys, uid))
+    profile = REC.taste_profile(library, history, following)
+    seeds = REC.pick_seeds(profile, 3)
+    qual = quality_for(uid)
+    lists = await asyncio.gather(*[_safe(to_thread(P.build_radio, s["seed"], 15, qual)) for s in seeds])
+    result = REC.build(profile, {s["key"]: (tracks or []) for s, tracks in zip(seeds, lists)},
+                       list(library) + list(history), hidden)
+    return ok({"ok": True, **result, "basis": [a["artist"] for a in profile["top"][:5]]})
+
+
+@require_auth
+async def h_personal_collections(request, u):
+    """Персональні добірки з власних даних користувача; без достатніх даних — чесно порожньо."""
+    uid = int(u["uid"])
+    library, history, hidden = await asyncio.gather(
+        to_thread(db.lib_list, uid, 500), to_thread(db.history_list, uid, 200),
+        to_thread(UD.hidden_keys, uid))
+    return ok({"ok": True, **PC.build(library, history, hidden)})
+
+
+@require_auth
+async def h_recommendation_hide(request, u):
+    body = await json_object(request)
+    if body is None or not str(body.get("rec_key") or "").strip():
+        return fail("Потрібен rec_key")
+    await to_thread(UD.hide_recommendation, int(u["uid"]), str(body["rec_key"]))
+    return ok({"ok": True})
+
+
+@require_auth
+async def h_me_export(request, u):
+    data = await to_thread(UD.export_user, int(u["uid"]))
+    return web.Response(
+        text=json.dumps(data, ensure_ascii=False, indent=2), content_type="application/json",
+        headers={**CORS, "Content-Disposition": 'attachment; filename="musiclsp-export.json"'})
+
+
+@require_auth
+async def h_me_delete(request, u):
+    body = await json_object(request)
+    if body is None or body.get("confirm") != "DELETE":
+        return fail('Для видалення даних надішліть {"confirm": "DELETE"}')
+    deleted = await to_thread(UD.delete_user_data, int(u["uid"]))
+    return ok({"ok": True, "deleted": deleted})
+
+
 @require_auth
 async def h_radio(request, u):
     uid = int(u["uid"])
@@ -718,6 +811,7 @@ async def h_stream(request):
 @require_auth
 async def h_library_get(request, u):
     items = await to_thread(db.lib_list, int(u["uid"]))
+    items = await to_thread(FAV.collapse, "track", items)
     return ok({"ok": True, "tracks": items})
 
 
@@ -738,6 +832,7 @@ async def h_library_post(request, u):
         await to_thread(db.lib_remove, uid, track["id"])
         return ok({"ok": True, "in_library": False})
     await to_thread(db.lib_add, uid, track)
+    await to_thread(FAV.link_on_save, "track", str(track["id"]), track)
     return ok({"ok": True, "in_library": True})
 
 
@@ -758,41 +853,45 @@ async def h_queue_post(request, u):
 @require_auth
 async def h_release_radar_get(request, u):
     uid = int(u["uid"])
+    period = request.query.get("period", RF.DEFAULT_PERIOD)
+    if period not in RF.PERIODS:
+        return fail("Невідомий період")
     follows = await to_thread(db.artist_following, uid)
     semaphore = asyncio.Semaphore(5)
 
-    async def releases_for_artist(followed):
+    async def albums_for(followed):
         artist = followed.get("artist") or {}
         name = str(followed.get("artist_name") or artist.get("name") or "").strip()
         if not name:
-            return []
+            return None
         async with semaphore:
             try:
-                albums = await to_thread(P.search_albums_smart, name, 8, "newest")
+                return name.casefold(), await to_thread(P.search_albums_smart, name, 8, "newest")
             except Exception as exc:
                 logger.warning("Release Radar lookup failed for %s: %s", name[:80], type(exc).__name__)
-                return []
-        matched = []
-        for album in albums or []:
-            if not isinstance(album, dict) or not is_recent_release(album, days=90):
-                continue
-            album_artist = str(album.get("artist") or album.get("artist_name") or "").strip().casefold()
-            if album_artist and name.casefold() not in album_artist and album_artist not in name.casefold():
-                continue
-            item = dict(album)
-            item["followed_artist"] = name
-            matched.append(item)
-        return matched
+                return None
 
-    batches = await asyncio.gather(*(releases_for_artist(item) for item in follows[:30]))
-    seen, unique = set(), []
-    for batch in batches:
-        for album in batch:
-            key = str(album.get("id") or (album.get("title"), album.get("artist")))
-            if key not in seen:
-                seen.add(key)
-                unique.append(album)
-    return ok({"ok": True, "artists": follows, "releases": unique[:60]})
+    found = await asyncio.gather(*(albums_for(item) for item in follows[:30]))
+    albums_by_artist = {k: v or [] for k, v in (x for x in found if x)}
+    try:
+        seen = await to_thread(RF.seen_keys, uid)
+    except Exception:  # noqa: BLE001
+        logger.warning("radar seen unavailable", exc_info=True)
+        seen = set()
+    releases = RF.build_feed(follows[:30], albums_by_artist, period=period, seen=seen)
+    return ok({"ok": True, "artists": follows, "releases": releases, "period": period,
+               "unseen": sum(1 for r in releases if not r["seen"])})
+
+
+@require_auth
+async def h_release_radar_seen(request, u):
+    body = await json_object(request)
+    keys = body.get("keys") if body else None
+    if not isinstance(keys, list):
+        return fail("Очікується список keys")
+    count = await to_thread(RF.mark_seen, int(u["uid"]), keys)
+    return ok({"ok": True, "marked": count})
+
 
 @require_auth
 async def h_artist_follow_post(request, u):
@@ -815,6 +914,8 @@ async def h_collection_get(request, u):
     if kind not in ("", "album", "artist"):
         return fail("Невідомий тип колекції")
     items = await to_thread(db.collection_list, int(u["uid"]), kind)
+    if kind in ("album", "artist"):
+        items = await to_thread(FAV.collapse, kind, items, lambda i: i.get("item_id"))
     return ok({"ok": True, "items": items})
 
 
@@ -832,6 +933,8 @@ async def h_collection_post(request, u):
     if not isinstance(data, dict) or not item_id:
         return fail("Немає елемента колекції")
     done = await to_thread(db.collection_add, uid, kind, item_id, data)
+    if done:
+        await to_thread(FAV.link_on_save, str(kind).lower(), str(item_id), data)
     return ok({"ok": bool(done), "saved": bool(done)}) if done else fail("Невірний тип елемента")
 
 
@@ -854,12 +957,17 @@ async def h_import_playlist(request, u):
     quality = quality_for(uid)
     semaphore = asyncio.Semaphore(5)
 
+    report = {}
+    accept = IM.parse_accept(body.get("accept"))
+
     async def resolve_row(index, row):
         if not isinstance(row, dict):
+            report[index] = {"index": index, "title": "", "artist": "", "status": IM.INVALID, "match": None, "alternatives": []}
             return index, None
         title = str(row.get("trackName") or row.get("title") or row.get("Track Name") or "").strip()[:160]
         artist = str(row.get("artistName") or row.get("artist") or row.get("Artist Name") or row.get("Artist Name(s)") or "").strip()[:160]
         if not title:
+            report[index] = {"index": index, "title": "", "artist": artist, "status": IM.INVALID, "match": None, "alternatives": []}
             return index, None
         query = (title + " " + artist).strip()
         async with semaphore:
@@ -868,9 +976,17 @@ async def h_import_playlist(request, u):
             except Exception as exc:
                 logger.warning("Playlist import search failed for row %s: %s", index, type(exc).__name__)
                 return index, None
-        return index, (matches[0] if matches else None)
+        report[index] = IM.report_row(index, title, artist, matches)
+        sure = IM.best_match(title, artist, matches)
+        if sure is None and not body.get("preview") and index in accept:
+            # Користувач вручну підтвердив невпевнений збіг; id перевіряємо серед знайдених кандидатів.
+            sure = IM.pick_confirmed(title, artist, matches, accept[index])
+        return index, sure
 
     resolved = await asyncio.gather(*(resolve_row(i, row) for i, row in enumerate(rows)))
+    full_report = [report[i] for i in sorted(report)]
+    if body.get("preview"):  # попередній перегляд: нічого не створюємо
+        return ok({"ok": True, "preview": True, "report": full_report, "summary": IM.summarize(full_report)})
     missed = [index for index, candidate in resolved if not candidate]
     candidates = []
     seen_ids = set()
@@ -881,8 +997,7 @@ async def h_import_playlist(request, u):
         if not track_id or track_id in seen_ids:
             missed.append(index)
             continue
-        seen_ids.add(track_id)
-        candidates.append((index, candidate))
+        seen_ids.add(track_id)        candidates.append((index, candidate))
 
     if not candidates:
         return fail("Не вдалося знайти відповідні треки; плейлист не створено")
@@ -901,7 +1016,8 @@ async def h_import_playlist(request, u):
             missed.append(index)
     result = await to_thread(db.pl_get, int(playlist["id"]))
     return ok({"ok": True, "playlist": result, "imported": len(imported),
-               "unmatched_rows": sorted(set(missed)), "total": len(rows)})
+               "unmatched_rows": sorted(set(missed)), "total": len(rows),
+               "report": full_report, "summary": IM.summarize(full_report)})
 
 
 @require_auth
@@ -919,6 +1035,14 @@ async def h_playlist_get(request, u):
     return ok({"ok": True, "playlist": p})
 
 
+def _pid(body):
+    try:
+        pid = int(body.get("pid"))
+    except (TypeError, ValueError):
+        return None
+    return pid if pid > 0 else None
+
+
 @require_auth
 async def h_playlists_post(request, u):
     uid = int(u["uid"])
@@ -928,25 +1052,56 @@ async def h_playlists_post(request, u):
     action = body.get("action", "")
 
     if action == "create":
-        p, err = await to_thread(db.pl_create, uid, body.get("name", "Новий плейлист"),
-                                 body.get("description", ""))
-        return ok({"ok": True, "playlist": p}) if p else fail(err)
+        name = PLX.clean_name(body.get("name", "Новий плейлист"))
+        if name is None:
+            return fail("Некоректна назва плейлиста")
+        desc = PLX.clean_description(body.get("description", "")) or ""
+        p, err = await to_thread(db.pl_create, uid, name, desc)
+        if not p:
+            return fail(err)
+        await to_thread(PLX.update, uid, p["id"], is_public=False)  # нові — приватні
+        p["is_public"] = 0
+        return ok({"ok": True, "playlist": p})
+
+    if action == "copy_shared":
+        p, err = await to_thread(PLX.copy_shared, uid, body.get("code"))
+        return ok({"ok": True, "playlist": p}) if p else fail(err, 404)
+
+    pid = _pid(body)
+    if action in ("delete", "add_track", "remove_track", "copy", "update", "reorder") and pid is None:
+        return fail("Некоректний pid")
 
     if action == "delete":
-        await to_thread(db.pl_delete, uid, int(body["pid"]))
+        await to_thread(db.pl_delete, uid, pid)
         return ok({"ok": True})
 
     if action == "add_track":
-        done, err = await to_thread(db.pl_add_track, uid, int(body["pid"]), body["track"])
+        track = body.get("track")
+        if not isinstance(track, dict) or not track.get("id"):
+            return fail("Немає треку")
+        done, err = await to_thread(db.pl_add_track, uid, pid, track)
         return ok({"ok": True}) if done else fail(err)
 
     if action == "remove_track":
-        removed = await to_thread(db.pl_remove_track, uid, int(body["pid"]), body["id"])
+        removed = await to_thread(db.pl_remove_track, uid, pid, str(body.get("id") or ""))
         return ok({"ok": True}) if removed else fail("Плейлист не знайдено", 404)
 
     if action == "copy":
-        p, err = await to_thread(db.pl_copy, uid, int(body["pid"]), body.get("name"))
+        p, err = await to_thread(db.pl_copy, uid, pid, body.get("name"))
         return ok({"ok": True, "playlist": p}) if p else fail(err)
+
+    if action == "update":
+        fields = {k: body[k] for k in ("name", "description", "cover", "is_public") if k in body}
+        done, err = await to_thread(lambda: PLX.update(uid, pid, **fields))
+        if not done:
+            return fail(err, 404 if err == "Плейлист не знайдено" else 400)
+        return ok({"ok": True, "playlist": await to_thread(db.pl_get, pid)})
+
+    if action == "reorder":
+        done, err = await to_thread(PLX.reorder, uid, pid, body.get("order"))
+        if not done:
+            return fail(err, 404 if err == "Плейлист не знайдено" else 400)
+        return ok({"ok": True, "playlist": await to_thread(db.pl_get, pid)})
 
     return fail("Невідома дія")
 
@@ -954,9 +1109,10 @@ async def h_playlists_post(request, u):
 @require_auth
 async def h_shared(request, u):
     p = await to_thread(db.pl_get_by_code, request.match_info["code"])
-    if not p:
+    view = PLX.public_view(p) if p else None
+    if view is None:  # приватний і неіснуючий плейлисти не відрізняються
         return fail("Плейлист не знайдено", 404)
-    return ok({"ok": True, "playlist": p})
+    return ok({"ok": True, "playlist": view})
 
 
 @require_auth
@@ -1545,6 +1701,11 @@ def build_app():
     r.add_get("/api/album/{aid}", h_album)
     r.add_get("/api/artist/{aid}", h_artist)
     r.add_get("/api/radio", h_radio)
+    r.add_get("/api/recommendations", h_recommendations)
+    r.add_get("/api/personal-collections", h_personal_collections)
+    r.add_post("/api/recommendations/hide", h_recommendation_hide)
+    r.add_get("/api/me/export", h_me_export)
+    r.add_post("/api/me/delete", h_me_delete)
     r.add_get("/api/stream", h_stream)
     r.add_get("/api/library", h_library_get)
     r.add_post("/api/library", h_library_post)
@@ -1552,6 +1713,7 @@ def build_app():
     r.add_post("/api/queue", h_queue_post)
     r.add_get("/api/release-radar", h_release_radar_get)
     r.add_post("/api/release-radar/follow", h_artist_follow_post)
+    r.add_post("/api/release-radar/seen", h_release_radar_seen)
     r.add_get("/api/collection", h_collection_get)
     r.add_post("/api/collection", h_collection_post)
     r.add_post("/api/library/import", h_import_playlist)

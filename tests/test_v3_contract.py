@@ -78,3 +78,33 @@ class V3ContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class CatalogUiContractTests(unittest.TestCase):
+    def test_availability_and_related_sources_are_rendered(self):
+        self.assertIn("d.availability", V3_JS)
+        self.assertIn("d.catalog", V3_JS)
+        self.assertIn("Доступно для відтворення", V3_JS)
+        self.assertIn("Також у:", V3_JS)
+
+    def test_no_play_button_without_playable_audio(self):
+        self.assertIn("noPlay", V3_JS)
+        self.assertIn("if(!metadataAlbum&&!noPlay)", V3_JS)
+
+    def test_player_and_connect_untouched_by_catalog_ui(self):
+        for forbidden in ("connect/ws", "Hub(", "playerWidget"):
+            self.assertNotIn(forbidden, V3_JS)
+
+
+class RecommendationsAndPrivacyUiTests(unittest.TestCase):
+    def test_recommendation_and_privacy_endpoints_are_used(self):
+        for needle in ("/api/recommendations", "/api/recommendations/hide", "/api/me/export", "/api/me/delete"):
+            self.assertIn(needle, V3_JS)
+
+    def test_delete_requires_confirmation(self):
+        self.assertIn("window.confirm", V3_JS)
+        self.assertIn('confirm:"DELETE"', V3_JS)
+
+    def test_routes_registered_in_api(self):
+        api = (ROOT / "services" / "bot" / "api.py").read_text(encoding="utf-8")
+        for route in ('"/api/recommendations"', '"/api/recommendations/hide"', '"/api/me/export"', '"/api/me/delete"'):
+            self.assertIn(route, api)

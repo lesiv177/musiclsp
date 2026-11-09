@@ -65,7 +65,7 @@ def verify_init_data(init_data, token=None, max_age=86400):
             _cache.clear()
         return user
     except Exception as e:
-        logger.warning("initData відхилено: %s", e)
+        logger.warning("initData відхилено: %s", type(e).__name__)
         return None
 
 
@@ -93,7 +93,7 @@ def verify_login_widget(data, token=None, max_age=86400):
                 "username": payload.get("username", ""),
                 "first_name": payload.get("first_name", "")}
     except Exception as e:
-        logger.warning("Login Widget відхилено: %s", e)
+        logger.warning("Login Widget відхилено: %s", type(e).__name__)
         return None
 
 

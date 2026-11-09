@@ -236,13 +236,14 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
 
 
     async def test_charts_endpoint_returns_provider_chart_sections(self):
-        request = SimpleNamespace()
+        request = SimpleNamespace(query={})
         async def fake_to_thread(fn, *args, **kwargs):
             if fn is api.P.audius_trending:
                 return [{"id": "aud:1", "title": "Trending Track"}]
             if fn is api.P.jamendo_tag_tracks:
-                self.assertIn(args[0], ("pop", "rock", "electronic", "hiphop", "jazz"))
-                suffix = str(("pop", "rock", "electronic", "hiphop", "jazz").index(args[0]) + 1)
+                tags = ("pop", "rock", "electronic", "hiphop", "jazz", "classical", "ambient", "rnb")
+                self.assertIn(args[0], tags)
+                suffix = str(tags.index(args[0]) + 1)
                 return [{"id": "jam:" + suffix, "title": "Popular " + args[0].title() + " Track"}]
             raise AssertionError(f"Unexpected provider function: {fn}")
         with (
@@ -255,7 +256,9 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status, 200)
         self.assertEqual([x["id"] for x in payload["charts"]],
                          ["audius-trending", "electronic-trending", "popular-pop", "popular-rock",
-                          "popular-electronic", "popular-hiphop", "popular-jazz"])
+                          "popular-electronic", "popular-hiphop", "popular-jazz",
+                          "popular-classical", "popular-ambient", "popular-rnb"])
+        self.assertTrue(all(c["methodology"] and c["kind"] == "provider_trending" for c in payload["charts"]))
         self.assertEqual(payload["charts"][0]["tracks"][0]["id"], "aud:1")
         self.assertEqual(payload["charts"][2]["tracks"][0]["id"], "jam:1")
         self.assertEqual(payload["charts"][3]["tracks"][0]["id"], "jam:2")

@@ -53,7 +53,7 @@ def init_engine():
                 return
             except Exception as e:
                 _pg_last_error = str(e)
-                logger.warning("PostgreSQL недоступний з sslmode=%s (%s)", mode, e)
+                logger.warning("PostgreSQL недоступний з sslmode=%s (%s)", mode, type(e).__name__)
     elif DATABASE_URL and not PSYCOPG_OK:
         _pg_last_error = "psycopg2 не встановлено (перевір requirements.txt)"
     elif not DATABASE_URL:
@@ -355,6 +355,15 @@ def init_db():
                 cur.execute(stmt)
         except Exception:
             pass  # колонка/індекс уже існує — це нормально при повторному деплої
+    try:  # канонічний каталог — окремі нові таблиці, наявні не чіпаємо
+        from core import catalog_store
+        catalog_store.ensure_schema()
+        from core import user_data
+        user_data.ensure_schema()
+        from core import playlists_ext
+        playlists_ext.ensure_schema()
+    except Exception as e:
+        logger.warning("Схема каталогу: %s", e)
     logger.info("Схема бази готова")
 
 
@@ -988,8 +997,7 @@ def artist_following(uid):
         found = rows(cur)
     for item in found:
         try:
-            item["artist"] = json.loads(item.pop("artist_json") or "{}")
-        except (TypeError, ValueError):
+            item["artist"] = json.loads(item.pop("artist_json") or "{}")        except (TypeError, ValueError):
             item["artist"] = {"name": item.get("artist_name", "")}
     return found
 

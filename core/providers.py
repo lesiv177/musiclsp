@@ -27,6 +27,8 @@ from concurrent.futures import ThreadPoolExecutor, wait
 
 import requests
 
+from core.safe_url import public_http_url
+
 from core.config import (
     JAMENDO_CLIENT_ID, JAMENDO_API,
     AUDIUS_APP_NAME, AUDIUS_BOOTSTRAP,
@@ -60,13 +62,8 @@ def _safe_log_url(url):
 
 
 def _public_http_url(value):
-    """Accept only absolute HTTP(S) URLs from external provider metadata."""
-    value = str(value or "").strip()
-    try:
-        parsed = urllib.parse.urlparse(value)
-    except ValueError:
-        return ""
-    return value if parsed.scheme in {"http", "https"} and parsed.netloc else ""
+    """Лише публічні http(s)-URL без облікових даних і локальних адрес."""
+    return public_http_url(value)
 
 
 def _safe_count(value):
@@ -230,12 +227,12 @@ def jamendo_search_albums(query, limit=20, offset=0, sort="relevance"):
             "id": f"jam:{a.get('id')}",
             "title": a.get("name") or "",
             "artist": a.get("artist_name") or "",
-            "cover": a.get("image") or "",
+            "cover": _public_http_url(a.get("image")),
             "year": (a.get("releasedate") or "")[:4],
             "release_date": str(a.get("releasedate") or "")[:10],
             "source": "jamendo",
             "source_label": "Jamendo",
-            "source_url": a.get("shareurl") or "",
+            "source_url": _public_http_url(a.get("shareurl")),
         })
     return out
 
@@ -277,7 +274,7 @@ def jamendo_playlists(limit=15):
             "cover": p.get("image") or "",
             "source": "jamendo",
             "source_label": "Jamendo",
-            "source_url": p.get("shareurl") or "",
+            "source_url": _public_http_url(p.get("shareurl")),
         })
     return out
 
@@ -310,10 +307,10 @@ def jamendo_search_artists(query, limit=20):
     return [{
         "id": f"jam:{a.get('id')}",
         "name": a.get("name") or "",
-        "cover": a.get("image") or "",
+        "cover": _public_http_url(a.get("image")),
         "source": "jamendo",
         "source_label": "Jamendo",
-        "source_url": a.get("shareurl") or "",
+        "source_url": _public_http_url(a.get("shareurl")),
     } for a in data.get("results", [])]
 
 
@@ -330,11 +327,11 @@ def jamendo_artist_by_id(artist_id):
     return {
         "id": f"jam:{artist.get('id')}",
         "name": artist.get("name") or "",
-        "cover": artist.get("image") or "",
+        "cover": _public_http_url(artist.get("image")),
         "website": _public_http_url(artist.get("website")),
         "joined_at": artist.get("joindate") or "",
         "source": "jamendo",
-        "source_url": artist.get("shareurl") or "",
+        "source_url": _public_http_url(artist.get("shareurl")),
     }
 
 
@@ -715,7 +712,7 @@ def audius_user_by_id(user_id):
         "id": f"aud:{user.get('id') or user_id}",
         "name": user.get("name") or handle,
         "handle": handle,
-        "cover": picture.get("480x480") or picture.get("150x150") or "",
+        "cover": _public_http_url(picture.get("480x480") or picture.get("150x150")),
         "bio": str(user.get("bio") or "")[:600],
         "location": user.get("location") or "",
         "website": _public_http_url(user.get("website")),
@@ -1000,8 +997,7 @@ def _ccm_from_xml(xml_text, limit):
         title = (title_el.text or "").strip() if title_el is not None else ""
         creator = ""
         for cand in ("creator", "author"):
-            el = _find(cand)
-            if el is not None:
+            el = _find(cand)            if el is not None:
                 name_el = el.find("name")
                 creator = ((name_el.text if name_el is not None else el.text) or "").strip()
                 if creator:
@@ -1053,7 +1049,7 @@ def ccmixter_search(query, limit=15):
                 if t:
                     out.append(t)
     except Exception as e:
-        logger.warning("ccMixter JSON запит не вдався: %s", e)
+        logger.warning("ccMixter JSON запит не вдався: %s", type(e).__name__)
     if not out:
         try:
             r = _http_session().get(CCMIXTER_API, params={"search": query, "search_type": "any", "f": "rss"},
@@ -1061,7 +1057,7 @@ def ccmixter_search(query, limit=15):
             if r.status_code == 200 and r.text:
                 out = _ccm_from_xml(r.text, limit)
         except Exception as e:
-            logger.warning("ccMixter XML запит не вдався: %s", e)
+            logger.warning("ccMixter XML запит не вдався: %s", type(e).__name__)
     for t in out:
         _ccm_cache_put(t)
     return out[:limit]
@@ -1139,7 +1135,7 @@ def openverse_search(query, limit=15):
     try:
         data = _get(OPENVERSE_API, {"q": query, "page_size": min(limit, 20)})
     except Exception as e:
-        logger.warning("Openverse запит не вдався: %s", e)
+        logger.warning("Openverse запит не вдався: %s", type(e).__name__)
         return []
     if not data:
         return []
@@ -1242,7 +1238,7 @@ def wikimedia_search(query, limit=15):
             "prop": "imageinfo", "iiprop": "url|mime|extmetadata",
         })
     except Exception as e:
-        logger.warning("Wikimedia Commons запит не вдався: %s", e)
+        logger.warning("Wikimedia Commons запит не вдався: %s", type(e).__name__)
         return []
     if not data:
         return []
@@ -1298,7 +1294,7 @@ def _sc_token():
             _SC_TOKEN["exp"] = time.time() + int(d.get("expires_in") or 3000)
         return _SC_TOKEN["v"]
     except Exception as e:
-        logger.warning("SoundCloud token failed: %s", e)
+        logger.warning("SoundCloud token failed: %s", type(e).__name__)
         return ""
 
 
@@ -1353,7 +1349,7 @@ def soundcloud_search(query, limit=15):
         return [_sc_track(t) for t in data
                 if t.get("streamable", True) and t.get("access", "playable") == "playable"][:limit]
     except Exception as e:
-        logger.warning("SoundCloud search failed: %s", e)
+        logger.warning("SoundCloud search failed: %s", type(e).__name__)
         return []
 
 
@@ -1369,7 +1365,7 @@ def soundcloud_stream_url(raw):
             d = r.json()
             return d.get("http_mp3_128_url") or d.get("hls_mp3_128_url") or ""
     except Exception as e:
-        logger.warning("SoundCloud streams failed: %s", e)
+        logger.warning("SoundCloud streams failed: %s", type(e).__name__)
     return ""
 
 
@@ -1406,10 +1402,10 @@ def _sc_artist(user):
     return {
         "id": f"scu:{numeric_id}",
         "name": name,
-        "cover": avatar,
+        "cover": _public_http_url(avatar),
         "source": "soundcloud",
         "source_label": "SoundCloud",
-        "source_url": permalink or f"https://soundcloud.com/{user.get('permalink') or ''}",
+        "source_url": _public_http_url(permalink) or _public_http_url(f"https://soundcloud.com/{user.get('permalink') or ''}"),
         "bio": str(user.get("description") or "")[:600],
         "location": ", ".join(part for part in (
             str(user.get("city") or "").strip(),
@@ -1537,7 +1533,7 @@ def youtube_search(query, limit=8):
             })
         return out
     except Exception as e:
-        logger.warning("YouTube search failed: %s", e)
+        logger.warning("YouTube search failed: %s", type(e).__name__)
         return []
 
 
@@ -2000,8 +1996,7 @@ def discover_playlists(limit=10):
     постійне розширення бібліотеки)."""
     n_archive = min(len(_ARCHIVE_CURATED_COLLECTIONS), limit)
     n_main = max(0, limit - n_archive)
-    half = max(4, n_main // 2)
-    out = []
+    half = max(4, n_main // 2)    out = []
     try:
         out += jamendo_playlists(limit=half)
     except Exception:
