@@ -997,7 +997,8 @@ def artist_following(uid):
         found = rows(cur)
     for item in found:
         try:
-            item["artist"] = json.loads(item.pop("artist_json") or "{}")        except (TypeError, ValueError):
+            item["artist"] = json.loads(item.pop("artist_json") or "{}")
+        except (TypeError, ValueError):
             item["artist"] = {"name": item.get("artist_name", "")}
     return found
 
