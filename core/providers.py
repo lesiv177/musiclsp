@@ -997,7 +997,8 @@ def _ccm_from_xml(xml_text, limit):
         title = (title_el.text or "").strip() if title_el is not None else ""
         creator = ""
         for cand in ("creator", "author"):
-            el = _find(cand)            if el is not None:
+            el = _find(cand)
+            if el is not None:
                 name_el = el.find("name")
                 creator = ((name_el.text if name_el is not None else el.text) or "").strip()
                 if creator:
