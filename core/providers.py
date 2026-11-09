@@ -1997,7 +1997,8 @@ def discover_playlists(limit=10):
     постійне розширення бібліотеки)."""
     n_archive = min(len(_ARCHIVE_CURATED_COLLECTIONS), limit)
     n_main = max(0, limit - n_archive)
-    half = max(4, n_main // 2)    out = []
+    half = max(4, n_main // 2)
+    out = []
     try:
         out += jamendo_playlists(limit=half)
     except Exception:
