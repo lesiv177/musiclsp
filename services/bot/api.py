@@ -997,7 +997,8 @@ async def h_import_playlist(request, u):
         if not track_id or track_id in seen_ids:
             missed.append(index)
             continue
-        seen_ids.add(track_id)        candidates.append((index, candidate))
+        seen_ids.add(track_id)
+        candidates.append((index, candidate))
 
     if not candidates:
         return fail("Не вдалося знайти відповідні треки; плейлист не створено")

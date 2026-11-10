@@ -997,7 +997,8 @@ def _ccm_from_json(entry):
         artist = (entry.get("user_name") or entry.get("artist") or "").strip()
         audio_url = ""
         for f in (entry.get("files") or []):
-            audio_url = f.get("download_url") or f.get("file_url") or ""            if audio_url:
+            audio_url = f.get("download_url") or f.get("file_url") or ""
+            if audio_url:
                 break
         audio_url = audio_url or entry.get("file_url") or entry.get("download_url") or ""
         if not audio_url:
@@ -1996,6 +1997,7 @@ _ARCHIVE_CURATED_COLLECTIONS = [
     ("netlabels", "ukraine", "Українська музика (CC)"),
     ("netlabels", "russia", "Русскомовна музика (CC)"),
 ]
+
 
 def _synthetic_collections(limit):
     """Build Jamendo-tag collections only when its approved catalogue is enabled."""
