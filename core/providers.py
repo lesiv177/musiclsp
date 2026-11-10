@@ -73,11 +73,52 @@ def _safe_count(value):
         return 0
 
 
+_host_cooldown = {}          # netloc -> час (monotonic), до якого не надсилаємо запити після HTTP 429
+_cooldown_lock = threading.Lock()
+RATE_LIMIT_DEFAULT_COOLDOWN = 30
+RATE_LIMIT_MAX_COOLDOWN = 120
+
+
+def _retry_after_seconds(response):
+    """Retry-After у секундах, обмежений розумними межами (некоректне значення -> типове)."""
+    try:
+        value = float(response.headers.get("Retry-After", ""))
+    except (TypeError, ValueError, AttributeError):
+        value = RATE_LIMIT_DEFAULT_COOLDOWN
+    return max(5.0, min(value, float(RATE_LIMIT_MAX_COOLDOWN)))
+
+
+def _cooldown_left(host):
+    with _cooldown_lock:
+        until = _host_cooldown.get(host, 0)
+        left = until - time.monotonic()
+        if left <= 0:
+            _host_cooldown.pop(host, None)
+            return 0
+        return left
+
+
 def _get(url, params=None, timeout=HTTP_TIMEOUT):
+    host = urllib.parse.urlsplit(str(url or "")).netloc
+    if host and _cooldown_left(host):
+        # Після 429 не б'ємо по джерелу, поки триває пауза: так ми не збільшуємо навантаження.
+        logger.info("GET %s пропущено: пауза після 429", _safe_log_url(url))
+        return None
     try:
         r = _http_session().get(url, params=params, timeout=timeout)
+        if r.status_code == 429:
+            wait = _retry_after_seconds(r)
+            with _cooldown_lock:
+                _host_cooldown[host] = time.monotonic() + wait
+            logger.warning("GET %s -> 429, пауза %.0f с", _safe_log_url(url), wait)
+            return None
         if r.status_code != 200:
-            logger.warning("GET %s -> %s", _safe_log_url(url), r.status_code)
+            if r.status_code == 400:
+                # Значення параметрів не логуємо (можуть містити запит користувача чи ключі), лише назви.
+                names = ",".join(sorted(str(k) for k in (params or {}))[:12])
+                logger.warning("GET %s -> 400 (параметри: %s)", _safe_log_url(url), names)
+            else:
+                logger.warning("GET %s -> %s", _safe_log_url(url), r.status_code)
             return None
         return r.json()
     except Exception as e:
@@ -383,6 +424,7 @@ def jamendo_similar(track_id, limit=20, audioformat="mp32"):
 #  AUDIUS
 # ════════════════════════════════════════════════════════════════════════════
 
+AUDIUS_MAX_QUERY = 100
 _audius_host = None
 _audius_host_ts = 0
 _audius_hosts_pool = []
@@ -512,6 +554,10 @@ def _aud_album(item):
 
 
 def audius_search_albums(query, limit=20):
+    query = str(query or "").strip()[:AUDIUS_MAX_QUERY]
+    if not query:
+        return []   # порожній запит Audius відхиляє як HTTP 400
+    limit = max(1, min(int(limit or 1), 100))
     host = audius_host()
     if not host:
         return []
@@ -555,6 +601,10 @@ def audius_album_tracks(album_id, limit=60):
 
 
 def audius_search_tracks(query, limit=25):
+    query = str(query or "").strip()[:AUDIUS_MAX_QUERY]
+    if not query:
+        return []   # порожній запит Audius відхиляє як HTTP 400
+    limit = max(1, min(int(limit or 1), 100))
     host = audius_host()
     if not host:
         return []

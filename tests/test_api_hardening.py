@@ -30,7 +30,8 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
         async def fake_to_thread(fn, *args, **kwargs):
             if fn is api.P.soundcloud_user_tracks:
                 return []
-            if fn is api.P.soundcloud_user_by_id:
+            if fn is api.MC.cached:  # профіль артиста кешується (v7)
+                assert args[0] == "scu:artist"
                 return profile
             raise AssertionError(f"Unexpected provider function: {fn}")
 
@@ -52,7 +53,8 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
         async def fake_to_thread(fn, *args, **kwargs):
             if fn is api.P.soundcloud_user_tracks:
                 return tracks
-            if fn is api.P.soundcloud_user_by_id:
+            if fn is api.MC.cached:  # профіль артиста кешується (v7); профіль не знайдено
+                assert args[0] == "scu:artist"
                 return None
             raise AssertionError(f"Unexpected provider function: {fn}")
 
@@ -164,6 +166,9 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
         async def fake_to_thread(fn, *args, **kwargs):
             if fn is api.P.audius_user_by_id:
                 return artist
+            if fn is api.MC.cached:  # профіль артиста кешується (v7); провайдера імітуємо тут
+                assert args[0] == "aud:artist"
+                return artist
             if fn is api.P.audius_user_tracks:
                 return tracks
             raise AssertionError(f"Unexpected provider function: {fn}")
@@ -186,6 +191,9 @@ class APIHardeningTests(unittest.IsolatedAsyncioTestCase):
                   "source": "jamendo", "source_url": "https://jamendo.com/artist/77"}
         async def fake_to_thread(fn, *args, **kwargs):
             if fn is api.P.jamendo_artist_by_id:
+                return artist
+            if fn is api.MC.cached:  # профіль артиста кешується (v7)
+                assert args[0] == "jam:artist"
                 return artist
             if fn is api.P.jamendo_artist_tracks:
                 return []

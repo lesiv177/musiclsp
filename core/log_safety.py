@@ -3,6 +3,11 @@ import logging
 import re
 
 _PATTERNS = (
+    # Connect: WebSocket-URL несе підписаний initData і device_id у query (access-лог пише повний URL).
+    (re.compile(r"(?i)(/api/connect/ws\?)[^\s'\"<>]+"), r"\1[REDACTED]"),
+    (re.compile(r"(?i)\b((?:init_?data|device_id|query_id|session_id|pair(?:ing)?_?(?:code|token))=)[^&\s'\"<>]+"), r"\1[REDACTED]"),
+    (re.compile(r"(?i)\b(x-telegram-init-data\s*[:=]\s*)[^\s'\",;]+"), r"\1[REDACTED]"),
+    (re.compile(r"(?i)\b(hash(?:=|%3D))[0-9a-f]{16,}"), r"\1[REDACTED]"),
     (re.compile(r"(?i)\b((?:client_id|client_secret|api_key|apikey|key|token|access_token|"
                 r"refresh_token|secret|password|passwd|signature|sig|hash|auth)=)[^&\s'\"<>]+"), r"\1[REDACTED]"),
     (re.compile(r"(?i)\b(authorization\s*[:=]\s*(?:bearer|basic|oauth)?\s*)[^\s'\",;]+"), r"\1[REDACTED]"),

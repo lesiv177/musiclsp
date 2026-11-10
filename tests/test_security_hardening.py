@@ -160,3 +160,24 @@ class UserIsolationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ConnectLogRedactionTests(unittest.TestCase):
+    def test_connect_ws_access_log_line_is_redacted(self):
+        from core import log_safety
+        line = ('10.0.0.1 "GET /api/connect/ws?initData=query_id%3DAAH%26user%3D%257B%2522id%2522%253A1%257D'
+                '%26hash%3D' + "ab" * 32 + '&device_id=0b9d6f10-aaaa-bbbb-cccc-1234567890ab&name=Phone HTTP/1.1" 101')
+        out = log_safety.redact(line)
+        for secret in ("AAH", "abab", "0b9d6f10", "hash%3D" + "ab"):
+            self.assertNotIn(secret, out)
+        self.assertIn("/api/connect/ws?[REDACTED]", out)
+
+    def test_loose_initdata_device_and_header_are_redacted(self):
+        from core import log_safety
+        out = log_safety.redact("req initData=abc123&x=1 device_id=dev-777 X-Telegram-Init-Data: user=%7B%7D&hash=" + "cd" * 32)
+        for secret in ("abc123", "dev-777", "cdcd", "user=%7B"):
+            self.assertNotIn(secret, out)
+
+    def test_normal_messages_are_unchanged(self):
+        from core import log_safety
+        self.assertEqual(log_safety.redact("Connect: пристрій підключено"), "Connect: пристрій підключено")
