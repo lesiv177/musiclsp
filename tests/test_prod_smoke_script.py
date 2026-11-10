@@ -45,6 +45,15 @@ class ProdSmokeScript(unittest.TestCase):
         rep = SMOKE.run("https://x.test", "init", FakeSession(healthy))
         self.assertEqual(rep.failed, [])
 
+
+    def test_accepts_api_health_json_at_root(self):
+        def api_root(path, authed):
+            if path == "/":
+                return FakeResp(200, {"ok": True, "version": "x"})
+            return healthy(path, authed)
+        rep = SMOKE.run("https://x.test", "", FakeSession(api_root))
+        self.assertEqual(rep.failed, [])
+
     def test_only_get_requests_are_made(self):
         s = FakeSession(healthy)
         SMOKE.run("https://x.test", "init", s)
