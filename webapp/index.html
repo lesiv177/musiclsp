@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>MusicLSP — Your music space</title>
+<script src="./v4-boot.js?v=1"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,12 +15,17 @@
 <style id="v2-critical-nav">.nav.app-nav{grid-template-columns:repeat(4,minmax(0,1fr))}</style>
   <link rel="stylesheet" href="./v3.css?v=3">
   <link rel="stylesheet" href="./theme.css?v=21">
+  <link rel="stylesheet" href="./v4-themes.css?v=1">
   <script defer src="./v3.js?v=12"></script>
 <script defer src="./platform.js?v=3"></script>
+<script defer src="./v4.js?v=1"></script>
 <script>try{var d=document.documentElement;d.dataset.space=localStorage.getItem("mlsp_space")||"nebula";d.dataset.spAnim=localStorage.getItem("mlsp_spanim")==="0"?"0":"1";}catch(e){document.documentElement.dataset.space="nebula";}</script>
 <link rel="stylesheet" href="./platform.css?v=4">
+<link rel="stylesheet" href="./v4.css?v=1">
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#080320">
 <link rel="icon" type="image/svg+xml" href="./icon.svg">
-<link rel="apple-touch-icon" href="./icon-512.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
 </head>
 <body>
 <div id="spaceBg" aria-hidden="true"><i class="sp-obj"></i></div>
@@ -236,8 +242,8 @@ try { tg?.enableClosingConfirmation?.(); } catch(e){}      // питає під�
 try { tg?.disableVerticalSwipes?.(); } catch(e){}           // прибирає випадкове згортання свайпом вниз
 
 const params   = new URLSearchParams(location.search);
-const API      = (params.get("api") || "").replace(/\/$/, "");
-const INIT     = tg?.initData || "";
+const API      = (params.get("api") || window.__MLSP_API || "").replace(/\/$/, "");
+const INIT     = tg?.initData || window.__MLSP_WEB_INIT || "";
 const START    = params.get("start") || tg?.initDataUnsafe?.start_param || "";
 
 function applyTelegramAvatar(profile){
@@ -914,6 +920,7 @@ setTimeout(()=>{ const a=$("appRoot"); if(a && !a.classList.contains("ready")) r
 (async function boot(){
   startSplashShow();
   applyTelegramAvatar();
+  if(!INIT && window.MLSPWeb && MLSPWeb.needLogin()){ MLSPWeb.showLogin(); revealApp(); return; }
   if(!INIT && !API){
     $("homeBody").innerHTML =
       `<div class="empty"><b>Відкрийте через Telegram</b>Плеєр працює всередині бота —

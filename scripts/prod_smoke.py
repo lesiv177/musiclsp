@@ -49,8 +49,16 @@ def run(base, init_data="", session=None):
     rep = Report()
 
     resp, dt = timed_get(session, base + "/")
-    rep.add("GET / (WebApp)", resp.status_code == 200 and "<html" in resp.text.lower(), f"{resp.status_code}, {dt:.2f}s")
-    if resp.status_code == 200:
+    is_html = resp.status_code == 200 and "<html" in resp.text.lower()
+    try:
+        root_data = resp.json() if not is_html else {}
+    except ValueError:
+        root_data = {}
+    # Railway serves the API at this host; its root is a health JSON response,
+    # while a separately hosted Mini App may use an HTML root.
+    is_api_root = resp.status_code == 200 and root_data.get("ok") is True
+    rep.add("GET / (API root or WebApp)", is_html or is_api_root, f"{resp.status_code}, {dt:.2f}s")
+    if is_html:
         assets = sorted(set(re.findall(r'(?:src|href)="([^"#?]+\.(?:js|css))"', resp.text)))
         for a in [x for x in assets if not x.startswith(("http:", "https:", "//"))][:20]:
             r, _ = timed_get(session, f"{base}/{a.lstrip('/')}")

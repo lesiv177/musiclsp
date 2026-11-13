@@ -17,6 +17,7 @@ import hashlib
 import logging
 import urllib.parse
 
+from core import web_login
 from core.config import BOT_TOKEN, PANEL_SECRET, PANEL_SESSION_HOURS, ADMIN_IDS
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,10 @@ def verify_init_data(init_data, token=None, max_age=86400):
     token = token or BOT_TOKEN
     if not init_data or not token:
         return None
+
+    # Вкладка браузера (ПК): власна підписана сесія після входу через Telegram Login Widget.
+    if web_login.is_web_session(init_data):
+        return web_login.verify_session(init_data, token)
 
     hit = _cache.get(init_data)
     if hit and hit[0] > time.time():
