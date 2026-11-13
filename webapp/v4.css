@@ -1,0 +1,49 @@
+/* MusicLSP v4: вхід з браузера, тарифи, встановлення, правки під ПК. Тільки додає стилі. */
+.v4-login{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:16px;background:var(--sp-base,#0a0a14);overflow:auto}
+.v4-login-card{width:min(440px,100%);padding:28px 24px;border-radius:24px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(18px);color:#fff;text-align:center}
+.v4-login-logo{width:72px;height:72px;margin:0 auto 14px;border-radius:20px;background:url(./icon-192.png) center/cover}
+.v4-login h1{font-size:22px;margin:0 0 8px}
+.v4-login-sub,.v4-login-hint{font-size:14px;line-height:1.5;opacity:.75;margin:0 0 14px}
+.v4-login-hint code,.v4-login code{background:rgba(255,255,255,.12);padding:1px 5px;border-radius:6px}
+.v4-login-label{display:block;text-align:left;font-size:13px;opacity:.8;margin-bottom:6px}
+.v4-login-input{width:100%;box-sizing:border-box;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.3);color:#fff;font-size:15px;margin-bottom:10px}
+.v4-login-btn{width:100%;padding:12px;border:0;border-radius:12px;background:var(--sp-a1,#8b5cf6);color:#fff;font-weight:700;font-size:15px;cursor:pointer}
+.v4-widget{display:flex;justify-content:center;min-height:48px}
+/* тарифи */
+.v4-plan{color:#fff;padding:4px 2px 8px}
+.v4-plan-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+.v4-plan-top h2{margin:2px 0 0;font-size:22px}
+.v4-kicker{font-size:11px;letter-spacing:.14em;opacity:.6}
+.v4-tiers{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.v4-tier{position:relative;display:flex;flex-direction:column;gap:3px;padding:14px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)}
+.v4-tier.pro{background:linear-gradient(135deg,rgba(139,92,246,.35),rgba(255,79,216,.25));border-color:rgba(255,255,255,.28)}
+.v4-tier.cur{outline:2px solid var(--sp-a1,#8b5cf6)}
+.v4-tier-name{font-size:12px;opacity:.7}.v4-tier b{font-size:15px}.v4-tier small{font-size:12px;opacity:.7}
+.v4-badge{position:absolute;top:8px;right:8px;font-style:normal;font-size:10px;padding:2px 7px;border-radius:99px;background:rgba(255,255,255,.18)}
+.v4-table{border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.12);margin-bottom:14px}
+.v4-row{display:grid;grid-template-columns:1fr 64px 76px;align-items:center;padding:9px 12px;font-size:13px;border-top:1px solid rgba(255,255,255,.08)}
+.v4-row:first-child{border-top:0}.v4-row.head{font-weight:700;background:rgba(255,255,255,.06)}
+.v4-cell{text-align:center}.v4-cell.yes{color:#6ee7a0}.v4-cell.no{opacity:.4}.v4-cell.pro{color:#ffd27a}
+.v4-buy{width:100%;padding:14px;border:0;border-radius:14px;font-size:16px;font-weight:800;color:#fff;cursor:pointer;background:linear-gradient(135deg,#8b5cf6,#ff4fd8);box-shadow:0 8px 24px rgba(139,92,246,.4)}
+.v4-promo,.v4-logout{width:100%;margin-top:8px;padding:11px;border-radius:12px;border:1px solid rgba(255,255,255,.2);background:transparent;color:#fff;cursor:pointer;font-size:14px}
+.v4-note{opacity:.8;font-size:14px;line-height:1.5;margin:8px 0 12px}
+/* встановлення */
+.v4-install{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:900;display:flex;gap:6px;padding:6px;border-radius:99px;background:rgba(20,20,30,.92);border:1px solid rgba(255,255,255,.18);box-shadow:0 8px 30px rgba(0,0,0,.4)}
+.v4-install button{border:0;color:#fff;cursor:pointer;font-size:13px}
+.v4-install-go{padding:9px 16px;border-radius:99px;background:var(--sp-a1,#8b5cf6)}
+.v4-install-x{width:32px;border-radius:50%;background:rgba(255,255,255,.1)}
+/* ПК: ширші екрани */
+@media (min-width:1200px){.v4-plan{max-width:560px;margin:0 auto}}
+@media (hover:hover){.v4-buy:hover{filter:brightness(1.1)}.v4-promo:hover,.v4-logout:hover{background:rgba(255,255,255,.08)}}
+@media (prefers-reduced-motion:reduce){.v4-buy{transition:none}}
+
+/* профіль артиста */
+.v4-photo{width:140px;height:140px;border-radius:50%;object-fit:cover;display:block;margin:0 auto 10px}
+.v4-meta{padding:6px 2px 12px;color:#fff}
+.v4-bio{font-size:13.5px;line-height:1.55;opacity:.82;margin:0 0 4px}
+.v4-src{display:block;font-size:11px;opacity:.55;color:inherit;margin:4px 0 10px}
+.v4-h{margin:10px 0 8px;font-size:15px}
+.v4-disco{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+.v4-alb img,.v4-ph{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;background:rgba(255,255,255,.08);display:block}
+.v4-alb b{display:block;font-size:12px;margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.v4-alb small{font-size:11px;opacity:.6}

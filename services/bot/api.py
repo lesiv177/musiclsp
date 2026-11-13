@@ -26,6 +26,8 @@ from aiohttp import WSMsgType, web
 from core import meta_cache as MC
 from core import db
 from core import runtime as RT
+from core import web_login
+from core import meta_sources as MS
 from core import providers as P
 from core import smart as SM
 from core import charts as CH
@@ -43,14 +45,14 @@ from core.auth import verify_init_data
 from core.config import (
     ADMIN_IDS, PREMIUM_FEATURES, FREE_LIMITS, PREMIUM_LIMITS,
     APP_VERSION, BOT_USERNAME, REFERRAL_REWARD_DAYS,
-    ADMIN_CMD_PASSWORD,
+    ADMIN_CMD_PASSWORD, BOT_TOKEN,
 )
 
 logger = logging.getLogger(__name__)
 
 CORS = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type, X-Telegram-Init-Data",
+    "Access-Control-Allow-Headers": "Content-Type, X-Telegram-Init-Data, Authorization",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Cache-Control": "no-store",
 }
@@ -116,6 +118,78 @@ def quality_for(uid):
 
 
 # ─── Сервісні ────────────────────────────────────────────────────────────────
+
+_login_hits = {}
+LOGIN_WINDOW = 300
+LOGIN_MAX_ATTEMPTS = 10
+
+
+def _client_ip(request):
+    forwarded = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+    return forwarded or getattr(request, "remote", "") or "?"
+
+
+def _login_allowed(ip, now=None):
+    """Не більше LOGIN_MAX_ATTEMPTS спроб входу за LOGIN_WINDOW секунд з однієї адреси."""
+    now = time.time() if now is None else now
+    hits = [t for t in _login_hits.get(ip, []) if now - t < LOGIN_WINDOW]
+    if len(hits) >= LOGIN_MAX_ATTEMPTS:
+        _login_hits[ip] = hits
+        return False
+    hits.append(now)
+    _login_hits[ip] = hits
+    if len(_login_hits) > 5000:
+        for key in [k for k, v in _login_hits.items() if not v or now - v[-1] >= LOGIN_WINDOW]:
+            _login_hits.pop(key, None)
+    return True
+
+
+@require_auth
+async def h_meta_artist(request, u):
+    """Фото, біографія та дискографія артиста з безкоштовних джерел метаданих (без аудіо)."""
+    name = (request.query.get("name") or "").strip()[:120]
+    if not name:
+        return fail("Потрібна назва артиста", 400)
+    data = await to_thread(MC.cached, "meta:artist", name.casefold(), lambda: MS.find_artist(name), 21600)
+    return ok(data)
+
+
+@require_auth
+async def h_meta_cover(request, u):
+    artist = (request.query.get("artist") or "").strip()[:120]
+    album = (request.query.get("album") or "").strip()[:160]
+    if not artist or not album:
+        return fail("Потрібні artist і album", 400)
+    data = await to_thread(MC.cached, "meta:cover", f"{artist.casefold()}|{album.casefold()}",
+                           lambda: MS.find_cover(artist, album), 86400)
+    return ok(data)
+
+
+@require_auth
+async def h_meta_status(request, u):
+    return ok({"sources": MS.source_health()})
+
+
+async def h_web_config(request):
+    """Що потрібно сторінці для входу з браузера: username бота для Telegram Login Widget."""
+    username = RT.get_bot_username()
+    return ok({"ok": True, "bot_username": username, "web_login": bool(username and BOT_TOKEN)})
+
+
+async def h_web_login(request):
+    if not _login_allowed(_client_ip(request)):
+        return fail("Забагато спроб входу. Спробуйте за кілька хвилин.", 429)
+    body = await json_object(request)
+    if body is None:
+        return fail("Некоректний JSON або очікувався JSON-об’єкт")
+    user = web_login.verify_widget_login(body, BOT_TOKEN)
+    if not user:
+        return fail("Не вдалося підтвердити вхід через Telegram", 401)
+    token = web_login.issue_session(user, BOT_TOKEN)
+    return ok({"ok": True, "token": token, "user": {"id": user["id"], "first_name": user["first_name"],
+                                                       "username": user["username"]},
+               "expires_in": web_login.SESSION_TTL})
+
 
 async def h_options(request):
     return web.Response(status=204, headers=CORS)
@@ -1674,6 +1748,11 @@ def build_app():
     r.add_route("OPTIONS", "/{tail:.*}", h_options)
     r.add_get("/", h_health)
     r.add_get("/api/health", h_health)
+    r.add_get("/api/web-config", h_web_config)
+    r.add_get("/api/meta/artist", h_meta_artist)
+    r.add_get("/api/meta/cover", h_meta_cover)
+    r.add_get("/api/meta/status", h_meta_status)
+    r.add_post("/api/auth/web-login", h_web_login)
     r.add_get("/api/me", h_me)
     r.add_get("/api/resolve", h_resolve)
     r.add_post("/api/settings", h_settings)
