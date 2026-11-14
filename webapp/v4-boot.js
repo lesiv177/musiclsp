@@ -30,7 +30,6 @@
   }
   function inTelegram(){
     try{
-      if(W.Telegram && W.Telegram.WebApp) return true;
       if(/tgWebAppData=/.test(location.hash||"")) return true;
       if(sessionStorage.getItem("__telegram__initParams")) return true;
     }catch(e){}
