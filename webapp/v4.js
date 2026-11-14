@@ -86,6 +86,14 @@
   }
   /* openPlan — глобальна функція застосунку; усі кнопки «Premium/Тариф» викликають її за ім'ям */
   W.openPlan=openPlan;
+  /* Ensure the dynamically rendered V3 profile plan action opens this overlay. */
+  D.addEventListener("click",function(e){
+    var b=e.target&&e.target.closest?e.target.closest('[data-prof="plan"]'):null;
+    if(!b) return;
+    e.preventDefault(); e.stopPropagation();
+    if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+    openPlan();
+  },true);
 
   /* ── 3. Зручності для ПК ── */
   var fine=safe(function(){ return W.matchMedia("(hover:hover) and (pointer:fine)").matches; });
