@@ -144,12 +144,12 @@ const { spawn } = require("node:child_process");
     await page.locator('.v3-mobile-nav [data-page="profile"]').first().click();
     await page.waitForSelector("#v3-profile .v3-profile-hero");
     await page.locator('#v3-profile [data-prof="plan"]').first().click();
-    const planDebug=await page.evaluate(()=>({openPlan:typeof window.openPlan,v4:typeof window.MLSPv4,modal:document.querySelector("#modal")?.className,planCount:document.querySelectorAll("#modal .plan-choice").length,login:!!document.querySelector("#v4Login"),button:document.querySelector('#v3-profile [data-prof="plan"]')?.onclick?.toString()}));
-    console.log("PLAN_DEBUG",JSON.stringify(planDebug));
-    await page.waitForSelector("#modal.on .plan-choice");
+    await page.waitForSelector("#modal.on .v4-plan");
+    if(!(await page.locator("#modal .v4-row").count()))throw new Error("Premium comparison rows are missing");
     await page.locator("#modal").evaluate(el=>el.classList.remove("on"));
     await page.locator('.v3-mobile-nav [data-page="upgrade"]').evaluate(el=>el.click());
-    await page.waitForSelector("#modal.on .plan-choice",{timeout:5000});
+    await page.waitForSelector("#modal.on .v4-plan",{timeout:5000});
+    if(!(await page.locator("#modal .v4-row").count()))throw new Error("Upgrade navigation did not render Premium comparison rows");
     await page.locator("#modal").evaluate(el=>el.classList.remove("on"));
 
     // The original device-control element and Connect runtime remain mounted.
