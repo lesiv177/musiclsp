@@ -54,7 +54,7 @@
         +'<span class="v4-cell '+(r[1]?"yes":"no")+'" aria-label="Free: '+(r[1]?"так":"ні")+'">'+(r[1]?"✓":"—")+'</span>'
         +'<span class="v4-cell yes pro" aria-label="Premium: так">✓</span></div>';
     }).join("");
-    var web=W.MLSPWeb&&MLSPWeb.isWebSession&&MLSPWeb.isWebSession();
+    var web=W.MLSPWeb&&W.MLSPWeb.isWebSession&&W.MLSPWeb.isWebSession();
     return '<div class="v4-plan">'
       +'<div class="v4-plan-top"><div><div class="v4-kicker">MUSICLSP</div><h2>Обери свій план</h2></div>'
       +'<button class="connect-close" type="button" onclick="closeModal()" aria-label="Закрити">✕</button></div>'
