@@ -997,8 +997,7 @@ document.querySelectorAll(".nav button[data-go]").forEach(b =>
 
 function go(name){
   if(name==="Create"){openCreateMenu();return;}
-  document.querySelectorAll(".screen").forEach(s => s.classList.remove("on"));
-  $("sc"+name).classList.add("on");
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("on"));  $("sc"+name).classList.add("on");
   document.querySelectorAll(".nav button").forEach(b => {
     const becomesOn = b.dataset.go===name;
     if(becomesOn && !b.classList.contains("on")){
@@ -1997,8 +1996,7 @@ function cnOnMessage(m){
   if(m.type==="exec") return cnExec(m);
   if(m.type==="error") return cnError(m);
 }
-function cnApplySnapshot(m){
-  const wasRemote=CN.remote(), prevPlaying=!!(CN.state&&CN.state.playing);
+function cnApplySnapshot(m){  const wasRemote=CN.remote(), prevPlaying=!!(CN.state&&CN.state.playing);
   CN.devices=m.devices||[]; CN.owner=m.owner||""; CN.transfer=m.transfer||"";
   CN.state=m.state||null; CN.stateAt=Date.now();
   const mine=CN.owner===CN.id;
@@ -2997,8 +2995,7 @@ function renderProfile(){
         ${S.me.streak>1?`<div class="streak">${ICON("flame","sm")}${S.me.streak} днів поспіль</div>`:""}
       </div>
       <button class="profile-edit-shortcut" type="button" onclick="openPlan()" aria-label="Твій план">↗</button>
-    </div>
-    ${S.me.is_admin?`<button class="pm-open adm-open" type="button" onclick="openAdmin()"><b>Адмін-панель</b><small>Користувачі · скарги · промокоди · розсилка · система</small></button>`:""}
+    </div>    ${S.me.is_admin?`<button class="pm-open adm-open" type="button" onclick="openAdmin()"><b>Адмін-панель</b><small>Користувачі · скарги · промокоди · розсилка · система</small></button>`:""}
     <button class="pm-open" type="button" onclick="openPremiumSettings()"><b>✦ Premium-налаштування</b><small>Налаштуй MusicLSP під себе</small></button>
     <div class="profile-quick-actions" aria-label="Швидкі дії профілю">
       <button type="button" onclick="go('Lib')"><span class="pqa-icon">♫</span><span><b data-i18n="lib_liked">Збережене</b><small data-i18n="lib_playlists">Плейлисти</small></span><i>›</i></button>

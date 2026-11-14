@@ -47,3 +47,13 @@
 .v4-alb img,.v4-ph{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;background:rgba(255,255,255,.08);display:block}
 .v4-alb b{display:block;font-size:12px;margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .v4-alb small{font-size:11px;opacity:.6}
+
+/* радіо */
+.v4-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.v4-chip{border:1px solid rgba(255,255,255,.2);background:transparent;color:#fff;border-radius:99px;padding:6px 12px;font-size:12px;cursor:pointer}
+.v4-chip.on{background:var(--sp-a1,#8b5cf6);border-color:transparent}
+
+/* підказки пошуку */
+.v4-extras{margin:0 0 14px;color:inherit}
+.v4-dym{font-size:14px;margin-bottom:8px}
+.v4-albbtn{background:none;border:0;color:inherit;text-align:left;padding:0;cursor:pointer}

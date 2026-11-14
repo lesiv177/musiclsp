@@ -28,6 +28,9 @@ from core import db
 from core import runtime as RT
 from core import web_login
 from core import meta_sources as MS
+from core import radio_browser as RB
+from core import supersource as SUP
+from core import search_engine as SE
 from core import providers as P
 from core import smart as SM
 from core import charts as CH
@@ -163,6 +166,29 @@ async def h_meta_cover(request, u):
     data = await to_thread(MC.cached, "meta:cover", f"{artist.casefold()}|{album.casefold()}",
                            lambda: MS.find_cover(artist, album), 86400)
     return ok(data)
+
+
+@require_auth
+async def h_stations(request, u):
+    """Інтернет-радіо (лише посилання на офіційні ефіри станцій)."""
+    q = request.query
+    items = await to_thread(RB.search, (q.get("q") or "")[:80], (q.get("country") or "")[:2],
+                            (q.get("tag") or "")[:40], int(q.get("limit") or 30) if str(q.get("limit") or "30").isdigit() else 30)
+    return ok({"items": items})
+
+
+@require_auth
+async def h_super_search(request, u):
+    """Суперджерело: треки з усіх безпечних джерел + радіо, з позначкою безпеки й атрибуцією."""
+    q = request.query
+    lim = int(q["limit"]) if str(q.get("limit") or "").isdigit() else 30
+    data = await to_thread(SUP.search, (q.get("q") or "").strip(), lim, q.get("kind") or "all", quality_for(int(u["uid"])))
+    return ok(data)
+
+
+@require_auth
+async def h_super_sources(request, u):
+    return ok(SUP.sources_report())
 
 
 @require_auth
@@ -368,6 +394,26 @@ def _search_filters(request):
     return source, rtype, avail
 
 
+def _engine_tracks(query, limit, qual, sources, sort):
+    """Новий рушій пошуку (кеш 5 хв, перевірка живих посилань як у старому шляху)."""
+    key = ("se2", query.strip().lower(), limit, qual, tuple(sources or ()), sort)
+    hit = SM.cache_get(key)
+    if hit is None:
+        tracks, extras = SE.search(query, limit, qual, sources, sort)
+        SM.cache_put(key, (tracks, extras), 300)
+    else:
+        tracks, extras = hit
+    return SM.filter_available(tracks, quality=qual), extras
+
+
+async def _engine_all(query, limit, qual, sources, sort):
+    (tracks, extras), albums, artists = await asyncio.gather(
+        to_thread(_engine_tracks, query, limit, qual, sources, sort),
+        to_thread(P.search_albums_smart, query, limit, sort),
+        to_thread(P.search_artists_smart, query, limit))
+    return {"tracks": tracks, "albums": albums, "artists": artists}, extras
+
+
 @require_auth
 async def h_search(request, u):
     uid = int(u["uid"])
@@ -394,12 +440,16 @@ async def h_search(request, u):
 
     await to_thread(db.search_history_add, uid, query, kind)
     qual = quality_for(uid)
+    extras = {}
     if kind == "all":
-        data = await to_thread(P.search_everything, query, min(limit, 20), qual, sources, sort)
+        if SE.engine_enabled():
+            data, extras = await _engine_all(query, min(limit, 20), qual, sources, sort)
+        else:
+            data = await to_thread(P.search_everything, query, min(limit, 20), qual, sources, sort)
         data = SR.postprocess("all", data, query, sort, *_search_filters(request))
         data = await to_thread(annotate_search, "all", data)
         return ok({"ok": True, "type": kind, "query": query, "sort": sort,
-                   "results": data, "searches_left": max(0, cap - used)})
+                   "results": data, "searches_left": max(0, cap - used), **extras})
     elif kind == "albums":
         data = await to_thread(P.search_albums_smart, query, limit, sort)
         data = SR.postprocess("albums", data, query, sort, *_search_filters(request))
@@ -410,10 +460,12 @@ async def h_search(request, u):
         data = await to_thread(annotate_search, "artists", data)
     elif kind == "public_domain":
         data = await to_thread(P.archive_search, query, limit)
+    elif SE.engine_enabled():
+        data, extras = await to_thread(_engine_tracks, query, limit, qual, sources, sort)
     else:
         data = await to_thread(SM.search, query, limit, qual, sources, sort)
     return ok({"ok": True, "type": kind, "query": query, "sort": sort,
-               "results": data, "searches_left": max(0, cap - used)})
+               "results": data, "searches_left": max(0, cap - used), **extras})
 
 
 @require_auth
@@ -869,6 +921,14 @@ async def h_stream(request):
     tid = request.query.get("id") or ""
     if not tid:
         return fail("Немає id треку")
+    if tid.startswith("rb:"):
+        # інтернет-радіо: редірект на офіційний ефір станції (лише https)
+        if not u:
+            return fail("Потрібна авторизація", 401)
+        station = await to_thread(RB.station_url, tid)
+        if not station:
+            return fail("Станція недоступна", 404)
+        raise web.HTTPFound(location=station, headers=CORS)
     qual = quality_for(int(u["uid"])) if u else "mp31"
     # перевірка посилання на точний вибраний трек; підміни іншим треком немає
     force = request.query.get("r") == "1"
@@ -937,8 +997,7 @@ async def h_release_radar_get(request, u):
         artist = followed.get("artist") or {}
         name = str(followed.get("artist_name") or artist.get("name") or "").strip()
         if not name:
-            return None
-        async with semaphore:
+            return None        async with semaphore:
             try:
                 return name.casefold(), await to_thread(P.search_albums_smart, name, 8, "newest")
             except Exception as exc:
@@ -1752,6 +1811,9 @@ def build_app():
     r.add_get("/api/meta/artist", h_meta_artist)
     r.add_get("/api/meta/cover", h_meta_cover)
     r.add_get("/api/meta/status", h_meta_status)
+    r.add_get("/api/super/search", h_super_search)
+    r.add_get("/api/super/sources", h_super_sources)
+    r.add_get("/api/radio-stations", h_stations)
     r.add_post("/api/auth/web-login", h_web_login)
     r.add_get("/api/me", h_me)
     r.add_get("/api/resolve", h_resolve)

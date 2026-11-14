@@ -46,7 +46,7 @@
     ["Власна головна й швидкі кнопки плеєра",false,true],
     ["Приховування виконавців",false,true]
   ];
-  function isPremium(){ return !!(typeof S !== "undefined" && S.me && S.me.premium); }
+  function isPremium(){ return !!(W.S&&S.me&&S.me.premium); }
   function planHtml(){
     var p=isPremium(), until=p&&S.me.premium_until?String(S.me.premium_until).slice(0,10):"";
     var rows=ROWS.map(function(r){
@@ -59,8 +59,8 @@
       +'<div class="v4-plan-top"><div><div class="v4-kicker">MUSICLSP</div><h2>Обери свій план</h2></div>'
       +'<button class="connect-close" type="button" onclick="closeModal()" aria-label="Закрити">✕</button></div>'
       +'<div class="v4-tiers">'
-      +'<div class="v4-tier plan-choice'+(!p?" cur":"")+'"><span class="v4-tier-name">Free</span><b>Безкоштовно</b><small>Усе для щоденного слухання</small>'+(!p?'<i class="v4-badge">Твій план</i>':"")+'</div>'
-      +'<div class="v4-tier plan-choice premium-choice pro'+(p?" cur":"")+'"><span class="v4-tier-name">✦ Premium</span><b>Повний доступ</b><small>'+(p&&until?"Активний до "+esc(until):"Більше контролю й звуку")+'</small>'+(p?'<i class="v4-badge">Твій план</i>':"")+'</div>'
+      +'<div class="v4-tier'+(!p?" cur":"")+'"><span class="v4-tier-name">Free</span><b>Безкоштовно</b><small>Усе для щоденного слухання</small>'+(!p?'<i class="v4-badge">Твій план</i>':"")+'</div>'
+      +'<div class="v4-tier pro'+(p?" cur":"")+'"><span class="v4-tier-name">✦ Premium</span><b>Повний доступ</b><small>'+(p&&until?"Активний до "+esc(until):"Більше контролю й звуку")+'</small>'+(p?'<i class="v4-badge">Твій план</i>':"")+'</div>'
       +'</div>'
       +'<div class="v4-table" role="table" aria-label="Порівняння тарифів">'
       +'<div class="v4-row head" role="row"><span class="v4-row-t">Можливість</span><span class="v4-cell">Free</span><span class="v4-cell pro">Premium</span></div>'
@@ -174,5 +174,82 @@
   if(D.readyState==="loading") D.addEventListener("DOMContentLoaded",wrapArtistProfile); else wrapArtistProfile();
   W.addEventListener("load",wrapArtistProfile);
 
-  W.MLSPv4={openPlan:openPlan,buyPremium:buyPremium,themes:NEW_THEMES.map(function(t){return t[0];})};
+  /* ── 6. Інтернет-радіо (Radio Browser): лише посилання на офіційні ефіри станцій ── */
+  var radioSeq=0, radioTimer=null;
+  function openRadio(){
+    if(typeof showModal!=="function") return;
+    showModal('<div class="v4-plan"><div class="v4-plan-top"><div><div class="v4-kicker">LIVE</div><h2>Інтернет-радіо</h2></div>'
+      +'<button class="connect-close" type="button" onclick="closeModal()" aria-label="Закрити">✕</button></div>'
+      +'<input id="v4RadioQ" class="v4-login-input" placeholder="Назва станції" autocomplete="off">'
+      +'<div class="v4-chips" id="v4RadioTags">'+["jazz","rock","pop","electronic","classical","lofi","news"].map(function(t){return '<button type="button" class="v4-chip" data-tag="'+t+'">'+t+'</button>';}).join("")+'</div>'
+      +'<div id="v4RadioBody"></div>'
+      +'<p class="v4-src">Ефіри належать станціям, ми лише показуємо посилання. Джерело: radio-browser.info</p></div>');
+    var q=D.getElementById("v4RadioQ"), tag="";
+    function run(){
+      var seq=++radioSeq, body=D.getElementById("v4RadioBody"); if(!body) return;
+      body.innerHTML='<div class="skel"></div><div class="skel"></div>';
+      get("/api/radio-stations?limit=30&q="+encodeURIComponent(q.value.trim())+(tag?"&tag="+encodeURIComponent(tag):""))
+        .then(function(d){
+          if(seq!==radioSeq||!D.getElementById("v4RadioBody")) return;
+          mountRows(D.getElementById("v4RadioBody"),(d&&d.items)||[],"radio_stations");
+        }).catch(function(e){ if(seq===radioSeq&&D.getElementById("v4RadioBody")) D.getElementById("v4RadioBody").innerHTML='<div class="empty"><b>Не вдалося завантажити</b>'+esc(e&&e.message||"")+'</div>'; });
+    }
+    q.oninput=function(){ clearTimeout(radioTimer); radioTimer=setTimeout(run,350); };
+    D.getElementById("v4RadioTags").onclick=function(e){
+      var b=e.target.closest("[data-tag]"); if(!b) return;
+      tag=(tag===b.dataset.tag)?"":b.dataset.tag;
+      this.querySelectorAll(".v4-chip").forEach(function(x){ x.classList.toggle("on",x.dataset.tag===tag); });
+      run();
+    };
+    run();
+  }
+  function injectRadioPill(){
+    var kinds=D.getElementById("v3Kinds");
+    if(!kinds||kinds.querySelector(".v4-radio-pill")) return;
+    var b=D.createElement("button"); b.type="button"; b.className="v3-pill v4-radio-pill"; b.textContent="📻 Радіо";
+    b.onclick=openRadio; kinds.appendChild(b);
+  }
+  new MutationObserver(injectRadioPill).observe(D.documentElement,{childList:true,subtree:true});
+  injectRadioPill();
+
+  /* ── 7. Підказки нового рушія пошуку: «Можливо, ви шукали…» і метадані, коли треків немає ── */
+  safe(function(){
+    var of=W.fetch; if(typeof of!=="function"||of.__v4) return;
+    var wf=function(input){
+      var p=of.apply(this,arguments), url=typeof input==="string"?input:(input&&input.url)||"";
+      if(url.indexOf("/api/search?")>-1){
+        p.then(function(r){ return r.clone().json(); }).then(function(d){
+          if(d&&(d.did_you_mean||d.discovery)) setTimeout(function(){ showSearchExtras(d); },80);
+        }).catch(function(){});
+      }
+      return p;
+    };
+    wf.__v4=true; W.fetch=wf;
+  });
+  function runQuery(q){
+    var inp=D.getElementById("v3SearchInput")||D.getElementById("qInput");
+    if(!inp) return;
+    inp.value=q; inp.dispatchEvent(new Event("input",{bubbles:true}));
+    inp.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true}));
+  }
+  function showSearchExtras(d){
+    var host=D.getElementById("v3Results")||D.getElementById("qBody"); if(!host) return;
+    var old=host.querySelector(".v4-extras"); if(old) old.remove();
+    var html='<div class="v4-extras">';
+    if(d.did_you_mean) html+='<div class="v4-dym">Можливо, ви шукали: <button type="button" class="v4-chip" data-q="'+esc(d.did_you_mean)+'">'+esc(d.did_you_mean)+'</button></div>';
+    var disc=d.discovery;
+    if(disc&&disc.albums&&disc.albums.length){
+      html+='<h4 class="v4-h">'+esc((disc.artist&&disc.artist.name)||"Релізи")+' — інформація про релізи</h4><div class="v4-disco">'
+        +disc.albums.map(function(a){return '<button type="button" class="v4-alb v4-albbtn" data-q="'+esc(a.search_query)+'">'
+          +(a.cover?'<img loading="lazy" alt="" src="'+esc(a.cover)+'" onerror="this.style.visibility=\'hidden\'">':'<div class="v4-ph"></div>')
+          +'<b>'+esc(a.title)+'</b><small>'+esc(a.year||"")+' · знайти треки</small></button>';}).join("")+'</div>'
+        +'<p class="v4-src">'+esc(disc.note||"")+'</p>';
+    }
+    html+='</div>';
+    host.insertAdjacentHTML("afterbegin",html);
+    var box=host.querySelector(".v4-extras");
+    box.onclick=function(e){ var b=e.target.closest("[data-q]"); if(b) runQuery(b.dataset.q); };
+  }
+
+  W.MLSPv4={openRadio:openRadio,openPlan:openPlan,buyPremium:buyPremium,themes:NEW_THEMES.map(function(t){return t[0];})};
 })();
