@@ -72,8 +72,12 @@
       +'</div>';
   }
   function openPlan(){
-    if(typeof showModal!=="function") return;
-    showModal(planHtml());
+    var html=planHtml();
+    if(typeof W.showModal==="function") W.showModal(html);
+    else {
+      var modal=D.getElementById("modal"), box=D.getElementById("modalBox");
+      if(modal&&box){ box.innerHTML=html; modal.classList.add("on"); }
+    }
     safe(function(){ if(typeof tap==="function") tap(); });
   }
   function buyPremium(){
