@@ -997,7 +997,8 @@ async def h_release_radar_get(request, u):
         artist = followed.get("artist") or {}
         name = str(followed.get("artist_name") or artist.get("name") or "").strip()
         if not name:
-            return None        async with semaphore:
+            return None
+        async with semaphore:
             try:
                 return name.casefold(), await to_thread(P.search_albums_smart, name, 8, "newest")
             except Exception as exc:
