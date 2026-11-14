@@ -248,9 +248,11 @@ const { spawn } = require("node:child_process");
     await page.locator('#qModal [data-down="0"]').click();
     const order=await page.locator("#qModal .row .t").allTextContents();
     if(order.join("|")!=="Two|One|Three")throw new Error("Queue reorder failed: "+order.join("|"));
-    await page.locator('#qModal [data-rm="2"]').click();
+    // After moving the current track down, remove the now non-current first item.
+    // This also verifies that the current index is adjusted after removal.
+    await page.locator('#qModal [data-rm="0"]').click();
     const remaining=await page.locator("#qModal .row .t").allTextContents();
-    if(remaining.join("|")!=="Two|One")throw new Error("Queue removal failed: "+remaining.join("|"));
+    if(remaining.join("|")!=="One|Three")throw new Error("Queue removal failed: "+remaining.join("|"));
     if(pageErrors.length)throw new Error("Browser runtime errors: "+pageErrors.map(e=>e?.stack||e?.message||e?.console||JSON.stringify(e)).join(" | "));
     const required=["/api/me","/api/home","/api/library","/api/playlists","/api/search","/api/genres","/api/history","/api/stats"];
     const missing=required.filter(x=>!apiCalls.includes(x));
