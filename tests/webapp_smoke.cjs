@@ -144,10 +144,12 @@ const { spawn } = require("node:child_process");
     await page.locator('.v3-mobile-nav [data-page="profile"]').first().click();
     await page.waitForSelector("#v3-profile .v3-profile-hero");
     await page.locator('#v3-profile [data-prof="plan"]').first().click();
-    await page.waitForSelector("#modal.on .plan-choice");
+    await page.waitForSelector("#modal.on .v4-plan");
+    if(!(await page.locator("#modal .v4-row").count()))throw new Error("Premium comparison rows are missing");
     await page.locator("#modal").evaluate(el=>el.classList.remove("on"));
     await page.locator('.v3-mobile-nav [data-page="upgrade"]').evaluate(el=>el.click());
-    await page.waitForSelector("#modal.on .plan-choice",{timeout:5000});
+    await page.waitForSelector("#modal.on .v4-plan",{timeout:5000});
+    if(!(await page.locator("#modal .v4-row").count()))throw new Error("Upgrade navigation did not render Premium comparison rows");
     await page.locator("#modal").evaluate(el=>el.classList.remove("on"));
 
     // The original device-control element and Connect runtime remain mounted.
@@ -246,9 +248,11 @@ const { spawn } = require("node:child_process");
     await page.locator('#qModal [data-down="0"]').click();
     const order=await page.locator("#qModal .row .t").allTextContents();
     if(order.join("|")!=="Two|One|Three")throw new Error("Queue reorder failed: "+order.join("|"));
-    await page.locator('#qModal [data-rm="2"]').click();
+    // After moving the current track down, remove the now non-current first item.
+    // This also verifies that the current index is adjusted after removal.
+    await page.locator('#qModal [data-rm="0"]').click();
     const remaining=await page.locator("#qModal .row .t").allTextContents();
-    if(remaining.join("|")!=="Two|One")throw new Error("Queue removal failed: "+remaining.join("|"));
+    if(remaining.join("|")!=="One|Three")throw new Error("Queue removal failed: "+remaining.join("|"));
     if(pageErrors.length)throw new Error("Browser runtime errors: "+pageErrors.map(e=>e?.stack||e?.message||e?.console||JSON.stringify(e)).join(" | "));
     const required=["/api/me","/api/home","/api/library","/api/playlists","/api/search","/api/genres","/api/history","/api/stats"];
     const missing=required.filter(x=>!apiCalls.includes(x));
