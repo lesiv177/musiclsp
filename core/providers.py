@@ -997,7 +997,8 @@ def _ccm_from_json(entry):
         title = (entry.get("upload_name") or entry.get("title") or "").strip()
         artist = (entry.get("user_name") or entry.get("artist") or "").strip()
         audio_url = ""
-        for f in (entry.get("files") or []):            audio_url = f.get("download_url") or f.get("file_url") or ""
+        for f in (entry.get("files") or []):
+            audio_url = f.get("download_url") or f.get("file_url") or ""
             if audio_url:
                 break
         audio_url = audio_url or entry.get("file_url") or entry.get("download_url") or ""
@@ -1996,7 +1997,8 @@ def search_everything(query, limit=12, quality="mp32", sources=None, sort="relev
     for future in futures:
         if future not in done:
             values.append([])
-            continue        try:
+            continue
+        try:
             values.append(future.result() or [])
         except Exception as exc:
             logger.warning("Catalogue lookup failed: %s", type(exc).__name__)
