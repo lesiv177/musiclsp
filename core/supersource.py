@@ -120,4 +120,6 @@ def sources_report():
         rows.append({"key": key, "label": st["label"], "mode": cap.playback_mode, "available": st["available"], "note": note})
     rows.append({"key": "radio", "label": "Radio Browser", "mode": "station_link",
                  "available": radio_browser.enabled(), "note": "працює" if radio_browser.enabled() else "вимкнено"})
-    return {"sources": rows, "available_count": sum(1 for r in rows if r["available"])}
+    from core import youtube_guard
+    return {"sources": rows, "available_count": sum(1 for r in rows if r["available"]),
+            "youtube_quota": youtube_guard.status()}
