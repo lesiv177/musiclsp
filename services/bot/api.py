@@ -997,6 +997,7 @@ async def h_library_post(request, u):
     await to_thread(FAV.link_on_save, "track", str(track["id"]), track)
     return ok({"ok": True, "in_library": True})
 
+
 @require_auth
 async def h_queue_get(request, u):
     return ok({"ok": True, **(await to_thread(db.queue_get, int(u["uid"])))})
