@@ -166,6 +166,50 @@ function searchPage(){
 function collectionRows(list,kind){
  return '<div class="v3-track-list">'+list.map((x,i)=>'<button class="v3-track" data-collection="'+i+'" data-collection-kind="'+kind+'"><img src="'+E(x.cover||"")+'" alt="" loading="lazy"><span class="v3-track-meta"><b>'+E(x.name||x.title||"")+'</b><small>'+E(kind==="artists"?(tr("artist_label","Artist")):(tr("search_albums","Albums")))+(x.source_label?" · "+E(x.source_label):"")+'</small></span>↗</button>').join("")+'</div>';
 }
+window.mlspOpenCollection=function(k,i){return openCollection(k,i);};
+async function resolveAndPlay(items,startAt,ctx){
+ /* метадані → відтворювані треки. З контекстом альбому: один запит на весь альбом (плейлист YouTube Music + інші джерела) */
+ const want=items[startAt];if(!want)return;
+ toast("Збираю альбом із доступних джерел…");
+ try{
+  if(ctx&&ctx.album){
+   const r=await post("/api/resolve-album",{artist:ctx.artist||want.artist||"",album:ctx.album,titles:items.map(t=>t.title||"")});
+   const res=r.results||[];
+   const playable=res.map((x,i)=>x?{x,i}:null).filter(Boolean);
+   if(!playable.length)return toast("Цього альбому поки немає в доступних джерелах");
+   const first=playable.find(p=>p.i>=startAt)||playable[0];
+   const queue=playable.map(p=>p.x);
+   setQueue(queue,Math.max(0,playable.indexOf(first)));
+   if(playable.length<items.length)toast("Знайдено "+playable.length+" з "+items.length+" треків");
+   return;
+  }
+  throw new Error("no-album");
+ }catch(e){
+  if(!(e&&e.message==="no-album")&&ctx&&ctx.album)toast("Альбом одним махом не вийшов, шукаю по трекам…");
+ }
+ try{
+  const one=await post("/api/resolve-tracks",{items:[{artist:want.artist,title:want.title}]});
+  const hit=(one.results||[])[0];
+  if(!hit)return toast("Цього треку немає в доступних джерелах");
+  setQueue([hit],0);
+  const rest=items.filter((_,i)=>i!==startAt).slice(0,24);
+  if(rest.length){
+   const r=await post("/api/resolve-tracks",{items:rest.map(t=>({artist:t.artist,title:t.title}))});
+   const found=(r.results||[]).filter(Boolean).filter(x=>x.id!==hit.id);
+   if(found.length&&S.queue&&S.queue[0]&&S.queue[0].id===hit.id){S.queue.push(...found);toast("Додано до черги: "+found.length);}
+  }
+ }catch(e){toast(e.message);}
+}
+async function playArtistTracks(name){
+ toast("Шукаю треки артиста…");
+ try{
+  const d=await get("/api/search?q="+encodeURIComponent(name)+"&type=tracks&limit=30&sort=relevance");
+  const key=x=>String(x||"").toLowerCase().replace(/[^\p{L}\p{N}]+/gu," ").trim();
+  const list=(d.results||[]).filter(t=>key(t.artist).includes(key(name))||key(name).includes(key(t.artist)));
+  if(!list.length)return toast("Треків цього артиста немає в доступних джерелах");
+  setQueue(list,0);
+ }catch(e){toast(e.message);}
+}
 async function openCollection(kind,item){
  if(st.page!=="collection")st.prev=st.page;
  try{
@@ -187,15 +231,22 @@ async function openCollection(kind,item){
   const root=$("v3-collection");
   root.innerHTML='<button class="v3-pill v3-back" id="v3CollBack">‹ Назад</button>'+
    '<div class="v3-coll-hero"><img src="'+E(cover)+'" alt="" onerror="this.style.opacity=.15"><div><div class="v3-eyebrow">'+(isAlb?"АЛЬБОМ":"АРТИСТ")+'</div><h1 class="v3-page-title">'+E(title)+'</h1><p class="v3-coll-by">'+E(by)+'</p>'+(d.artist?'<p class="v3-coll-meta">'+E([d.artist?.type,d.artist?.country,d.artist?.location,d.artist?.begin_date,d.artist?.end_date?("— "+d.artist.end_date):""].filter(Boolean).join(" · "))+'</p>'+(d.artist?.disambiguation?'<p class="v3-coll-meta">'+E(d.artist.disambiguation)+'</p>':'')+(d.artist?.bio?'<p class="v3-coll-meta">'+E(d.artist.bio)+'</p>':'')+(d.artist?.follower_count?'<p class="v3-coll-meta">'+E(Number(d.artist.follower_count).toLocaleString())+' followers</p>':'')+(d.artist?.track_count?'<p class="v3-coll-meta">'+E(Number(d.artist.track_count).toLocaleString())+' tracks</p>':'')+(d.artist?.website?'<a class="v3-pill" href="'+E(d.artist.website)+'" target="_blank" rel="noopener noreferrer">Website ↗</a>':''):'')+'<p class="v3-coll-meta">'+E(meta)+'</p>'+notes.map(n=>'<p class="v3-coll-meta v3-coll-note">'+E(n)+'</p>').join("")+'</div></div>'+
-   '<div class="v3-coll-actions">'+(metadataAlbum?'<a class="v3-pill" href="'+E(al.source_url||item.source_url||"https://musicbrainz.org")+'" target="_blank" rel="noopener noreferrer">Відкрити MusicBrainz ↗</a>':noPlay?'':'<button class="v3-coll-play" id="v3CollPlay">▶ Слухати</button><button class="v3-pill" id="v3CollShuffle">Перемішати</button>')+'<button class="v3-pill" id="v3SaveCollection">＋ Зберегти</button>'+(isAlb?"":'<button class="v3-pill" id="v3FollowArtist">＋ Стежити</button>')+'</div>'+
-   (metadataArtist?section("Дискографія",releases.length?'<div class="platform-entity-grid">'+releases.map((release)=>'<a class="platform-entity album" href="'+E(release.source_url||("https://musicbrainz.org/release-group/"+E(release.mbid||"")))+'" target="_blank" rel="noopener noreferrer"><span class="platform-entity-art">'+(release.cover?'<img src="'+E(release.cover)+'" alt="" loading="lazy" onerror="this.parentNode.classList.add(\'no-art\')">':'')+'</span><b>'+E(release.title||"Без назви")+'</b><small>'+E([release.first_release_date||release.year,release.type].filter(Boolean).join(" · ")||"Реліз")+' · MusicBrainz</small></a>').join("")+'</div>':'<div class="v3-empty">Дані про релізи поки відсутні.</div>'):metadataAlbum?section("Треклист · метадані",list.length?'<div class="v3-track-list">'+list.map((t,i)=>'<div class="v3-track"><span class="v3-track-meta"><b>'+E(t.track_number||String(i+1))+'. '+E(t.title||"Без назви")+'</b><small>'+E(t.artist||by||"")+' · Інформація каталогу, без аудіо</small></span><span class="v3-track-duration">'+(t.duration?Math.floor(t.duration/60)+":"+String(t.duration%60).padStart(2,"0"):"")+'</span></div>').join("")+'</div>':'<div class="v3-empty">Треклист для цього релізу не опубліковано.</div>'):'<div class="v3-track-list v3-coll-list">'+list.map((t,i)=>row(t,i,"coll")).join("")+'</div>');
+   '<div class="v3-coll-actions">'+(metadataAlbum?'<button class="v3-coll-play" id="v3MbPlayAlbum">▶ Слухати</button><a class="v3-pill" href="'+E(al.source_url||item.source_url||"https://musicbrainz.org")+'" target="_blank" rel="noopener noreferrer">Відкрити MusicBrainz ↗</a>':noPlay?'':'<button class="v3-coll-play" id="v3CollPlay">▶ Слухати</button><button class="v3-pill" id="v3CollShuffle">Перемішати</button>')+'<button class="v3-pill" id="v3SaveCollection">＋ Зберегти</button>'+(isAlb?"":'<button class="v3-pill" id="v3FollowArtist">＋ Стежити</button>')+'</div>'+
+   (metadataArtist?section("Дискографія",releases.length?'<div class="platform-entity-grid">'+releases.map((release,ri)=>'<button type="button" class="platform-entity album" data-mb-release="'+ri+'"><span class="platform-entity-art">'+(release.cover?'<img src="'+E(release.cover)+'" alt="" loading="lazy" onerror="this.parentNode.classList.add(\'no-art\')">':'')+'</span><b>'+E(release.title||"Без назви")+'</b><small>'+E([release.first_release_date||release.year,release.type].filter(Boolean).join(" · ")||"Реліз")+' · відкрити треки</small></button>').join("")+'</div>':'<div class="v3-empty">Дані про релізи поки відсутні.</div>'):metadataAlbum?section("Треклист · метадані",list.length?'<div class="v3-track-list">'+list.map((t,i)=>'<button type="button" class="v3-track" data-mb-track="'+i+'"><span class="v3-track-meta"><b>'+E(t.track_number||String(i+1))+'. '+E(t.title||"Без назви")+'</b><small>'+E(t.artist||by||"")+' · ▶ знайти в джерелах і увімкнути</small></span><span class="v3-track-duration">'+(t.duration?Math.floor(t.duration/60)+":"+String(t.duration%60).padStart(2,"0"):"")+'</span></button>').join("")+'</div>':'<div class="v3-empty">Треклист для цього релізу не опубліковано.</div>'):'<div class="v3-track-list v3-coll-list">'+list.map((t,i)=>row(t,i,"coll")).join("")+'</div>');
   nav("collection");
   document.querySelectorAll("#mlsp-v3 [data-page]").forEach(x=>x.classList.toggle("active",x.dataset.page===st.prev));
   if(list.length&&!metadataAlbum)bindRows(root,list,"coll");
+  if(metadataArtist){
+   root.querySelectorAll("[data-mb-release]").forEach(b=>b.onclick=()=>{const r=releases[+b.dataset.mbRelease];if(r)openCollection("albums",{id:r.id,title:r.title,artist:by,cover:r.cover,source_url:r.source_url});});
+  }
+  if(metadataAlbum){
+   root.querySelectorAll("[data-mb-track]").forEach(b=>b.onclick=()=>resolveAndPlay(list,+b.dataset.mbTrack,{artist:by,album:title}));
+   const pa=$("v3MbPlayAlbum");if(pa)pa.onclick=()=>resolveAndPlay(list,0,{artist:by,album:title});
+  }
   $("v3CollBack").onclick=()=>nav(st.prev||"home");
   if(!metadataAlbum&&!noPlay){
-   $("v3CollPlay").onclick=()=>{if(list.length)setQueue(list,0);else toast("Цей каталог містить лише метадані, аудіо тут немає.");};
-   $("v3CollShuffle").onclick=()=>{if(list.length)setQueue(list.slice().sort(()=>Math.random()-.5),0);};
+   $("v3CollPlay").onclick=()=>{if(list.length)setQueue(list,0);else if(metadataArtist)playArtistTracks(title);else toast("Цей каталог містить лише метадані, аудіо тут немає.");};
+   $("v3CollShuffle").onclick=()=>{if(list.length)setQueue(list.slice().sort(()=>Math.random()-.5),0);else if(metadataArtist)playArtistTracks(title);};
   }
   $("v3SaveCollection").onclick=async()=>{const kind=isAlb?"album":"artist",id=String(item.id||"");if(!id)return toast("Немає ID елемента");const r=await post("/api/collection",{kind,id,item:{id,title,name:title,artist:by,cover}});if(r.ok){$("v3SaveCollection").textContent="✓ Збережено";toast("Додано до колекції");}};
   if(!isAlb)$("v3FollowArtist").onclick=async()=>{const r=await post("/api/release-radar/follow",{id:String(item.id||""),artist:{id:item.id,name:title,title,cover}});if(r.ok){$("v3FollowArtist").textContent="✓ Стежиш";toast("Артиста додано до Release Radar");}};
@@ -271,7 +322,6 @@ async function profile(){
  try{const [m,d]=await Promise.all([get("/api/me"),get("/api/stats?days=30").catch(()=>({stats:{}}))]);const u=m.user||{},s=d.stats||{};S.me=u;S.limits=m.limits||S.limits;S.features=m.features||S.features;
  root.innerHTML='<div class="v3-eyebrow">YOUR MUSIC ID</div><h1 class="v3-page-title">'+tr("nav_me","Твій простір.")+'</h1><p class="v3-subtitle">'+tr("sub_free","Акаунт, активність та можливості MusicLSP.")+'</p><div class="v3-profile-hero" style="margin:20px 0"><div class="v3-avatar">'+E((u.name||"M").slice(0,1).toUpperCase())+'</div><div><div class="v3-eyebrow">'+(u.premium?"PREMIUM MEMBER":"MUSICLSP LISTENER")+'</div><h2>'+E(u.name||tr("ui_listener","Слухач"))+'</h2><p>'+(u.premium?tr("ui_premium_active","Premium активний"):tr("ui_free_plan","Безкоштовний план"))+(u.premium_until?" · до "+E(String(u.premium_until).slice(0,10)):"")+'</p></div></div><div class="v3-profile-actions"><button class="v3-profile-action" data-prof="library"><b>♫ '+tr("nav_lib","Моя музика")+'</b><small>'+tr("lib_liked","Збережене")+', '+tr("lib_playlists","плейлисти")+', '+tr("lib_history","історія")+'</small></button><button class="v3-profile-action" data-prof="wrapped"><b>◷ '+tr("pr_wrapped","Мої підсумки")+'</b><small>'+tr("pr_stats","Статистика та музичні звички")+'</small></button><button class="v3-profile-action" data-prof="space"><b>🌌 Оформлення</b><small>6 космічних тем і фон</small></button><button class="v3-profile-action v3-pm-action" data-prof="pmset"><b>✦ Premium-налаштування</b><small>Налаштуй MusicLSP під себе</small></button>'+(u.is_admin?'<button class="v3-profile-action v3-admin-action" data-prof="admin"><b>Адмін-панель</b><small>Користувачі · скарги · промокоди · система</small></button>':'')+'</div>'+section(tr("pr_stats","Статистика")+" · 30 днів",'<div class="v3-stats"><div class="v3-stat"><b>'+(Number(s.plays)||0)+'</b><small>Прослухано</small></div><div class="v3-stat"><b>'+(Number(s.hours)||0)+'</b><small>Годин</small></div><div class="v3-stat"><b>'+(Number(s.library)||0)+'</b><small>У бібліотеці</small></div></div>')+section("Акаунт",'<div class="v3-track-list"><button class="v3-track" data-prof="plan"><span class="v3-track-meta"><b>'+(u.premium?"Мій тариф":"Тарифи Premium")+'</b><small>'+(u.premium?"Керування підпискою":"Що входить у Premium")+'</small></span></button><button class="v3-track" data-prof="devices"><span class="v3-track-meta"><b>Мої пристрої</b><small>Connect: передати відтворення</small></span></button></div>');
  root.querySelectorAll("[data-prof]").forEach(b=>b.onclick=()=>{if(b.dataset.prof==="library")nav("library");if(b.dataset.prof==="wrapped")openWrapped();if(b.dataset.prof==="space")openSpaceThemes();if(b.dataset.prof==="pmset")openPremiumSettings();if(b.dataset.prof==="plan")openPlan();if(b.dataset.prof==="devices"&&typeof openDevices==="function")openDevices();if(b.dataset.prof==="admin")openAdmin();});
- root.querySelectorAll('[data-prof="plan"]').forEach(b=>{b.onclick=()=>{if(window.MLSPv4&&typeof window.MLSPv4.openPlan==="function")window.MLSPv4.openPlan();else if(typeof window.openPlan==="function")window.openPlan();};});
  root.insertAdjacentHTML("beforeend",section("Приватність і дані",'<p class="v3-subtitle">Експортуй усі свої дані або видали їх. Видалення незворотне.</p><div class="v3-pills"><button class="v3-pill" id="v3ExportData">Експортувати мої дані</button><button class="v3-pill" id="v3DeleteData">Видалити мої дані</button></div>'));
  $("v3ExportData").onclick=async()=>{try{const d=await get("/api/me/export"),text=JSON.stringify(d,null,2);try{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type:"application/json"}));a.download="musiclsp-export.json";document.body.appendChild(a);a.click();a.remove();toast("Експорт готовий");}catch(_){await navigator.clipboard.writeText(text);toast("Дані скопійовано в буфер обміну");}}catch(e){toast(e.message);}};
  $("v3DeleteData").onclick=async()=>{if(!window.confirm("Видалити бібліотеку, плейлисти, історію та підписки? Це незворотно."))return;try{const r=await post("/api/me/delete",{confirm:"DELETE"});if(r.ok){toast("Дані видалено");profile();}}catch(e){toast(e.message);}};
