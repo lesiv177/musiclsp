@@ -31,6 +31,7 @@ from core import meta_sources as MS
 from core import radio_browser as RB
 from core import supersource as SUP
 from core import search_engine as SE
+from core import track_resolver as TRV
 from core import providers as P
 from core import smart as SM
 from core import charts as CH
@@ -189,6 +190,33 @@ async def h_super_search(request, u):
 @require_auth
 async def h_super_sources(request, u):
     return ok(SUP.sources_report())
+
+
+@require_auth
+async def h_resolve_tracks(request, u):
+    """Метадані → відтворювані треки: для кожної пари (артист, назва) шукаємо трек у всіх джерелах."""
+    body = await json_object(request)
+    items = (body or {}).get("items")
+    if not isinstance(items, list) or not items:
+        return fail("Очікується список items")
+    clean = [{"artist": str((i or {}).get("artist") or "")[:120], "title": str((i or {}).get("title") or "")[:160]}
+             for i in items[:TRV.MAX_BATCH] if isinstance(i, dict)]
+    qual = quality_for(int(u["uid"]))
+    results = await to_thread(TRV.resolve_many, clean, qual)
+    return ok({"ok": True, "results": results, "found": sum(1 for r in results if r)})
+
+
+@require_auth
+async def h_resolve_album(request, u):
+    """Альбом із MusicBrainz → відтворювані треки (плейлист-альбом YouTube Music + пошук по всіх джерелах)."""
+    body = await json_object(request)
+    titles = (body or {}).get("titles")
+    if not isinstance(titles, list) or not titles:
+        return fail("Очікується список titles")
+    qual = quality_for(int(u["uid"]))
+    data = await to_thread(TRV.resolve_album, str((body or {}).get("artist") or "")[:120],
+                           str((body or {}).get("album") or "")[:160], titles, qual)
+    return ok({"ok": True, **data})
 
 
 @require_auth
@@ -968,7 +996,6 @@ async def h_library_post(request, u):
     await to_thread(db.lib_add, uid, track)
     await to_thread(FAV.link_on_save, "track", str(track["id"]), track)
     return ok({"ok": True, "in_library": True})
-
 
 @require_auth
 async def h_queue_get(request, u):
@@ -1812,6 +1839,8 @@ def build_app():
     r.add_get("/api/meta/artist", h_meta_artist)
     r.add_get("/api/meta/cover", h_meta_cover)
     r.add_get("/api/meta/status", h_meta_status)
+    r.add_post("/api/resolve-tracks", h_resolve_tracks)
+    r.add_post("/api/resolve-album", h_resolve_album)
     r.add_get("/api/super/search", h_super_search)
     r.add_get("/api/super/sources", h_super_sources)
     r.add_get("/api/radio-stations", h_stations)

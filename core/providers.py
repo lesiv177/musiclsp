@@ -997,8 +997,7 @@ def _ccm_from_json(entry):
         title = (entry.get("upload_name") or entry.get("title") or "").strip()
         artist = (entry.get("user_name") or entry.get("artist") or "").strip()
         audio_url = ""
-        for f in (entry.get("files") or []):
-            audio_url = f.get("download_url") or f.get("file_url") or ""
+        for f in (entry.get("files") or []):            audio_url = f.get("download_url") or f.get("file_url") or ""
             if audio_url:
                 break
         audio_url = audio_url or entry.get("file_url") or entry.get("download_url") or ""
@@ -1603,6 +1602,85 @@ def youtube_search(query, limit=8):
 
 
 
+def _yt_track(vid, sn):
+    th = sn.get("thumbnails") or {}
+    cover = (th.get("high") or th.get("medium") or th.get("default") or {}).get("url", "")
+    return {
+        "id": f"yt:{vid}", "title": sn.get("title") or "Без назви",
+        "artist": (sn.get("channelTitle") or sn.get("videoOwnerChannelTitle") or "").replace(" - Topic", ""),
+        "artist_id": "", "album": "", "album_id": "", "cover": cover, "duration": 0, "duration_str": "",
+        "source": "youtube", "source_label": "YouTube Music",
+        "source_url": f"https://music.youtube.com/watch?v={vid}",
+        "license": "YouTube (офіційний плеєр)", "license_short": "YouTube",
+        "stream": "", "downloadable": False, "download_url": "", "embed_only": True,
+    }
+
+
+def youtube_album_playlists(query, limit=5):
+    """Пошук плейлистів-альбомів YouTube Music (автогенеровані «Альбом — Артист - Topic»). 100 одиниць квоти, кеш."""
+    if not youtube_enabled():
+        return []
+    from core import youtube_guard as YG
+    key = "playlist " + str(query)
+    cached = YG.cache_get(key)
+    if cached is not None:
+        return cached
+    if not YG.allow():
+        return []
+    try:
+        YG.spend()
+        r = _http_session().get("https://www.googleapis.com/youtube/v3/search", timeout=HTTP_TIMEOUT, params={
+            "part": "snippet", "type": "playlist", "maxResults": max(1, min(int(limit), 10)),
+            "q": query, "key": YOUTUBE_API_KEY})
+        if r.status_code == 403:
+            YG.block_today()
+            return []
+        if r.status_code != 200:
+            return []
+        out = [{"playlist_id": (it.get("id") or {}).get("playlistId"), "title": (it.get("snippet") or {}).get("title", ""),
+                "channel": (it.get("snippet") or {}).get("channelTitle", "")}
+               for it in r.json().get("items", []) if (it.get("id") or {}).get("playlistId")]
+        YG.cache_put(key, out)
+        return out
+    except Exception as e:
+        logger.warning("YouTube playlist search failed: %s", type(e).__name__)
+        return []
+
+
+def youtube_playlist_tracks(playlist_id, limit=50):
+    """Усі треки плейлиста одним запитом (1 одиниця квоти), кеш на добу."""
+    import re as _re
+    if not youtube_enabled() or not _re.fullmatch(r"[A-Za-z0-9_-]{10,64}", str(playlist_id or "")):
+        return []
+    from core import youtube_guard as YG
+    key = "playlistitems " + str(playlist_id)
+    cached = YG.cache_get(key)
+    if cached is not None:
+        return cached
+    if not YG.allow(1):
+        return []
+    try:
+        YG.spend(1)
+        r = _http_session().get("https://www.googleapis.com/youtube/v3/playlistItems", timeout=HTTP_TIMEOUT, params={
+            "part": "snippet", "playlistId": playlist_id, "maxResults": max(1, min(int(limit), 50)), "key": YOUTUBE_API_KEY})
+        if r.status_code == 403:
+            YG.block_today()
+            return []
+        if r.status_code != 200:
+            return []
+        out = []
+        for it in r.json().get("items", []):
+            sn = it.get("snippet") or {}
+            vid = (sn.get("resourceId") or {}).get("videoId")
+            if vid and sn.get("title") not in ("Private video", "Deleted video"):
+                out.append(_yt_track(vid, sn))
+        YG.cache_put(key, out)
+        return out
+    except Exception as e:
+        logger.warning("YouTube playlist items failed: %s", type(e).__name__)
+        return []
+
+
 def split_id(full_id):
     """'jam:123' -> ('jam', '123')"""
     if not full_id or ":" not in full_id:
@@ -1918,8 +1996,7 @@ def search_everything(query, limit=12, quality="mp32", sources=None, sort="relev
     for future in futures:
         if future not in done:
             values.append([])
-            continue
-        try:
+            continue        try:
             values.append(future.result() or [])
         except Exception as exc:
             logger.warning("Catalogue lookup failed: %s", type(exc).__name__)
