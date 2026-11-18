@@ -39,6 +39,7 @@ from core.music_sources import DEFAULT_TRACK_SEARCH_ORDER, source_status
 
 logger = logging.getLogger(__name__)
 import os as _os
+YOUTUBE_FALLBACK_BELOW = int(_os.environ.get("YOUTUBE_FALLBACK_BELOW", "5") or 5)
 YOUTUBE_API_KEY = _os.environ.get("YOUTUBE_API_KEY", "").strip()   # опційно; без ключа YouTube вимкнено
 
 _thread_http = threading.local()
@@ -1557,10 +1558,22 @@ def youtube_enabled():
 def youtube_search(query, limit=8):
     if not youtube_enabled():
         return []
+    from core import youtube_guard as YG
+    cached = YG.cache_get(query)
+    if cached is not None:
+        return cached[:max(1, int(limit))]
+    if not YG.allow():
+        logger.info("YouTube: денний бюджет квоти вичерпано, пропускаю")
+        return []
     try:
+        YG.spend()
         r = _http_session().get("https://www.googleapis.com/youtube/v3/search", timeout=HTTP_TIMEOUT, params={
             "part": "snippet", "type": "video", "videoCategoryId": "10", "videoEmbeddable": "true",
             "maxResults": max(1, min(int(limit), 15)), "q": query, "key": YOUTUBE_API_KEY})
+        if r.status_code == 403:
+            YG.block_today()          # квоту вичерпано або ключ обмежено: не б'ємо API до завтра
+            logger.warning("YouTube search -> 403 (квота/обмеження ключа)")
+            return []
         if r.status_code != 200:
             logger.warning("YouTube search -> %s", r.status_code)
             return []
@@ -1582,6 +1595,7 @@ def youtube_search(query, limit=8):
                 "license": "YouTube (офіційний плеєр)", "license_short": "YouTube",
                 "stream": "", "downloadable": False, "download_url": "", "embed_only": True,
             })
+        YG.cache_put(query, out)
         return out
     except Exception as e:
         logger.warning("YouTube search failed: %s", type(e).__name__)
@@ -1647,9 +1661,16 @@ def search_tracks(query, limit=30, quality="mp32", sources=None, sort="relevance
     }
     if int(limit) <= 0:
         return []
+    yt_always = _os.environ.get("YOUTUBE_MODE", "fallback").strip().lower() == "always"
     provider_keys = [key for key in DEFAULT_TRACK_SEARCH_ORDER
-                     if key in requested and key in searchers and enabled[key]()]
+                     if key in requested and key in searchers and enabled[key]()
+                     and (key != "youtube" or yt_always)]
     groups = _run_parallel_grouped([searchers[key] for key in provider_keys], timeout=6)
+    # YouTube — резервне джерело: кличемо лише коли решта дали мало (економимо квоту 10 000/добу)
+    if "youtube" in requested and not yt_always and youtube_enabled():
+        found = sum(len(g) for g in groups if isinstance(g, list))
+        if found < YOUTUBE_FALLBACK_BELOW:
+            groups.append(youtube_search(query, limit=8))
 
     # Keep configured source priority (SoundCloud first), but rotate through
     # providers so a full first-page response cannot hide every other source.
